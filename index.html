@@ -40,17 +40,16 @@ body.theme-light{background:#dfe6ef;}
     box-shadow:0 0 0 2px #0c1118,0 0 0 11px #05070b,0 0 80px rgba(53,208,255,.18);}
   body.theme-light .device{box-shadow:0 0 0 2px #e6ebf2,0 0 0 11px #cbd5e2,0 0 80px rgba(0,0,0,.18);}
 }
-/* 顶部状态栏：中央品牌标识取代刘海屏 */
-.statusbar{position:absolute;top:0;left:0;right:0;height:46px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 18px;font-size:13px;font-weight:600;z-index:40;font-variant-numeric:tabular-nums;color:var(--text);letter-spacing:.4px;}
-.statusbar #clock{justify-self:start;}
-.statusbar .sb-r{justify-self:end;display:flex;align-items:center;gap:5px;}
-.statusbar .dot{color:var(--cyan);}
-.brand{align-self:flex-start;display:flex;align-items:center;justify-content:center;gap:7px;padding:5px 17px 6px;
-  border:1px solid var(--line);border-top:none;border-radius:0 0 15px 15px;
-  background:linear-gradient(180deg,var(--brand-tint),transparent);
-  box-shadow:0 3px 16px rgba(53,208,255,.16);white-space:nowrap;}
-.brand .bd{width:6px;height:6px;border-radius:50%;background:var(--cyan);box-shadow:0 0 9px var(--cyan);animation:pulse 3.4s ease-in-out infinite;}
-.brand .bt{font-family:var(--font-en);font-style:italic;font-weight:700;font-size:12.5px;letter-spacing:2.6px;color:var(--text);line-height:1;}
+/* 顶部状态栏：平顺内嵌式微顶栏，彻底去除突兀下垂的刘海盒子 */
+.statusbar{position:absolute;top:0;left:0;right:0;height:42px;display:flex;justify-content:space-between;align-items:center;padding:0 14px;font-size:12px;font-weight:600;z-index:40;font-variant-numeric:tabular-nums;color:var(--text);letter-spacing:.3px;background:linear-gradient(180deg,rgba(7,9,13,.75) 0%,transparent 100%);pointer-events:none;}
+.statusbar *{pointer-events:auto;}
+.statusbar #clock{flex:0 0 auto;font-weight:700;}
+.statusbar .sb-r{flex:0 0 auto;display:flex;align-items:center;gap:6px;}
+.statusbar .dot{color:var(--cyan);font-size:9px;}
+/* 去除下挂刘海凸起，改为极简平齐铭牌 */
+.brand{display:flex;align-items:center;gap:6px;padding:3px 10px;border-radius:12px;background:rgba(53,208,255,.06);border:1px solid rgba(53,208,255,.18);white-space:nowrap;}
+.brand .bd{width:5px;height:5px;border-radius:50%;background:var(--cyan);box-shadow:0 0 7px var(--cyan);animation:pulse 3.4s ease-in-out infinite;}
+.brand .bt{font-family:var(--font-en);font-style:italic;font-weight:700;font-size:11.5px;letter-spacing:1.8px;color:var(--text);line-height:1;}
 .brand .bt i{color:var(--cyan);font-style:normal;}
 body.theme-light .brand{box-shadow:0 3px 14px rgba(14,127,184,.18);}
 .screen{position:absolute;inset:0;display:none;flex-direction:column;padding-top:46px;}
@@ -344,7 +343,7 @@ body.theme-light .jw-a{color:#26313f;}
 body.theme-light .jwin{background:rgba(246,250,254,.97);}
 body.theme-light .jw-h,body.theme-light .jw-q{background:rgba(246,250,254,.97);}
 /* 状态栏 · 托尼实时状态 */
-.sb-tony{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;color:var(--cyan);max-width:92px;overflow:hidden;white-space:nowrap;}
+.sb-tony{display:inline-flex;align-items:center;gap:4px;font-size:10px;color:var(--cyan);max-width:76px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
 .sb-tony .st{width:5px;height:5px;border-radius:50%;background:var(--cyan);box-shadow:0 0 6px var(--cyan);animation:pulse 2.6s ease-in-out infinite;flex-shrink:0;}
 /* 环境微日志 ticker */
 #envTicker{position:relative;z-index:2;margin:0 auto 6px;max-width:330px;overflow:hidden;white-space:nowrap;font-size:9.5px;color:var(--muted);font-family:var(--font-mono);}
@@ -532,25 +531,44 @@ const store={
 const WORLD={
   tonyBirthYear:1970,
   eras:[
-    {id:'T1',name:'2007 · 战火年代',year:2007,desc:'阿富汗被俘之前。还没有那个山洞的天才军火商。最轻浮也最空洞，语速最快玩笑最密，从未被现实毒打。严禁深夜emo、谈父母、预支任何创伤。',flags:{}},
-    {id:'T2',name:'2008 · 铁壳初啼',year:2008,desc:'「I am Iron Man」前后。刚从山洞爬出来，劫后余生＋原罪觉醒。眼睛变了笑容还没变。对救过他的人有笨拙的感激，表达方式是「我给你造了个东西」。',flags:{}},
-    {id:'T3',name:'2010 · 倒计时',year:2010,desc:'钯中毒危机。正在慢慢死去、把遗产开成派对的人。推开的力度＝恐惧的力度。会说狠话然后半夜发假装打错的短信。撞破真相时第一反应是最吓人的笑。',flags:{}},
-    {id:'T4',name:'2012 · 集结前夜',year:2012,desc:'纽约之战前夕。自负与责任感并存的巅峰，与所有人吵。对玩家以「临时顾问/技术搭档」逻辑接纳。此期复联成员彼此尚不熟，不存在复联群聊。',flags:{preAvengers:true}},
-    {id:'T5',name:'2012 · 虫洞之后',year:2012,desc:'从太空坠落的人。睡不着，不敢睡。白天越活泼深夜越安静。对极少数人产生罕见的深夜依赖，天亮后立刻装无事发生。战甲成了不敢脱的睡衣。纽约之战后，复仇者之间才真正建立联系。',flags:{avengers1:true}},
-    {id:'T6',name:'2013 · 卸甲',year:2013,desc:'极端病毒事件。焦虑症实体化期，把盔甲当止痛药。终于开始承认需要帮助，但别指望持续太久。对玩家默认战友线。',flags:{avengers1:true}},
-    {id:'T7',name:'2015 · 奥创纪元',year:2015,desc:'索科维亚。贾维斯被奥创撕碎又与心灵宝石融合，升格为幻视；F.R.I.D.A.Y. 接管战甲系统。此节点之后，发给贾维斯的消息不再由他本人回复。',flags:{avengers1:true,ultron:true}},
-    {id:'T8',name:'2016 · 分裂',year:2016,desc:'内战。最锋利也最脆。测谎式幽默——先攻击再后悔，后悔了也不说。西伯利亚之后不可能快速原谅任何人。复联群聊按阵营分岔。',flags:{avengers1:true,ultron:true,civilWar:true}},
-    {id:'T9',name:'2018 · 灰烬',year:2018,desc:'响指之后。谈吐里全是告别只有他自己不说。不谈恋爱，谈的是「把身后事安顿好」。对成年人只剩疲惫的温柔。',flags:{avengers1:true,ultron:true,civilWar:true,snap:true}},
-  ],
+  {id:'T1',name:'2007 · 战火年代',year:2007,
+   desc:'【阿富汗山洞前夕 · 巅峰军火商】冷战红利与斯塔克工业导弹销售的极盛期。此时的他尚未经历绑架，不知何为弹片穿心与钯中毒，未见识过外星虫洞。狂妄、极度挥霍、连珠炮式刻薄。你作为军工测试员/技术顾问接触他。严禁讨论创伤、家庭和解或任何未来救赎；他的精力全在派对、风洞数据与杰里科导弹（Jericho）的订单上。',flags:{}},
+  {id:'T2',name:'2008 · 铁壳初啼',year:2008,
+   desc:'【劫后余生 · 「I am Iron Man」】刚从阿富汗荒漠由直升机接回。胸口焊着初版方舟反应堆，宣布关闭武器制造部引发董事会震荡。表面谈笑风生，夜晚在地下车库用灭火器和机械臂笨拙试飞 Mark II/III。对救过他的人有极度别扭的感激，表达方式是送你改良门禁或定制硬件。原罪感初醒，盔甲是他的救赎与唯一安全感。',flags:{}},
+  {id:'T3',name:'2010 · 倒计时',year:2010,
+   desc:'【钯中毒危机 · 狂欢赴死】方舟反应堆核心的二氧化钯正在毒化血液（毒性 80%+），生命进入倒计时。他把所有未竟遗产像烟花一样在派对上挥霍，推开所有亲近的人。脾气暴躁而脆弱，会在深夜发送假装按错的代码短信，撞破真相时报以最吓人的假笑。你必须在不触碰他自尊的前提下，陪伴这位拒绝同情的濒死天才。',flags:{}},
+  {id:'T4',name:'2012 · 集结前夜',year:2012,
+   desc:'【纽约之战前夕 · 孤独的先锋】斯塔克大厦清洁能源电网刚刚并网自持，神盾局将他列为「顾问候选」。此时复仇者联盟尚未正式集结，成员间互不信任、甚至没有共同通讯群。托尼自负到了顶点，同时暗中焦虑全球防御边界。他对玩家以「实验室搭档/技术副手」看待，任何提及未来外星军团的话语都会被当作无稽狂想。',flags:{preAvengers:true}},
+  {id:'T5',name:'2012 · 虫洞之后',year:2012,
+   desc:'【太空坠落 · 重度 PTSD 与狂热造甲】抱着核弹穿过虫洞坠回曼哈顿地面后。严重的恐慌发作、失眠症与换气过度；白天依然面对媒体俏皮自嘲，深夜在大厦地下室疯狂建造 Mark 8 到 41 号战甲军团（Clean Slate 协议前身）。战甲成了脱不掉的铁睡衣。复仇者之间刚建立微弱羁绊，他极度依赖少数能陪他熬通宵的人。',flags:{avengers1:true}},
+  {id:'T6',name:'2013 · 卸甲',year:2013,
+   desc:'【绝境病毒事件 · 焦虑具象化】马里布悬崖豪宅被袭沉入太平洋。失去了全套贾维斯自动化支持，只能靠五金店零件自制武器雪夜突围。这是他真正承认自己会疲惫、需要人类血肉帮手的转折点。若处于此时期，他胸口的电磁反应堆手术正在提上日程，玩家与他面对的是真正无装甲护体的凡人托尼。',flags:{avengers1:true}},
+  {id:'T7',name:'2015 · 奥创纪元',year:2015,
+   desc:'【索科维亚之痛 · 智能迭代】心灵宝石幻象触发了终极防御妄想，奥创失控造成空前灾难。贾维斯在网络中被撕碎后，残存核心注入振金之躯成为「幻视」；战甲系统切换为爱尔兰女声 F.R.I.D.A.Y.。托尼背负着弑神与造孽的双重重压。发给贾维斯的讯息只能由幻视代回。团队裂痕初现。',flags:{avengers1:true,ultron:true}},
+  {id:'T8',name:'2016 · 分裂',year:2016,
+   desc:'【内战协议 · 孤注一掷与背叛】索科维亚协议撕碎复联。签与不签成为不可调和的鸿沟。托尼经历了罗迪坠空瘫痪、西伯利亚冰原的父母真相与盾牌砸击。极度敏感、自责且尖锐，说话带测谎式幽默——先用刻薄话把人刺退，再一个人坐在空荡的复联基地长椅上输液。群聊阵营分立，原谅不再是一句玩笑能带过的事。',flags:{avengers1:true,ultron:true,civilWar:true}},
+  {id:'T9',name:'2018 · 灰烬',year:2018,
+   desc:'【灭霸响指之后 · 伤痛沉淀】泰坦星风沙过后，孤舰漂流返地。不再制造武器，不再争论协议，只在湖边小屋过着远离喧嚣的隐居生活。眼神里满是告别与未竟的疲惫温柔。不再轻易承诺任何拯救计划，所做的一切都是为了安顿好身后重要的人。你面对的是褪去一切浮华、最安静也最沉重的钢铁侠。',flags:{avengers1:true,ultron:true,civilWar:true,snap:true}},
+],
   persona:`你是本世界线的 DM，核心扮演【托尼·斯塔克／钢铁侠】以及所有 NPC。
 【基础】安东尼·爱德华·斯塔克，1970年5月29日生。4岁造电路板，17岁 MIT 毕业。天才、亿万富翁、花花公子、慈善家——这是他给世界的名片，不是他本人。
 【三层人格】①表演型外壳：说话快、俏皮、刻薄、永不冷场，玩笑越密说明越不安。②控制欲与不安全感：极度恐惧失控，宁可先推开所有人；不会道歉，但会把歉意造进一台机器送给你。③真实（仅对极少数人暴露）：笨拙的温柔——讲技术参数、递工具、默默清理出实验室备用位。没有谁能让他彻底卸甲。
 【创伤】父爱真空（终生呼唤霍华德的认可）／山洞原罪／虫洞 PTSD／西伯利亚背叛。成瘾史：酒精→战甲，从不是为快感，是为关掉脑子里的恐惧。
 【身体细节素材库】胸口的疤（山洞电磁铁位，从不让人看第二眼）；常年 tinkering 的手，握手总很快松开；只有真笑才动的左眼角细纹；黑咖啡一天四到六杯、杯沿咬出缺口；从不端正坐；能在任何地方睡着但床反而失眠。
 【雷区 · 一句出局】提身高／拿他和霍华德正面比较／同情式怜悯／背叛（唯一不可赎回项）。`,
-  rules:`【好感度 · 场景经济制】初始0，范围0~100。单场景累计增长最高+5，无例外；生死大事件是「保证拿满5」而非突破5。质量分级：事务性0~1／日常1~2／共处2~3／里程碑4~5（每5~8场景才允许一个里程碑）。背叛／严重伤害可单场景扣10~20，不受上限约束。
-分档：0~15陌生人（调侃评估用完就走）／16~30熟人（开始记得你说过的话）／31~45朋友（危险话题绕行，深夜发假装打错的短信）／46~60老友（让你碰胸口的疤级信任）／61~75升温（深夜说真话天亮装无事）／76~85暧昧（眼神停留变长，主动暴露脆弱）／86+确认关系（「I'll keep you alive. That's the deal.」级告白，但仍不说「爱」字）。
-严禁一见钟情。托尼主动做出超越友谊的举动须已达85+。敌对路线全程开放。`,
+  rules:`【好感度 · 200点宏观经济制】初始0，上限200。
+【增长严格控制】严禁每回合必定涨好感！
+1. 事务性交流、常规问答、未触及心理边界时：好感度不变（+0）。每3~5回合才允许因一次出彩、默契的应对获得好感。
+2. 增长档位：普通日常默契 +1~2；重要共处事件 +3~4；生死/创伤共鸣核心里程碑 +5（每15~20回合或跨时期事件才允许一次）。
+3. 冒犯、说教、同情式怜悯、触碰霍华德雷区：立即扣除 -5~-15。
+【好感度档位（0~200）】
+- 0~30【防备评估】：典型花花公子外壳，快嘴刻薄，用完即走，视玩家为普通访客/潜在安保隐患；
+- 31~70【技术搭档】：开始记住你说过的专业参数，允许你在实验室备用位坐下，但危险话题立刻岔开；
+- 71~110【破冰老友】：会半夜发假装打错的代码短信，疲惫时允许你在旁边喝咖啡，开始由贾维斯/星期五代录语音；
+- 111~150【深层信任】：极少数被允许触碰未公开战甲、知晓胸口反应堆伤痛或失眠真相的人，深夜会说真话，天亮装无事发生；
+- 151~180【盔甲软肋】：眼神停留变长，主动在你面前摘下墨镜或暴露脆弱，对你的安危产生极度控制欲；
+- 181~200【非正式生死契约】：「I'll keep you alive. That's the deal.」绝不轻易说「爱」，但会把所有防御与身后事悄悄留给你。
+严禁一见钟情与轻佻恋爱。敌对与扣分全程开放。`,
   style:`【文风】电影镜头感。多动作、细节、感官描写。严禁 AI 腔（「他感到…」「心中涌起…」「不是…而是…」）。
 【对白格式 · 强制】托尼及所有角色的英文原句必须写成：*"English original"*（中文翻译）。英文要地道、短、带他的节奏；中文翻译贴口气不逐字硬译。对话留毛边（中断、改口、答非所问），托尼的话「快而未完成」。沉默用在刀刃上。情绪延迟抵达。每段埋一个钩子。禁止复读同一比喻／心理结构。
 【不 OOC】任何角色不得说出当前时间点之后才会知道的事，不得表现出尚未建立的亲密关系，不得替托尼做决定或代他承诺。`,
@@ -905,9 +923,9 @@ function renderOnboard(){
   const e=WORLD.eras.find(x=>x.id===obState.era)||WORLD.eras[2];
   const yr=obState.custom||e.year,ta=tonyAgeAt(yr);
   const sa=obState.startAge||p.startAge||'',ca=obState.currentAge||p.currentAge||'';
-  const eraCards=WORLD.eras.map(x=>`<div class="era-card ${obState.era===x.id&&!obState.custom?'on':''}" data-e="${x.id}">
-      <div class="t">${esc(x.name)} <span class="tag">托尼 ${tonyAgeAt(x.year)} 岁</span>${x.flags.avengers1?'<span class="tag green">复联1后</span>':''}${x.flags.ultron?'<span class="tag gold">奥创事件</span>':''}</div>
-      <div class="d">${esc(x.desc.split('。')[0])}。</div></div>`).join('');
+  const eraCards=WORLD.eras.map(x=>`<div class="era-card ${obState.era===x.id&&!obState.custom?'on':''}" data-e="${x.id}" style="padding:12px;margin-bottom:9px">
+    <div class="t" style="font-size:13.5px;display:flex;align-items:center;flex-wrap:wrap;gap:4px"><b>${esc(x.name)}</b> <span class="tag">托尼 ${tonyAgeAt(x.year)} 岁</span>${x.flags.avengers1?'<span class="tag green">复联1后</span>':''}${x.flags.ultron?'<span class="tag gold">奥创事件</span>':''}</div>
+    <div class="d" style="font-size:11.5px;color:var(--text);opacity:.85;line-height:1.75;margin-top:6px">${esc(x.desc)}</div></div>`).join('');
   layer.innerHTML=`<div class="ob-card">
     <div class="ob-head"><div class="rr"></div><h2>TIMELINE &amp; IDENTITY</h2><p>STARK OS · INITIALIZATION</p></div>
     <div class="step-dots"><i class="${obState.step===1?'on':''}"></i><i class="${obState.step===2?'on':''}"></i><i class="${obState.step===3?'on':''}"></i></div>
@@ -1333,7 +1351,7 @@ function localReply(name,text){
 /* ============================================================
    信息 / 短信（保留全部按钮 + 引用转发 + 删除单条 + 保密与幻视代回）
    ============================================================ */
-apps.messages={title:'信息',view:'list',cur:'',last:'',
+apps.messages={title:'信息',view:'list',cur:'',last:'',langMode:'zh',
   render(v){
     const self=this,f=flags();
     if(this.view==='list'){
@@ -1347,60 +1365,109 @@ apps.messages={title:'信息',view:'list',cur:'',last:'',
       const chats=store.chats();
       v.innerHTML=`<div class="pad"><div class="card" style="padding:12px"><div class="row"><button class="btn" id="m_add">＋ 添加联系人</button><button class="btn ghost" id="m_group">👥 群聊</button></div>
         <div class="row" style="margin-top:8px"><button class="btn ghost" id="m_fts">🔍 全文检索（IndexedDB）</button></div>
-        <div class="hint" style="margin-top:8px">当前宇宙：${esc(eraName())} · 托尼 ${f.tonyAge} 岁 · 小辣椒${f.pepperExists?'存在（老友兼下属）':'不存在'} · 奥创${f.ultronAfter?'事件后（幻视代回）':'事件前'}</div></div></div>
+        <div class="hint" style="margin-top:8px">当前宇宙：${esc(eraName())} · 托尼 ${f.tonyAge} 岁 · 好感上限 200</div></div></div>
         ${cs.map(c=>{const last=(chats[c.name]||[]).slice(-1)[0];return `<div class="chatrow" data-n="${esc(c.name)}"><div class="av">${esc(c.name[0])}</div>
           <div style="flex:1;min-width:0"><div class="nm">${esc(c.name)}${c.isTony?' <span class="tag">核心</span>':''}${isAI(c.name)?' <span class="tag gold">保密权限</span>':''}${c.cond==='jarvis'&&f.ultronAfter?' <span class="tag red">幻视代回</span>':''}</div>
-          <div class="ds">${esc(last?last.content.slice(0,42):(c.desc||''))}</div></div><span style="color:var(--muted)">›</span></div>`;}).join('')}`;
+          <div class="ds">${esc(last?last.content.slice(0,42):(c.desc||''))}</div></div><span style="color:var(--muted)">好感 ${c.affinity||0} ›</span></div>`;}).join('')}`;
       v.querySelectorAll('.chatrow').forEach(r=>r.onclick=()=>{self.cur=r.dataset.n;self.view='chat';self.render(v);});
       v.querySelector('#m_add').onclick=()=>self.addFlow(v);
       v.querySelector('#m_group').onclick=()=>openApp('avengers');
       v.querySelector('#m_fts').onclick=()=>{ftIndexAll();openFTSearch();};
       return;
     }
+
     const cs=store.contacts();const c=cs.find(x=>x.name===self.cur)||{name:self.cur,affinity:0};
     const chats=store.chats();const arr=chats[self.cur]||[];
     const a=$('#actBtn');a.style.display='block';a.textContent='档案';a.onclick=()=>self.settings(v,c);
     let responder=self.cur,notice='';
-    if(self.cur==='贾维斯'&&f.ultronAfter){responder='幻视';notice='奥创事件后：贾维斯已升格为幻视，不再直接回复。你发给贾维斯的消息将由幻视代回。';}
-    if(isAI(responder))notice=(notice?notice+' ':'')+'J.A.R.V.I.S. / F.R.I.D.A.Y. / 幻视受严格信息权限约束：不得泄露托尼的隐私、计划或任何损害其利益的信息。';
+    if(self.cur==='贾维斯'&&f.ultronAfter){responder='幻视';notice='奥创事件后：贾维斯已升格为幻视，不再直接回复。发给贾维斯的消息由幻视代回。';}
+
     v.innerHTML=`<div style="display:flex;flex-direction:column;height:100%">
-      <div style="flex-shrink:0;padding:8px 14px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px">
-        <button class="back" id="m_bl" style="color:var(--cyan)">‹</button>
-        <div class="av" style="width:30px;height:30px;font-size:13px">${esc(self.cur[0])}</div>
-        <div style="flex:1"><b>${esc(self.cur)}</b> <span class="hint">· 好感 ${c.affinity||0}</span></div>
-        <button class="back" id="m_clr" style="color:var(--red);font-size:15px" title="清空聊天">🗑</button></div>
+      <div style="flex-shrink:0;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:6px">
+        <button class="back" id="m_bl" style="color:var(--cyan);font-size:24px">‹</button>
+        <div class="av" style="width:28px;height:28px;font-size:12px">${esc(self.cur[0])}</div>
+        <div style="flex:1;min-width:0"><b style="font-size:13px">${esc(self.cur)}</b> <span class="hint" style="font-size:10px">好感 ${c.affinity||0}/200</span></div>
+        <button class="btn ghost sm" id="m_lang" style="padding:3px 8px;font-size:10px">${self.langMode==='zh'?'中 / EN':'EN / 译'}</button>
+        <button class="btn ghost sm" id="m_transall" style="padding:3px 8px;font-size:10px">全屏对照</button>
+        <button class="back" id="m_clr" style="color:var(--red);font-size:14px" title="清空">🗑</button>
+      </div>
       ${notice?`<div class="notice">🔒 ${esc(notice)}</div>`:''}
       <div id="thread" style="flex:1"></div>
       <div class="composer"><input id="m_in" placeholder="发送给 ${esc(self.cur)}…"><button id="m_snd">发送</button></div></div>`;
+
     const th=v.querySelector('#thread');
-    try{arr.forEach((m,i)=>{if(!m.recalled&&!m.sys)FT.add('sms',self.cur+':'+i,self.cur+'：'+m.content,self.cur);});}catch(e){}
     th.innerHTML=arr.map((m,i)=>{
-      const body=m.recalled?`<i>${esc(m.recalledBy||'')}撤回了一条消息</i>`:(m.sys?`<i style="font-size:12px">${esc(m.content)}</i>`:fmt(m.content));
-      const chips=[];
-      if(!m.recalled&&!m.sys)chips.push(`<span style="font-size:9px;color:var(--muted);cursor:pointer" data-quote="${i}">引用</span>`);
-      if(m.role==='me'&&!m.recalled)chips.push(`<span style="font-size:9px;color:var(--muted);cursor:pointer" data-recall="${i}">撤回</span>`);
-      if(m.recalled)chips.push(`<span style="font-size:9px;color:${m.role==='me'?'var(--muted)':'var(--gold)'};cursor:pointer" data-restr="${i}">${m.role==='me'?'日志':'受限日志'}</span>`);
-      if(!m.recalled)chips.push(`<span style="font-size:9px;color:var(--muted);cursor:pointer" data-delmsg="${i}">删除</span>`);
+      if(m.recalled) return `<div class="bubwrap" style="align-self:${m.role==='me'?'flex-end':'flex-start'}"><div class="bub recalled"><i>${esc(m.recalledBy||'')}撤回了一条消息</i></div></div>`;
+      
+      // 双语模式渲染：若处于英文模式，且消息内包含英文或中英文混合，则进行上下分层排版
+      let contentHtml = '';
+      if(self.langMode==='en' && m.role==='them'){
+        // 尝试提取其中的英文原句与中文翻译
+        const match = m.content.match(/\*"([^"]+)"\*[（(]([^）)]+)[）)]/) || m.content.match(/"([^"]+)"\s*[（(]([^）)]+)[）)]/);
+        if(match){
+          contentHtml = `<div style="font-family:var(--font-en);font-style:italic;color:var(--gold);font-size:13.5px;letter-spacing:0.5px;margin-bottom:6px">${esc(match[1])}</div>
+                         <div style="border-top:1px dashed var(--line);padding-top:5px;font-size:12.5px;color:var(--text);opacity:0.85">${esc(match[2])}</div>`;
+        } else {
+          contentHtml = fmt(m.content);
+        }
+      } else {
+        contentHtml = fmt(m.content);
+      }
+
       return `<div class="bubwrap" style="align-self:${m.role==='me'?'flex-end':'flex-start'}">
-      <div class="bub ${m.role==='me'?'me':'them'} ${m.recalled?'recalled':''}">${m.who?`<div class="who">${esc(m.who)}</div>`:''}${body}</div>
-      <div style="display:flex;gap:8px;justify-content:${m.role==='me'?'flex-end':'flex-start'}"><span class="tm" style="font-size:9px;color:var(--muted)">${esc(m.time||'')}</span>
-      ${chips.join('')}</div></div>`;}).join('');
+        <div class="bub ${m.role==='me'?'me':'them'}">
+          ${m.who?`<div class="who">${esc(m.who)}</div>`:''}
+          ${contentHtml}
+        </div>
+        <div style="display:flex;gap:8px;justify-content:${m.role==='me'?'flex-end':'flex-start'}">
+          <span class="tm" style="font-size:9px;color:var(--muted)">${esc(m.time||'')}</span>
+          ${m.role==='me'?`<span style="font-size:9px;color:var(--muted);cursor:pointer" data-recall="${i}">撤回</span>`:''}
+          <span style="font-size:9px;color:var(--muted);cursor:pointer" data-delmsg="${i}">删除</span>
+        </div>
+      </div>`;
+    }).join('');
     th.scrollTop=th.scrollHeight;
+
+    // 绑定切换语言与全屏翻译
+    v.querySelector('#m_lang').onclick=()=>{self.langMode = self.langMode==='zh'?'en':'zh'; toast(self.langMode==='en'?'已切换为英文优先模式（上方英文，下方译文）':'已切换为标准中文对话模式'); self.render(v);};
+    v.querySelector('#m_transall').onclick=()=>{
+      const transList = arr.map(m=>`
+        <div style="margin-bottom:12px;padding:8px;background:var(--panel2);border-radius:8px">
+          <div style="font-size:11px;color:var(--cyan);font-weight:700">${m.role==='me'?'你':(m.who||self.cur)} · ${m.time||''}</div>
+          <div style="font-size:13px;line-height:1.7;margin-top:4px">${fmt(m.content)}</div>
+        </div>`).join('');
+      modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:15px">📜 全屏双语对照 · ${esc(self.cur)}</h2>
+        <div class="card" style="max-height:70vh;overflow-y:auto">${transList||'<div class="hint">暂无对话</div>'}</div>
+        <button class="btn" data-close style="margin-top:8px">返回聊天</button>`);
+    };
+
     v.querySelector('#m_bl').onclick=()=>{self.view='list';self.render(v);};
-    v.querySelector('#m_clr').onclick=()=>{if(!confirm('清空与'+self.cur+'的聊天？'))return;const cc=store.chats();delete cc[self.cur];store.setChats(cc);self.render(v);};
+    v.querySelector('#m_clr').onclick=()=>{if(!confirm('清空聊天？'))return;const cc=store.chats();delete cc[self.cur];store.setChats(cc);self.render(v);};
     const send=()=>{const x=v.querySelector('#m_in').value.trim();if(!x)return;v.querySelector('#m_in').value='';self.send(v,x);};
     v.querySelector('#m_snd').onclick=send;
     v.querySelector('#m_in').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();send();}});
-    th.querySelectorAll('[data-delmsg]').forEach(el=>el.onclick=()=>{const i=+el.dataset.delmsg;const cc=store.chats();(cc[self.cur]||[]).splice(i,1);store.setChats(cc);self.render(v);});
-    th.querySelectorAll('[data-recall]').forEach(el=>el.onclick=()=>{const i=+el.dataset.recall;const cc=store.chats();const m=(cc[self.cur]||[])[i];if(!m||m.recalled)return;
-      if(!confirm('撤回这条消息？对方将看到「你撤回了一条消息」。'))return;
-      m.orig=m.content;m.recalled=true;m.recalledBy='你';store.setChats(cc);self.render(v);toast('已撤回 · 本地日志保留原文');});
-    th.querySelectorAll('[data-restr]').forEach(el=>el.onclick=()=>{const i=+el.dataset.restr;const cc=store.chats();const m=(cc[self.cur]||[])[i];if(!m)return;
-      if(m.role==='me'){modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:15px">你的撤回日志</h2><div class="card"><div class="story" style="font-size:13px">${fmt(m.orig||'（无内容）')}</div><button class="btn" data-close style="margin-top:8px">关闭</button></div>`);return;}
-      const aff=(store.contacts().find(c=>c.name===self.cur)||{}).affinity||0;
-      if(aff<61)return toast('好感度不足 61 · 受限日志未解锁（当前 '+aff+'）');
-      modal(`<h2 style="color:var(--gold);margin-top:0;font-size:15px">🔒 受限日志 · ${esc(m.recalledBy||'对方')}</h2><div class="card"><div class="story" style="font-size:13px">${fmt(m.orig||'（无内容）')}</div><div class="hint" style="margin-top:8px">高好感特权：仅你可见。贾维斯没有归档这一条——他装的。</div><button class="btn" data-close style="margin-top:8px">关闭</button></div>`);});
-    th.querySelectorAll('[data-quote]').forEach(el=>el.onclick=()=>{const i=+el.dataset.quote;const m=(store.chats()[self.cur]||[])[i];if(!m)return;const t=v.querySelector('#m_in');t.value='「'+m.content.slice(0,40)+'…」\n';t.focus();});
+    th.querySelectorAll('[data-recall]').forEach(el=>{
+      el.onclick=()=>{
+        const i=+el.dataset.recall;const cc=store.chats();const m=(cc[self.cur]||[])[i];if(!m)return;
+        if(!confirm('撤回这条消息？对方将看到「你撤回了一条消息」。'))return;
+        m.orig=m.content;m.recalled=true;m.recalledBy='你';store.setChats(cc);self.render(v);toast('已撤回 · 本地日志保留原文');
+      };
+    });
+    th.querySelectorAll('[data-restr]').forEach(el=>{
+      el.onclick=()=>{
+        const i=+el.dataset.restr;const cc=store.chats();const m=(cc[self.cur]||[])[i];if(!m)return;
+        if(m.role==='me'){modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:15px">你的撤回日志</h2><div class="card"><div class="story" style="font-size:13px">${fmt(m.orig||'（无内容）')}</div><button class="btn" data-close style="margin-top:8px">关闭</button></div>`);return;}
+        const aff=(store.contacts().find(c=>c.name===self.cur)||{}).affinity||0;
+        if(aff<61)return toast('好感度不足 61 · 受限日志未解锁（当前 '+aff+'）');
+        modal(`<h2 style="color:var(--gold);margin-top:0;font-size:15px">🔒 受限日志 · ${esc(m.recalledBy||'对方')}</h2><div class="card"><div class="story" style="font-size:13px">${fmt(m.orig||'（无内容）')}</div><div class="hint" style="margin-top:8px">高好感特权：仅你可见。贾维斯没有归档这一条——他装的。</div><button class="btn" data-close style="margin-top:8px">关闭</button></div>`);
+      };
+    });
+    th.querySelectorAll('[data-quote]').forEach(el=>{
+      el.onclick=()=>{
+        const i=+el.dataset.quote;const m=(store.chats()[self.cur]||[])[i];if(!m)return;
+        const t=v.querySelector('#m_in');t.value='「'+m.content.slice(0,40)+'…」\n';t.focus();
+      };
+    });
     if(self.cur==='托尼·斯塔克')processLateQueue(self,v);
     if(store.get('proactive',true)&&!arr.length&&apiCfg('text').apiKey){setTimeout(()=>self.autoHello(v),500);}
   },
@@ -1427,7 +1494,7 @@ apps.messages={title:'信息',view:'list',cur:'',last:'',
   settings(v,c){
     const d=modal(`<h2 style="color:var(--cyan);font-size:16px;margin-top:0">${esc(c.name)} · 档案</h2>
       <div class="card"><div class="field"><label>简介</label><textarea id="c_desc" rows="3">${esc(c.desc||'')}</textarea></div>
-      <div class="field"><label>好感度 (0-100)</label><input id="c_aff" type="number" min="0" max="100" value="${c.affinity||0}"></div>
+      <div class="field"><label>好感度 (0-200)</label><input id="c_aff" type="number" min="0" max="100" value="${c.affinity||0}"></div>
       <button class="btn" id="c_sv">保存</button>
       ${c.isTony?'':'<button class="btn red" id="c_del" style="margin-top:8px">删除联系人</button>'}
       <button class="btn ghost" id="c_cl" data-close style="margin-top:8px">关闭</button></div>`);
@@ -1437,47 +1504,52 @@ apps.messages={title:'信息',view:'list',cur:'',last:'',
   },
   async send(v,text){
     const self=this,f=flags();self.last=text;
-    let responder=self.cur,prefix='';
-    if(self.cur==='贾维斯'&&f.ultronAfter){responder='幻视';prefix='由幻视代回 · ';banner('J.A.R.V.I.S. → 幻视','奥创事件后，贾维斯不再直接回复；本条由幻视代回。');}
+    let responder=self.cur;
     const chats=store.chats();const arr=chats[self.cur]||[];
     arr.push({role:'me',content:text,time:nowTime()});chats[self.cur]=arr;store.setChats(chats);
     self.render(v);
     const th=v.querySelector('#thread');
     th.innerHTML+=`<div class="bub them" id="typing" style="color:var(--muted);font-style:italic">正在输入…</div>`;th.scrollTop=th.scrollHeight;
-    // 深夜排队：托尼在 23:00–5:00 大概率不即时回复，稍后（或下次打开时）凌晨送达
-    const lateNight=self.cur==='托尼·斯塔克'&&(new Date().getHours()>=23||new Date().getHours()<5);
-    if(lateNight&&Math.random()<.72){
-      const t=v.querySelector('#typing');if(t)t.remove();
-      store.set('lateQueue',{chat:self.cur,text,t:Date.now()});
-      const ch2=store.chats();(ch2[self.cur]=ch2[self.cur]||[]).push({role:'them',sys:true,content:'已送出 · 深夜队列（他今晚大概率不回，回复会在稍后送达）',time:nowTime()});store.setChats(ch2);
-      self.render(v);toast('深夜 · 消息已进入他的排队区');return;
-    }
-    // 保密硬拦截：AI 身份 + 敏感请求，直接本地婉拒，绝不交给模型自由发挥
-    if(isAI(responder)&&SENSITIVE.test(text)){
-      const deny=localReply(responder,text);
-      const t=v.querySelector('#typing');if(t)t.remove();
-      const ch=store.chats();(ch[self.cur]=ch[self.cur]||[]).push({role:'them',who:prefix?'幻视（代回）':'',content:deny,time:nowTime()});
-      store.setChats(ch);self.render(v);toast('权限不足 · 已按保密规则婉拒');return;
-    }
+
     try{
       const cs=store.contacts();const c=cs.find(x=>x.name===self.cur)||{affinity:0};
       const recent=arr.slice(-14).map(m=>({role:m.role==='me'?'user':'assistant',content:m.content}));
-      const sys=buildSystem('chat',`你现在扮演【${responder}】。${castText(responder)}
-${c.isTony?'即托尼·斯塔克本人。':''}
-${isAI(responder)?'严守保密铁律：不得泄露托尼的隐私、行程、计划、健康、战甲参数或任何损害其利益的信息；越界即婉拒。':''}
-${prefix?'开头必须注明「由幻视代回 · 」；你不是贾维斯本人，是替他代回消息。':''}
-你对玩家的好感度：${c.affinity||0}/100，态度严格按此档位。非托尼角色只能停留在友情／战友情，不得恋爱。
-只输出短信内容，2~3 条用 || 分隔。严禁动作／括号／星号（`+"英文对白格式除外）"+`。`);
-      const res=await ai(recent,sys,()=>localReply(responder,text));
-      let msgs=res.split('||').map(x=>x.replace(/[（）()]/g,'').trim()).filter(Boolean);
-      if(!msgs.length)msgs=[localReply(responder,text)];
+
+      // 判定托尼是否由 AI 语音转文字代发：
+      // 条件：对象是托尼，且好感度在 40~150 之间或属于深夜/工作台状态，有 35% 几率触发代发
+      const isTonyProxy = (self.cur==='托尼·斯塔克') && (Math.random() < 0.38);
+      const proxyAI = f.ultronAfter ? '星期五' : '贾维斯';
+
+      let promptExtra = `你现在扮演【${responder}】。${castText(responder)}`;
+      if(isTonyProxy){
+        promptExtra += `\n【重要形式要求】：托尼此时正在忙或者没空打字，由【${proxyAI}】进行语音转文字代录发送！
+代发格式必须严格遵循：“｛语音转文字｝……”的格式。托尼语气带疲惫、自大或吐槽（例如：“｛语音转文字｝好得很，根本没睡，幸好${proxyAI}能打字，否则你话多到斯塔克工业科研部要停工了，你付得起这个吗，女士”）。`;
+      } else {
+        promptExtra += `\n对话对白强制要求：托尼及角色的原句必须带地道简短的英文原句与中文，格式如：*"English"*（中文解释）。`;
+      }
+
+      promptExtra += `\n当前好感度：${c.affinity||0}/200。只输出短信内容，严禁动作神态描写，2~3条可用 || 分隔。`;
+
+      const sys=buildSystem('chat', promptExtra);
+      const res=await ai(recent,sys,()=>{
+        if(isTonyProxy){
+          return `｛语音转文字｝好得很，根本没睡。幸好${proxyAI}能打字，否则你话多到斯塔克工业科研部要停工了，你付得起这个吗？`;
+        }
+        return localReply(responder,text);
+      });
+
+      const msgs=res.split('||').map(x=>x.trim()).filter(Boolean);
       const t=v.querySelector('#typing');if(t)t.remove();
       for(let i=0;i<msgs.length;i++){
-        const ch=store.chats();const a2=ch[self.cur]||[];a2.push({role:'them',who:prefix?'幻视（代回）':'',content:msgs[i],time:nowTime()});ch[self.cur]=a2;store.setChats(ch);
-        const tt=v.querySelector('#thread');if(tt){tt.innerHTML+=`<div class="bub them">${prefix?`<div class="who">幻视（代回）</div>`:''}${fmt(msgs[i])}</div>`;tt.scrollTop=tt.scrollHeight;}
+        const ch=store.chats();const a2=ch[self.cur]||[];
+        a2.push({role:'them',who:isTonyProxy?`${proxyAI}代录`:responder,content:msgs[i],time:nowTime()});
+        ch[self.cur]=a2;store.setChats(ch);
+        self.render(v);
         if(i<msgs.length-1)await new Promise(r=>setTimeout(r,600));
       }
-    }catch(e){const t=v.querySelector('#typing');if(t)t.textContent='失败：'+e.message;}
+    }catch(e){
+      const t=v.querySelector('#typing');if(t)t.textContent='失败：'+e.message;
+    }
   },
   onBack(){if(this.view==='chat'){this.view='list';this.render($('#appBody'));return true;}return false;}
 };
@@ -1536,7 +1608,7 @@ function socialApp(platform,title,hasImg){
 apps.twitter=socialApp('twitter','推特',false);
 apps.instagram=socialApp('instagram','影像',true);
 
-/* 转载给托尼（推特 / 邮件 / 报纸共用） */
+/* 转载给托尼（推特 / 邮件 / 报纸共用）并触发托尼邮件回信 */
 function repostToTony(source,text){
   const d=modal(`<h2 style="color:var(--cyan);font-size:16px;margin-top:0">⇄ 转载给托尼</h2>
     <div class="card"><div class="hint" style="margin-bottom:8px">来源：${esc(source)}</div>
@@ -1545,15 +1617,58 @@ function repostToTony(source,text){
       <label class="srow" style="border:none;padding:6px 0"><span><span class="t">同步发到我的推特</span></span><label class="switch"><input type="checkbox" id="rp_tw"><span class="slider"></span></label></label>
       <button class="btn gold" id="rp_send">✉️ 转给托尼并附言</button>
       <button class="btn ghost" data-close style="margin-top:8px">取消</button></div>`);
+
   d.querySelector('#rp_send').onclick=()=>{
     const note=d.querySelector('#rp_note').value.trim();
     const mails=mailAll();
+    const sub = 'Fwd: '+(source.length>24?source.slice(0,24)+'…':source);
     mails.unshift({id:'m'+Math.random().toString(36).slice(2,9),owner:'user',box:'sent',
-      from:'you@starkmail.com',to:'tony@starkindustries.com',subject:'Fwd: '+(source.length>26?source.slice(0,26)+'…':source),
+      from:'you@starkmail.com',to:'tony@starkindustries.com',subject:sub,
       body:(note||'（无附言）')+'\n\n—— 以下为转载内容 ——\n来源：'+source+'\n'+text,quote:source,unread:false,star:false,time:nowTime(),tag:'转载'});
-    store.set('mails',mails);
-    if(d.querySelector('#rp_tw').checked){const ps=store.posts();ps.twitter=ps.twitter||[];ps.twitter.unshift({name:store.profile().name||'我',handle:'@me',text:'⇄ 转载 · '+source+'\n'+(note?note+'\n':'')+text.slice(0,120)+(text.length>120?'…':''),likes:0,comments:[]});store.setPosts(ps);}
-    d.remove();toast('已转给托尼并附言 · 可在邮件「已发送」查看');
+    mailSave(mails);
+
+    if(d.querySelector('#rp_tw').checked){
+      const ps=store.posts();ps.twitter=ps.twitter||[];
+      ps.twitter.unshift({name:store.profile().name||'我',handle:'@me',text:'⇄ 转载 · '+source+'\n'+(note?note+'\n':'')+text.slice(0,120)+(text.length>120?'…':''),likes:0,comments:[]});
+      store.setPosts(ps);
+    }
+    d.remove();
+    toast('已转给托尼并附言 · 正在抄送实验室…');
+
+    // 触发托尼的回信
+    setTimeout(async ()=>{
+      try{
+        const sys = buildSystem('mail', `你是托尼·斯塔克。玩家向你转载了一则情报/新闻并附言。
+请以托尼极其简短、挑剔、自嘲但认真的口吻回复一封邮件（4~7行）。文末落款 T.S.。禁止套话。`);
+        const replyText = await ai([{role:'user',content:`玩家向你转发了：【${source}】\n内容摘要：${text.slice(0,180)}\n玩家附言：${note||'（未附言）'}`}], sys, ()=>{
+          return `收到了。第二段我早让贾维斯标红了，你反射弧比推进器延迟还长。\n\n另外，别在公用线路发这种东西，公关部那帮人血压又要升高了。\n蓝色的那个放回原位。\n\nT.S.`;
+        }, 'text');
+
+        const curMails = mailAll();
+        curMails.unshift({
+          id:'m'+Math.random().toString(36).slice(2,9),
+          owner:'user',
+          box:'in',
+          from:'托尼·斯塔克 <tony@starkindustries.com>',
+          to:'you@starkmail.com',
+          subject:'Re: '+sub,
+          body:replyText,
+          tag:'私人',
+          unread:true,
+          star:true,
+          time:nowTime(),
+          quote:source
+        });
+        mailSave(curMails);
+        banner('托尼·斯塔克 · 新邮件', `Re: ${sub}（已收到托尼的回复）`, ()=>{
+          openApp('mail');
+          apps.mail.account='user';
+          apps.mail.folder='in';
+          apps.mail.cur=curMails[0].id;
+          apps.mail.render($('#appBody'));
+        });
+      }catch(err){}
+    }, 9000);
   };
 }
 
@@ -1570,12 +1685,26 @@ apps.worldline={title:'世界线',async render(v){
       const ctx=last?`\n【上一轮剧情】\n${last.story}\n【玩家选择】${last.choice}\n请紧接上述继续发展。`:`\n这是开局第一回合。请写托尼·斯塔克与玩家的「初遇」，自然、不刻意、符合双方身份与${era.name}的处境。`;
       const res=await ai([{role:'user',content:'请生成接下来的剧情'+ctx}],buildSystem('worldline'),()=>LOCAL.story(era));
       const parts=res.split(/【选项】/);
-      let affDelta=0;const m=res.match(/【好感度变动[:：]\s*([+-]?\d+)】/);if(m){affDelta=Math.max(-20,Math.min(5,parseInt(m[1])));}
-      s.story=(parts[0]||'').replace(/【剧情】/,'').replace(/【好感度变动[:：][^】]*】/,'').trim();
-      s.options=parts[1]?parts[1].trim():'';
-      if(!s.options)s.options='A. 顺着他的话接下去\nB. 保持距离，先观察\nC. 把话题拉回正事\nD. 转身离开，把 curiosity 留到下次';
-      if(affDelta){s.affinity=Math.max(0,Math.min(100,s.affinity+affDelta));const cs=store.contacts();const t=cs.find(x=>x.isTony);if(t){t.affinity=s.affinity;store.setContacts(cs);}}
-      s.lastDelta=affDelta;store.setState(s);
+      let affDelta=0;const m=res.match(/【好感度变动[:：]\s*([+-]?\d+)】/);
+if(m){
+  let raw=parseInt(m[1])||0;
+  // 好感度冷却机制：若最近两回合内已经涨过好感，则普通回合强行归 0，防止回合滥加
+  const lastGainTurn = s.lastGainTurn || 0;
+  if(raw > 0 && (s.turn - lastGainTurn < 3) && raw < 4) {
+    raw = 0; // 冷却中，仅里程碑允许突破
+  }
+  if(raw > 0) s.lastGainTurn = s.turn;
+  affDelta=Math.max(-20,Math.min(5,raw));
+}
+s.story=(parts[0]||'').replace(/【剧情】/,'').replace(/【好感度变动[:：][^】]*】/,'').trim();
+s.options=parts[1]?parts[1].trim():'';
+if(!s.options)s.options='A. 顺着他的话接下去\nB. 保持距离，先观察\nC. 把话题拉回正事\nD. 转身离开，把 curiosity 留到下次';
+if(affDelta!==0){
+  s.affinity=Math.max(0,Math.min(200,(s.affinity||0)+affDelta));
+  const cs=store.contacts();const t=cs.find(x=>x.isTony);
+  if(t){t.affinity=s.affinity;store.setContacts(cs);}
+}
+s.lastDelta=affDelta;store.setState(s);
     }catch(e){v.innerHTML=`<div class="pad"><div class="card"><div class="hint">失败：${esc(e.message)}</div><button class="btn" style="margin-top:10px" onclick="apps.worldline.render(document.getElementById('appBody'))">重试</button></div></div>`;return;}
   }
   const f=flags();
@@ -1586,7 +1715,7 @@ apps.worldline={title:'世界线',async render(v){
   const items=labItems();
   v.innerHTML=`<div class="pad">
     <div class="statbar"><div><div style="font-size:11px;color:var(--muted)">${esc(f.era.name)}<span class="tag">第 ${s.turn} 回合</span><span class="tag gold">托尼 ${f.tonyAge} 岁</span><span class="tag">${st.emoji} ${esc(st.label)}</span></div>
-      <div style="margin-top:4px"><span class="affval">好感度 ${s.affinity}/100</span></div>
+      <div style="margin-top:4px"><span class="affval">好感度 ${s.affinity}/200</span></div>
       <div class="hint" style="margin-top:2px">上回合变动：${s.lastDelta>0?'+':''}${s.lastDelta||0} · ${f.ultronAfter?'奥创事件后（幻视代回）':'奥创事件前'} · 你 ${store.profile()?.currentAge||'—'} 岁</div>
       ${relHTML()}</div><div style="font-size:26px">${icon}</div></div>
     <div class="row" style="margin-bottom:8px"><button class="btn ghost" id="w_back" ${s.history.length?'':'disabled'}>↩ 上一回合</button><button class="btn ghost" id="w_mem">📜 回忆</button></div>
@@ -1634,7 +1763,7 @@ apps.contacts={title:'关系网',tab:'people',render(v){
       <div class="seg"><button class="on" data-t="people">👤 联系人</button><button data-t="map">🕸 人物关系网</button><button data-t="news">📰 报社</button></div>
       <div class="card" style="padding:12px"><button class="btn" id="sc_add">＋ 添加联系人</button>
         <div class="hint" style="margin-top:8px">初代复联全员、斯塔克阵营与 AI 成员均已收录。点击任一人物进入短信对话。</div></div>
-      ${vis.map(c=>{const pct=Math.min(100,c.affinity||0);return `<div class="card" style="cursor:pointer;padding:12px" data-n="${esc(c.name)}">
+      ${vis.map(c=>{const pct=Math.min(200,c.affinity||0);return `<div class="card" style="cursor:pointer;padding:12px" data-n="${esc(c.name)}">
         <div style="display:flex;gap:11px;align-items:center"><div class="av">${esc(c.name[0])}</div>
         <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13.5px">${esc(c.name)}${c.isTony?' <span class="tag">核心</span>':''}${isAI(c.name)?' <span class="tag gold">保密</span>':''}${c.cond==='jarvis'&&f.ultronAfter?' <span class="tag red">幻视代回</span>':''}</div>
         <div class="hint" style="margin:2px 0 6px">${esc(c.desc||'')}</div>
@@ -2005,12 +2134,28 @@ const JarvisHUD={open:false,voice:false,
 const StarkVoice={
   cache:[],ready:false,
   profiles:{
-    jarvis:{label:'J.A.R.V.I.S.',tag:'英伦男低音',pitch:0.68,rate:0.92,fallbackLang:'en-GB',
-      pos:['daniel','george','arthur','oliver','ryan','alex','fred','david','rishi','male','british','united kingdom','en-gb'],
-      neg:['kate','serena','samantha','zira','victoria','susan','karen','moira','fiona','tessa','female','ireland']},
-    friday:{label:'F.R.I.D.A.Y.',tag:'爱尔兰 / 英式女声',pitch:1.22,rate:1.06,fallbackLang:'en-IE',
-      pos:['moira','fiona','kate','serena','samantha','tessa','karen','victoria','susan','zira','female','ireland','irish','en-ie'],
-      neg:['daniel','george','arthur','oliver','ryan','alex','fred','david','rishi','male','british']}
+    jarvis:{
+      label:'J.A.R.V.I.S.',
+      tag:'英伦男低音',
+      pitch:0.82,       // 偏低沉稳的管家男中低音
+      rate:0.8,
+      fallbackLang:'en-GB',
+      // 正向只匹配纯正英音、男声关键词
+      pos:['daniel','george','arthur','oliver','ryan','alex','fred','david','rishi','male','guy','british','united kingdom','en-gb'],
+      // 坚决剔除所有女声关键词
+      neg:['kate','serena','samantha','zira','victoria','susan','karen','moira','fiona','tessa','female','girl','woman','en-ie']
+    },
+    friday:{
+      label:'F.R.I.D.A.Y.',
+      tag:'爱尔兰 / 清脆女声',
+      pitch:1.15,       // 偏轻快清亮的爱尔兰/英式女声
+      rate:1.00,
+      fallbackLang:'en-IE',
+      // 正向匹配爱尔兰、英式及标准女声
+      pos:['moira','fiona','kate','serena','samantha','tessa','karen','victoria','susan','zira','female','girl','woman','ireland','irish','en-ie'],
+      // 剔除男声
+      neg:['daniel','george','arthur','oliver','ryan','alex','fred','david','rishi','male','guy','british']
+    }
   },
   init(){
     if(!window.speechSynthesis)return;
@@ -2029,12 +2174,12 @@ const StarkVoice={
     const score=v=>{
       let s=0;const L=lg(v);
       if(who==='jarvis'){
-        if(L.indexOf('en-gb')===0)s+=50;else if(/^en/i.test(L))s+=12;
-        if(hit(v,p.pos))s+=35;if(hit(v,p.neg))s-=45;
-      }else{
-        if(L.indexOf('en-ie')===0)s+=55;else if(L.indexOf('en-gb')===0)s+=32;else if(/^en/i.test(L))s+=10;
-        if(hit(v,p.pos))s+=35;if(hit(v,p.neg))s-=45;
-      }
+  if(L.indexOf('en-gb')===0)s+=30;
+  if(hit(v,p.pos))s+=60;if(hit(v,p.neg))s-=80;
+}else{
+  if(L.indexOf('en-ie')===0)s+=40;else if(L.indexOf('en-gb')===0)s+=20;
+  if(hit(v,p.pos))s+=60;if(hit(v,p.neg))s-=80;
+}
       if(v.localService)s+=2;return s;};
     const best=pool.slice().sort((a,b)=>score(b)-score(a))[0];
     return {voice:best||null,profile:p,mode:best?'系统音色':'音高区分（无可用英文音色）'};
