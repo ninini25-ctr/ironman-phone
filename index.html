@@ -718,7 +718,7 @@ if(s && s.compactSummary){
 }
   const more={
     worldline:`【世界线深度文学模式 · 字数强制要求】
-1. 篇幅限制：单次输出必须在 4000~5000 字之间，严禁敷衍缩写！必须包含环境镜头交代、人物微表情与肢体暗号、技术参数逻辑支撑、心理潜台词推拉及电影分镜般的动作交互细节。
+1. 篇幅限制：单次输出必须在 3000~4000 字之间，严禁敷衍缩写！必须包含环境镜头交代、人物微表情与肢体暗号、技术参数逻辑支撑、心理潜台词推拉及电影分镜般的动作交互细节。
 2. 叙事节奏：细致刻画空气中的焦糊味、机油冷却声、托尼握紧又松开的手指、全息光晕在眼角的反射，让对话留有真实的毛边与停顿。
 3. 末尾规范输出：正文结束后另起一行输出【好感度变动：+N】（仅限 +0、+1、+2，若无实质心理破冰必须为 +0），随后换行输出【选项】A. … B. … C. … D. …（每行一个选项，且四个选项代表截然不同的行动哲学与策略方向，严禁同质化）。`,
 
@@ -764,25 +764,63 @@ function apiCfg(kind){
 }
 async function callAI(messages,system,kind){
   const c=apiCfg(kind||'text');
-  if(!c.apiKey) throw new Error('未配置 API Key');
+  if(!c.apiKey) throw new Error('未配置 API Key，请至「设置」中检查');
   const url=(c.baseUrl||'').replace(/\/+$/,'')+'/chat/completions';
-  const body={model:c.model,messages:[{role:'system',content:system},...messages.filter(m=>m.content&&String(m.content).trim())]};
-  if((kind||'text')==='text'){const t=parseFloat(c.temperature);if(!isNaN(t))body.temperature=t;}
-  const ctrl=new AbortController();const to=setTimeout(()=>ctrl.abort(),60000);
+  
+  // 注入 max_tokens 避免长文本被中转默认截断
+  const body={
+    model:c.model,
+    messages:[{role:'system',content:system},...messages.filter(m=>m.content&&String(m.content).trim())],
+    max_tokens: 4096
+  };
+  
+  if((kind||'text')==='text'){
+    const t=parseFloat(c.temperature);
+    if(!isNaN(t)) body.temperature=t;
+  }
+
+  // 针对长篇世界线剧情，将超时大幅延展至 180 秒（3 分钟），防止生成到一半被掐断触发兜底
+  const ctrl=new AbortController();
+  const to=setTimeout(()=>ctrl.abort(), 180000);
+
   try{
-    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+c.apiKey},body:JSON.stringify(body),signal:ctrl.signal});
+    const r=await fetch(url,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+c.apiKey},
+      body:JSON.stringify(body),
+      signal:ctrl.signal
+    });
     clearTimeout(to);
-    if(!r.ok){const tx=await r.text().catch(()=>'');throw new Error('API '+r.status+' '+tx.slice(0,160));}
-    const d=await r.json();return (d.choices?.[0]?.message?.content||'').trim();
-  }catch(e){clearTimeout(to);
-    if(e.name==='AbortError')throw new Error('请求超时（60s）');
-    if(/load failed|failed to fetch/i.test(e.message))throw new Error('网络中断／CORS 失败');
-    throw e;}
+    if(!r.ok){
+      const tx=await r.text().catch(()=>'');
+      throw new Error(`API 报错 ${r.status}: ${tx.slice(0,180)}`);
+    }
+    const d=await r.json();
+    const content = d.choices?.[0]?.message?.content;
+    if(!content) throw new Error('API 成功返回，但内容为空');
+    return content.trim();
+  }catch(e){
+    clearTimeout(to);
+    if(e.name==='AbortError') throw new Error('长文本生成耗时超过 180 秒被截断，请检查网络或更换更快的模型');
+    if(/load failed|failed to fetch/i.test(e.message)) throw new Error('网络连接中断或中转站未开启跨域（CORS）');
+    throw e;
+  }
 }
 async function ai(messages,system,fallback,kind){
   const fb=()=>typeof fallback==='function'?fallback():(fallback||'');
-  if(!apiCfg(kind||'text').apiKey)return fb();
-  try{const r=await callAI(messages,system,kind);return r||fb();}catch(e){toast('AI 未响应 · 已使用本地内容');return fb();}
+  if(!apiCfg(kind||'text').apiKey){
+    toast('未检测到 API Key，正在呈现本地预设内容');
+    return fb();
+  }
+  try{
+    const r=await callAI(messages,system,kind);
+    return r || fb();
+  }catch(e){
+    // 将真实错误直接吐在界面上（如 401 密钥失效、超时、或者 CORS 拦截），不再盲目兜底
+    console.error('AI Call Error:', e);
+    toast('⚠️ ' + e.message);
+    return fb();
+  }
 }
 async function fetchModels(kind){
   const c=apiCfg(kind||'text');
@@ -1859,21 +1897,44 @@ apps.worldline={title:'世界线',async render(v){
       const last=s.history.length?s.history[s.history.length-1]:null;
       const ctx=last?`\n【上一轮剧情】\n${last.story}\n【玩家选择】${last.choice}\n请紧接上述继续发展。`:`\n这是开局第一回合。请写托尼·斯塔克与玩家的「初遇」，自然、不刻意、符合双方身份与${era.name}的处境。`;
       const res=await ai([{role:'user',content:'请生成接下来的剧情'+ctx}],buildSystem('worldline'),()=>LOCAL.story(era));
-      const parts=res.split(/【选项】/);
-      let affDelta=0;const m=res.match(/【好感度变动[:：]\s*([+-]?\d+)】/);
-if(m){
-  let raw=parseInt(m[1])||0;
-  // 好感度冷却机制：若最近两回合内已经涨过好感，则普通回合强行归 0，防止回合滥加
-  const lastGainTurn = s.lastGainTurn || 0;
-  if(raw > 0 && (s.turn - lastGainTurn < 3) && raw < 4) {
-    raw = 0; // 冷却中，仅里程碑允许突破
-  }
-  if(raw > 0) s.lastGainTurn = s.turn;
-  affDelta=Math.max(-20,Math.min(5,raw));
+      // 容错匹配：支持 【选项】、[选项]、或者 选项： 
+let storyPart = res;
+let optPart = '';
+
+const splitRegex = /(?:【选项】|\[选项\]|选项[:：])/;
+if (splitRegex.test(res)) {
+  const parts = res.split(splitRegex);
+  storyPart = parts[0];
+  optPart = parts[1] || '';
 }
-s.story=(parts[0]||'').replace(/【剧情】/,'').replace(/【好感度变动[:：][^】]*】/,'').trim();
-s.options=parts[1]?parts[1].trim():'';
-if(!s.options)s.options='A. 顺着他的话接下去\nB. 保持距离，先观察\nC. 把话题拉回正事\nD. 转身离开，把 curiosity 留到下次';
+
+let affDelta = 0;
+const m = res.match(/(?:【好感度变动[:：]|好感度[:：])\s*([+-]?\d+)】?/);
+if (m) {
+  let raw = parseInt(m[1]) || 0;
+  const lastGainTurn = s.lastGainTurn || 0;
+  if (raw > 0 && (s.turn - lastGainTurn < 3) && raw < 4) {
+    raw = 0;
+  }
+  if (raw > 0) s.lastGainTurn = s.turn;
+  affDelta = Math.max(-20, Math.min(5, raw));
+}
+
+s.story = storyPart.replace(/【剧情】/g, '').replace(/【好感度变动[:：][^】]*】/g, '').trim();
+s.options = optPart.trim();
+
+// 如果模型未能输出格式化选项，从正文最后尝试提取形如 A. / B. 的行，而非直接降级模板
+if (!s.options) {
+  const optLines = s.story.split('\n').filter(line => /^[A-DＡ-Ｄ][\.、\s]/.test(line.trim()));
+  if (optLines.length >= 2) {
+    s.options = optLines.join('\n');
+    // 将提取出的选项从故事主干中剥离
+    optLines.forEach(l => { s.story = s.story.replace(l, ''); });
+    s.story = s.story.trim();
+  } else {
+    s.options = 'A. 就刚才的技术推论提出尖锐质疑\nB. 顺着他未说完的半句话递出扳手\nC. 保持沉默，把冷却的咖啡杯换掉\nD. 转移话题，询问下一步装甲部署';
+  }
+}
 if(affDelta!==0){
   s.affinity=Math.max(0,Math.min(200,(s.affinity||0)+affDelta));
   const cs=store.contacts();const t=cs.find(x=>x.isTony);
@@ -1903,7 +1964,13 @@ s.lastDelta=affDelta;store.setState(s);
     <div class="story">${fmt(s.story)}</div>
     <div id="w_opts">${opts.map(o=>`<button class="opt" data-o="${esc(o).replace(/"/g,'&quot;')}">${fmt(o)}</button>`).join('')}</div>
     ${items.length?`<div style="margin-bottom:10px"><span class="hint">携带物品：</span>${items.map(it=>`<span class="chip mini ${useItem===it.id?'on':''}" data-item="${it.id}" title="${esc(it.desc)}">${esc(it.name.slice(0,9))}</span>`).join('')}</div>`:''}
-    <div class="card"><input id="w_act" class="inp" placeholder="自定义行动…" style="margin-bottom:8px"><button class="btn" id="w_send">发送</button></div>
+   <div class="card" style="padding:10px">
+  <div class="hint" style="font-size:10.5px;margin-bottom:5px;color:var(--gold)">
+    💡 提示：<b>（括号内）</b>输入剧情纠偏/规则指引，<b>括号外</b>输入行动与台词
+  </div>
+  <input id="w_act" class="inp" value="（）" placeholder="（纠正或规则）具体行动内容…" style="margin-bottom:8px;font-family:var(--font-body)">
+  <button class="btn" id="w_send">执行行动与纠偏</button>
+</div>
   </div>`;
   v.querySelectorAll('.opt').forEach(b=>b.onclick=()=>pick(b.dataset.o));
   v.querySelectorAll('[data-item]').forEach(el=>el.onclick=()=>{const cur=store.get('useItem',null);store.set('useItem',cur===el.dataset.item?null:el.dataset.item);apps.worldline.render(v);});
@@ -1933,6 +2000,39 @@ v.querySelector('#w_save_slot').onclick = () => {
       </div>
     `).join('');
   };
+
+const handleCustomSend = () => {
+  let raw = v.querySelector('#w_act').value.trim();
+  if (!raw || raw === '（）' || raw === '()') return toast('请输入行动内容');
+  
+  // 提取括号内的纠偏指令与括号外的实际行动
+  let correction = '';
+  let action = raw;
+  const match = raw.match(/[（\(](.*?)[）\)](.*)/s);
+  if (match) {
+    correction = match[1].trim();
+    action = match[2].trim();
+  }
+  
+  let combinedChoice = action;
+  if (correction) {
+    combinedChoice = `【系统纠偏指令：${correction}】\n玩家实际行动：${action || '（遵循上述纠偏推进）'}`;
+  }
+  pick(combinedChoice);
+};
+
+v.querySelector('#w_send').onclick = handleCustomSend;
+v.querySelector('#w_act').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); handleCustomSend(); }
+});
+
+// 输入框获得焦点时光标自动落在括号内部
+const wInp = v.querySelector('#w_act');
+if (wInp && wInp.value === '（）') {
+  wInp.addEventListener('focus', () => {
+    setTimeout(() => wInp.setSelectionRange(1, 1), 10);
+  }, { once: true });
+}
 
   const d = modal(`
     <h2 class="title-en" style="color:var(--cyan);margin-top:0;font-size:16px">💾 世界线剧情存读档 (5 槽位)</h2>
@@ -3801,19 +3901,69 @@ apps.dating={title:'约饭',_view:'setup',city:0,spot:null,people:[],
         <div class="hint">同行：${esc(session.people.join('、'))} · 第 ${session.turn} 回合 · ${esc(eraName())}</div></div>
       <div class="story">${fmt(session.story)}</div>
       <div id="dt_opts">${opts.map(o=>`<button class="opt" data-o="${esc(o).replace(/"/g,'&quot;')}">${fmt(o)}</button>`).join('')}</div>
-      <div class="card"><input id="dt_act" class="inp" style="margin-bottom:8px" placeholder="自定义行动…"><div class="row"><button class="btn" id="dt_send">继续</button><button class="btn ghost" id="dt_end">结束这场约会</button></div></div>
+      <div class="card" style="padding:10px">
+  <div class="hint" style="font-size:10.5px;margin-bottom:5px;color:var(--gold)">
+    💡 提示：<b>（括号内）</b>输入剧情纠偏/规则指引，<b>括号外</b>输入行动与台词
+  </div>
+  <input id="dt_act" class="inp" value="（）" placeholder="（纠正或规则）具体行动内容…" style="margin-bottom:8px">
+  <div class="row">
+    <button class="btn" id="dt_send">继续推进</button>
+    <button class="btn ghost" id="dt_end">结束这场约会</button>
+  </div>
+</div>
     </div>`;
     const pick=async(choice)=>{
       const s=store.get('dateSession',session);
       v.innerHTML='<div class="loader"><div class="spin"></div>场景推进中…</div>';
       const sys=buildSystem('worldline',`继续这场约会。地点：${s.place}/${s.spot}。同行：${s.people.join('、')}。玩家选择：${choice}。写 300~500 字，末尾输出【选项】A. … B. … C. …`);
-      const r=await ai([{role:'user',content:'上一场：'+s.story.slice(-400)+'\n选择：'+choice+'\n请继续。'}],sys,
-        ()=>'他没有接那句话，只是把杯子转了半圈，让缺口朝里。\n\n窗外城市的灯一层层亮起来。*"Don\'t make it a thing."*（别搞得跟什么大事似的。）\n\n服务生来收走第一道几乎没动过的菜。他忽然问了一句跟今晚完全无关的事：「4 号工作台的散热你看了吗？」\n\n这就是他能给出的、最接近「留下」的说法。\n\n【选项】\nA. 回答工作台的事\nB. 反问「你是在岔开话题吗」\nC. 把话题留在今晚');
+      // 如果未配置 API Key，明确弹出提示，而不是直接悄悄进兜底
+if (!apiCfg('text').apiKey) {
+  toast('未配置文本 API Key · 正在使用本地默认剧情');
+}
+
+let r = '';
+try {
+  r = await callAI([
+    { role: 'user', content: `【前情回顾】\n${s.story.slice(-500)}\n\n【本轮选择与行动】\n${choice}\n\n请紧接上文推进下一段约会场景（300~500字）。如果玩家在行动前带有【场景发展特别纠正要求】，必须严格无条件遵守！末尾必须另起一行附带【选项】A. ... B. ... C. ...` }
+  ], sys, 'text');
+} catch (err) {
+  toast('AI 请求失败：' + err.message + ' · 已启用备用剧情');
+  r = `他没有接那句话，只是把杯子转了半圈，让缺口朝里。\n\n窗外城市的灯一层层亮起来。"别搞得跟什么大事似的。"\n\n服务生来收走第一道几乎没动过的菜。他忽然问了一句跟今晚完全无关的事：「4 号工作台的散热你看了吗？」\n\n这就是他能给出的、最接近「留下」的说法。\n\n【选项】\nA. 回答工作台的事\nB. 反问「你是在岔开话题吗」\nC. 把话题留在今晚`;
+}
       const parts=r.split(/【选项】/);s.story=(parts[0]||'').trim();s.options=(parts[1]||'A. 继续\nB. 结束').trim();s.turn++;
       store.set('dateSession',s);self.renderDate(v,s);
     };
     v.querySelectorAll('[data-o]').forEach(b=>b.onclick=()=>pick(b.dataset.o));
-    v.querySelector('#dt_send').onclick=()=>{const x=v.querySelector('#dt_act').value.trim();if(x)pick(x);};
+    const handleDateSend = () => {
+  let raw = v.querySelector('#dt_act').value.trim();
+  if (!raw || raw === '（）' || raw === '()') return toast('请输入行动内容');
+  
+  let correction = '';
+  let action = raw;
+  const match = raw.match(/[（\(](.*?)[）\)](.*)/s);
+  if (match) {
+    correction = match[1].trim();
+    action = match[2].trim();
+  }
+  
+  let combinedChoice = action;
+  if (correction) {
+    combinedChoice = `【场景发展特别纠正要求：${correction}】\n玩家当前行动：${action || '（按纠正推进剧情）'}`;
+  }
+  pick(combinedChoice);
+};
+
+v.querySelector('#dt_send').onclick = handleDateSend;
+v.querySelector('#dt_act').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); handleDateSend(); }
+});
+
+const dtInp = v.querySelector('#dt_act');
+if (dtInp && dtInp.value === '（）') {
+  dtInp.addEventListener('focus', () => {
+    setTimeout(() => dtInp.setSelectionRange(1, 1), 10);
+  }, { once: true });
+}
     v.querySelector('#dt_end').onclick=()=>{self._view='result';self.render(v);};
   },
   renderResult(v,session){
