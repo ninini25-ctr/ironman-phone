@@ -2388,7 +2388,7 @@ const JarvisHUD={open:false,voice:false,
       <div class="jw-b">
         <div class="jw-sys" style="margin-bottom:9px">${f.ultronAfter?'（奥创事件后 · 本浮窗由 J.A.R.V.I.S. 残余协议仿真应答）':''}SYSTEM · ${f.year} · ${esc(f.era.name)} · GUEST CLEARANCE</div>
         <div style="margin:2px 0 4px">${[['📈 股价','斯塔克工业股价'],['🧍 托尼状态','托尼当前状态'],['🤖 战甲','战甲备勤率'],['🌍 世界','世界状态概览']].map(([k,q])=>`<span class="chip" data-q="${q}">${k}</span>`).join('')}</div>
-        <div id="jwAns" class="jw-a" style="margin-top:8px">${en('"At your service, as always."')}（随时效劳，一如既往。）<br><span class="jw-sys">点击上方快捷项，或直接输入任何问题——以贾维斯身份回答。涉及托尼先生隐私的内容恕不提供。</span></div>
+        <div id="jwAns" class="jw-a" style="margin-top:8px">${en('"At your service, as always."')}<br><span class="jw-sys">点击上方快捷项，或直接输入任何问题——以贾维斯身份回答。涉及托尼先生隐私的内容恕不提供。</span></div>
         <div class="card" style="margin-top:10px;padding:10px"><h3 style="margin:0 0 6px;font-size:12px">◉ 环境微日志</h3>
           <div class="jw-sys">${EnvLog.list.slice(0,5).map(l=>esc(l.t+' · '+l.x)).join('<br>')}</div></div>
       </div>
@@ -2438,8 +2438,8 @@ const StarkVoice={
     jarvis:{
       label:'J.A.R.V.I.S.',
       tag:'英伦男低音',
-      pitch:0.5,       // 偏低沉稳的管家男中低音
-      rate:0.8,
+      pitch:0.2,       // 偏低沉稳的管家男中低音
+      rate:1.00,
       fallbackLang:'en-GB',
       // 正向只匹配纯正英音、男声关键词
       pos:['daniel','george','arthur','oliver','ryan','alex','fred','david','rishi','male','guy','british','united kingdom','en-gb'],
