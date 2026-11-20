@@ -2350,7 +2350,7 @@ apps.settings={title:'设置',render(v){
       <button class="btn ghost" id="s_persist" style="margin-bottom:8px">申请持久化存储</button>
       <div class="hint" id="s_persist_hint" style="margin-bottom:8px"></div>
       <button class="btn red" id="s_clear">清空全部数据</button></div>
-    <div class="card"><h3>◉ 关于 / 帮助</h3><p class="hint">STARK OS 为纯前端单文件，所有数据存于本机浏览器。世界观、人物人设、好感度规则、J.A.R.V.I.S. 保密铁律均已内置为 AI 系统提示。<br><br>本作不含任何记忆抹除／身份重写类设定，记忆只会随时间自然沉淀；所有角色严格遵循当前时间点的人设与关系。</p>
+    <div class="card"><h3>◉ 关于 / 帮助</h3><p class="hint">STARK OS 的所有数据存于用户本机浏览器。世界观、人物人设、好感度规则、J.A.R.V.I.S. 保密铁律均已内置为 AI 系统提示。<br><br>所有角色严格遵循当前时间点的人设与关系。</p>
       <button class="btn ghost" id="s_guide" style="margin-top:10px">📖 重看操作与内容说明</button>
       <button class="btn ghost" id="s_parallel" style="margin-top:8px">🪞 打开平行存档对比</button>
       <button class="btn ghost" id="s_skin" style="margin-top:8px">🎨 打开桌面外观面板</button></div>
@@ -3288,10 +3288,6 @@ apps.contacts={title:'关系网',tab:'radar',
       }).join('');
       const dots=nodes.map(n=>{
         const r=14,col=n.rel?(n.close>=140?'var(--gold)':n.close>=70?'var(--cyan)':'var(--muted)'):'var(--line)';
-        return `<line class="rel-line" x1="${cx}" y1="${cy}" x2="${n.x}" y2="${n.y}" stroke="${col}" stroke-width="${w}" opacity="${op}"/>`;
-      }).join('');
-      const dots=nodes.map(n=>{
-        const r=14,col=n.rel?(n.close>=70?'var(--gold)':n.close>=35?'var(--cyan)':'var(--muted)'):'var(--line)';
         return `<g class="rel-node" data-n="${esc(n.c.name)}">
           <circle cx="${n.x}" cy="${n.y}" r="${r}" fill="var(--panel2)" stroke="${col}" stroke-width="2"/>
           <text x="${n.x}" y="${n.y+4}" text-anchor="middle" font-size="12" font-weight="700">${esc(n.c.name[0])}</text>
