@@ -2702,8 +2702,8 @@ apps.contacts={title:'关系网',tab:'radar',
         <div class="field"><label>关系（点预设或自己输入）</label>
           <div class="rel-preset">${REL_PRESETS.map(p=>`<span class="chip" data-preset="${esc(p)}">${esc(p)}</span>`).join('')}</div>
           <input id="rel_label" class="inp" value="${esc(cur.label||'')}" placeholder="如：并肩作战的老搭档 / 相看两厌的竞争对手"></div>
-        <div class="field"><label>亲密度：<b id="rel_cv" style="color:var(--gold)">${cur.closeness??50}</b> / 100</label>
-          <input id="rel_close" type="range" min="0" max="100" value="${cur.closeness??50}" style="width:100%;accent-color:var(--cyan)"></div>
+        <div class="field"><label>亲密度：<b id="rel_cv" style="color:var(--gold)">${cur.closeness??50}</b> / 200</label>
+          <input id="rel_close" type="range" min="0" max="200" value="${cur.closeness??50}" style="width:100%;accent-color:var(--cyan)"></div>
         <div class="field"><label>关系备注（给 AI 的补充设定，选填）</label>
           <textarea id="rel_note" rows="3" placeholder="如：三年前欠过 TA 一次人情 / 表面客气暗地较劲 / 只有 TA 见过你哭">${esc(cur.note||'')}</textarea></div>
         <div class="row"><button class="btn" id="rel_save">保存关系</button>${relationOf(name)?'<button class="btn ghost" id="rel_del">清除</button>':''}</div>
