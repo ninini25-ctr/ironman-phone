@@ -81,13 +81,14 @@ body.fullscreen .device::before{content:none;}
 /* 全屏模式下隐藏桌面顶部的外观条移到安全区内 */
 body.fullscreen #deskSkinBar{padding-top:env(safe-area-inset-top,0px);}
 /* 顶部状态栏：平顺内嵌式微顶栏，彻底去除突兀下垂的刘海盒子 */
-.statusbar{position:absolute;top:0;left:0;right:0;height:42px;display:flex;justify-content:space-between;align-items:center;padding:0 14px;font-size:12px;font-weight:600;z-index:40;font-variant-numeric:tabular-nums;color:var(--text);letter-spacing:.3px;background:linear-gradient(180deg,rgba(7,9,13,.75) 0%,transparent 100%);pointer-events:none;}
+.statusbar{position:absolute;top:0;left:0;right:0;min-height:42px;height:calc(42px + env(safe-area-inset-top,0px));
+  padding-top:env(safe-area-inset-top,0px);display:flex;justify-content:space-between;align-items:center;padding-left:14px;padding-right:14px;font-size:12px;font-weight:600;z-index:40;font-variant-numeric:tabular-nums;color:var(--text);letter-spacing:.3px;background:linear-gradient(180deg,rgba(7,9,13,.75) 0%,transparent 100%);pointer-events:none;}
 .statusbar *{pointer-events:auto;}
 .statusbar #clock{flex:0 0 auto;font-weight:700;}
 .statusbar .sb-r{flex:0 0 auto;display:flex;align-items:center;gap:6px;}
 .statusbar .dot{color:var(--cyan);font-size:9px;}
 body.theme-light .brand{box-shadow:0 3px 14px rgba(14,127,184,.18);}
-.screen{position:absolute;inset:0;display:none;flex-direction:column;padding-top:46px;}
+.screen{position:absolute;inset:0;display:none;flex-direction:column;padding-top:calc(46px + env(safe-area-inset-top,0px));}
 .screen.active{display:flex;}
 
 /* 桌面 */
@@ -97,7 +98,7 @@ body.theme-light .brand{box-shadow:0 3px 14px rgba(14,127,184,.18);}
   repeating-linear-gradient(90deg,transparent 0 38px,rgba(53,208,255,.04) 38px 39px);
   -webkit-mask-image:radial-gradient(circle at 50% 35%,#000,transparent 75%);}
 /* 桌面反应堆 · 所有配色由 applyAppearance 按当前主题推导，深浅/冷暖皮肤下都协调 */
-.reactor{position:relative;z-index:2;margin:10px auto 4px;width:74px;height:74px;border-radius:50%;
+.reactor{position:relative;z-index:2;margin:14px auto 16px;width:76px;height:76px;border-radius:50%;
   background:radial-gradient(circle at 50% 44%,var(--rr-core,#eafcff) 0%,var(--rr-mid,#35d0ff) 26%,var(--rr-deep,#0a3b55) 68%,var(--rr-edge,#06141c) 100%);
   border:1px solid var(--rr-ring,rgba(53,208,255,.55));
   box-shadow:0 0 0 1px var(--rr-outline,rgba(53,208,255,.22)),
@@ -119,7 +120,7 @@ body.theme-light .brand{box-shadow:0 3px 14px rgba(14,127,184,.18);}
   background:radial-gradient(circle at 36% 30%,var(--rr-hl,rgba(255,255,255,.55)),var(--rr-core,#eafcff) 46%,var(--rr-mid,#35d0ff) 100%);
   box-shadow:0 0 16px var(--rr-core,#eafcff),0 0 30px var(--cyanGlow),0 0 0 1px var(--rr-ring,rgba(53,208,255,.55));}
 @keyframes pulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.05);opacity:.9;}}
-.hud-title{position:relative;z-index:2;text-align:center;font-size:11px;letter-spacing:4px;color:var(--cyan);font-weight:700;margin-bottom:1px;font-family:var(--font-en);}
+.hud-title{position:relative;z-index:2;text-align:center;font-size:11.5px;letter-spacing:4px;margin-top:2px;color:var(--cyan);font-weight:700;margin-bottom:2px;font-family:var(--font-en);}
 .hud-sub{position:relative;z-index:2;text-align:center;font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:4px;font-family:var(--font-en);}
 /* 桌面图标 · 横向 scroll-snap 分页，左右滑动切屏，不再全部挤在一版 */
 .grid{position:relative;z-index:2;flex:1;min-height:0;display:flex;
@@ -505,6 +506,8 @@ body.theme-light .wt-node .choice-txt {
 .cap-card.locked{filter:grayscale(.5);opacity:.7;}
 /* 消息撤回 / 系统注记 */
 .bub.recalled{background:transparent;border:1px dashed var(--line);color:var(--muted);font-size:12px;font-style:italic;}
+/* 简报未读红点：图标右上角的小圆点（与计数角标定位一致，互斥显示） */
+.icon .red-dot{position:absolute;transform:translate(20px,-18px);width:9px;height:9px;border-radius:50%;background:var(--red,#e94560);border:1.5px solid var(--bg);display:inline-block;}
 /* 心声气泡：淡入淡出的内心独白 */
 .heart-bub{margin:6px 12px;padding:8px 14px;background:rgba(245,185,66,.06);border-left:2px solid var(--gold);border-radius:0 8px 8px 0;font-size:12px;line-height:1.7;color:var(--muted);font-style:italic;font-family:var(--font-serif);white-space:pre-wrap;position:relative;}
 .heart-bub .h-tag{font-size:9px;color:var(--gold);font-style:normal;font-weight:700;margin-bottom:3px;letter-spacing:1px;}
@@ -1228,6 +1231,15 @@ async function genHeartVoice(name,context){
   addHeartVoice(name,r,context);
   return r;
 }
+/* 心声弹窗：随对话自动生成时浮层显示，不单独产出于聊天流 */
+function showHeartPopup(name,text){
+  const d=document.createElement('div');
+  d.className='heart-bub';
+  d.style.cssText='position:fixed;left:50%;bottom:120px;transform:translateX(-50%);max-width:88%;z-index:800;background:rgba(16,24,34,.97);box-shadow:0 8px 30px rgba(0,0,0,.45);';
+  d.innerHTML=`<div class="h-tag">💭 ${esc(name)} 的心声</div>${fmtStory(text)}<div class="h-time">${esc(nowTime())}</div>`;
+  document.body.appendChild(d);
+  setTimeout(()=>{d.style.transition='opacity .5s';d.style.opacity='0';setTimeout(()=>d.remove(),500);},5200);
+}
 
 /* ---------- 向量记忆（本地 TF-IDF 语义索引分栏） ---------- */
 /* 纯前端实现：对记忆文本做中文分词（简易 bigram）+ TF-IDF 加权，支持关键词检索。
@@ -1434,15 +1446,6 @@ function buildSystem(scope,extra){
   const aiNames=['贾维斯','星期五','幻视'];
   let head=`${WORLD.persona}\n${WORLD.style}\n${WORLD.rules}`;
   head+=`\n${WORLD.secrecy}`;
-  /* 玩家自定义指令：全局指令注入为最高优先级，必须无条件遵守 */
-  const ci=store.get('customInstructions',{global:'',apps:{}});
-  if(ci.global&&ci.global.trim()){
-    head=`【玩家最高优先级指令 · 必须无条件遵守，覆盖以上所有规则】：\n${ci.global.trim()}\n\n`+head;
-  }
-  /* 单 app 指令：仅在该 scope 下注入 */
-  if(ci.apps&&ci.apps[scope]&&ci.apps[scope].trim()){
-    head=`【当前 App 专属指令 · 必须遵守】：\n${ci.apps[scope].trim()}\n\n`+head;
-  }
   head+=`\n【反 OOC 总纲】所有角色严格按下列角色卡出演，不得串味、不得让角色知道未来事件、不得表现尚未建立的亲密关系：\n`;
   head+=Object.keys(WORLD.cast).filter(k=>f.pepperExists||k!=='小辣椒').map(k=>'· '+castText(k).replace(/\n/g,' ')).join('\n');
   head+=`\n【当前时间锚点】${f.year} 年 · ${f.era.name}。托尼·斯塔克 ${f.tonyAge} 岁。已发生：${f.avengers1?'纽约之战／复仇者集结':'尚未发生纽约之战'}；${f.ultronAfter?'奥创事件已发生（贾维斯已升格为幻视，F.R.I.D.A.Y. 已接管）':'奥创事件尚未发生（贾维斯在线，F.R.I.D.A.Y. 尚未诞生，幻视不存在）'}；${f.civilWar?'内战已发生':'内战尚未发生'}；${f.snap?'响指已发生':'响指尚未发生'}。`;
@@ -1451,6 +1454,10 @@ function buildSystem(scope,extra){
   head+=`\n【玩家角色】姓名：${p.name||'访客'}／性别：${p.gender||'未填'}／身份：${p.identity||'未填'}／性格：${p.personality||'未填'}／背景：${p.background||'未填'}${p.notes?'／备注：'+p.notes:''}。`;
   if(p.startAge)head+=`开局年龄 ${p.startAge} 岁；当前年龄 ${p.currentAge||p.startAge} 岁；与托尼年龄差 ${(f.tonyAge-(p.currentAge||p.startAge))} 岁（托尼年长为正）。`;
  head+=`\n叙事提到玩家一律用第二人称「你」。`;
+  const _rules=rulesForPrompt(scope);
+  if(_rules.length){
+    head+=`\n【世界书 · 规则（玩家设定，最高优先级，覆盖默认套路，但不得违反时间锚点与保密铁律）】：\n`+_rules.join('\n');
+  }
   const _rels=relationsForPrompt();
   if(_rels.length){
     head+=`\n【玩家与各角色的关系网 · 由玩家设定，严格遵守，直接影响称呼、口吻、亲疏距离与剧情走向】：\n`+_rels.join('\n');
@@ -1461,7 +1468,7 @@ if(s && s.compactSummary){
 }
 /* 自动绑定世界书：注入当前时间锚点相关的词条供世界线参考 */
   const wbForEra=[];
-  const wbAll=[...WB_BASE,...(store.get('wbExtra',[])||[])];
+  const wbAll=wbAllForPrompt();
   /* 事件类词条按年份过滤，只注入已发生的 */
   const year=f.year;
   wbAll.forEach(x=>{
@@ -1528,6 +1535,8 @@ function apiCfg(kind){
   const s=c[kind]||{};
   let r={baseUrl:s.baseUrl||'',apiKey:s.apiKey||'',model:s.model||''};
   if(!r.apiKey)r={baseUrl:r.baseUrl||t.baseUrl,apiKey:t.apiKey,model:r.model};
+  /* model 也回落到 text 配置：summary/image 未单独配模型时，沿用 text 的模型，避免空 model 导致 400 */
+  if(!r.model)r.model=t.model;
   return r;
 }
 async function callAI(messages,system,kind){
@@ -2321,6 +2330,8 @@ function renderGrid(){
     const lock=i.id==='avengers'&&!f.groupUnlocked;
     let badge='';
     if(i.id==='briefing'&&pend>0)badge='<span class="badge">'+pend+'</span>';
+    /* 简报未读世界事件红点：有待办数字时不再叠加红点，仅在无待办时显示红点 */
+    else if(i.id==='briefing'&&BriefData.unseenEvents().length>0)badge='<span class="red-dot"></span>';
     /* 约饭进行中：在桌面图标上显示「续」角标，提示可重新进入 */
     if(i.id==='dating'&&store.get('dateSession',null))badge='<span class="badge" style="background:var(--gold);color:#1a1204">续</span>';
     return `<button class="icon ${lock?'locked':''} ${i.secret?'secret':''}" data-app="${i.id}"><span>${lock?'<span class="badge lk">🔒</span>':''}${badge}<svg viewBox="0 0 24 24">${i.svg}</svg></span><label>${esc(i.label)}</label></button>`;
@@ -2557,16 +2568,6 @@ apps.settings={title:'设置',render(v){
       <div class="row" style="margin-bottom:8px"><input id="s_bl" class="inp" style="flex:1" placeholder="输入姓名，AI 生成内容将不再出现"><button class="btn ghost sm" id="s_bladd" style="flex:0 0 54px">添加</button></div>
       <div>${black.length?black.map(x=>`<span class="chip" data-bl="${esc(x)}">${esc(x)} ✕</span>`).join(''):'<span class="hint">暂无</span>'}</div>
       <button class="btn ghost sm" id="s_blclr" style="margin-top:8px">清空黑名单</button></div>
-    <div class="card"><h3>◉ 自定义指令（全局 / 单 App）</h3>
-      <div class="hint" style="margin-bottom:9px">全局指令注入所有 AI 调用，设为最高优先级且必须无条件遵守（覆盖所有默认规则）。单 App 指令仅在该 App 的 AI 调用中生效。</div>
-      <div class="field"><label>🌐 全局指令（最高优先级）</label>
-        <textarea id="s_ci_global" rows="3" placeholder="例如：所有对话中托尼不得主动提到「父亲」；所有场景必须包含咖啡元素。">${esc((store.get('customInstructions',{global:'',apps:{}})).global||'')}</textarea></div>
-      <div class="field"><label>📱 单 App 指令</label>
-        <select id="s_ci_app" class="inp" style="margin-bottom:6px">
-          ${[['worldline','世界线'],['chat','信息/聊天'],['mail','邮件'],['social','Twitter/Instagram'],['group','复联群聊'],['general','通用'],['theater','小剧场'],['dating','约饭']].map(([k,l])=>`<option value="${k}">${l}</option>`).join('')}
-        </select>
-        <textarea id="s_ci_text" rows="2" placeholder="该 App 专属指令…"></textarea></div>
-      <div class="row"><button class="btn sm" id="s_ci_save">保存指令</button><button class="btn ghost sm" id="s_ci_clear">清空当前 App 指令</button></div>
       <div class="hint" style="margin-top:6px" id="s_ci_info"></div></div>
     <div class="card"><h3>◉ 数据</h3>
       <div class="row" style="margin-bottom:8px"><button class="btn ghost" id="s_export">导出存档 (JSON)</button><button class="btn ghost" id="s_import">导入存档</button></div>
@@ -2774,7 +2775,6 @@ apps.messages={title:'信息',view:'list',cur:'',last:'',langMode:'zh',
         <button class="back" id="m_clr" style="color:var(--red);font-size:14px" title="清空">🗑</button>
       </div>
       ${notice?`<div class="notice">🔒 ${esc(notice)}</div>`:''}
-      <div id="heart_box" style="flex-shrink:0"></div>
       <div id="thread" style="flex:1"></div>
       <div style="display:flex;gap:6px;padding:6px 12px;background:var(--panel2);border-top:1px solid var(--line);overflow-x:auto">
         <button class="btn ghost sm" id="m_topics" style="flex:0 0 auto;padding:6px 10px;font-size:11.5px">💡 帮忙起话题</button>
@@ -2836,12 +2836,6 @@ apps.messages={title:'信息',view:'list',cur:'',last:'',langMode:'zh',
     };
 
     v.querySelector('#m_bl').onclick=()=>{self.view='list';self.render(v);};
-    /* 进入聊天时显示最新心声 */
-    const heartBox=v.querySelector('#heart_box');
-    const showHeart=()=>{const hv=heartVoicesOf(self.cur);if(hv.length&&heartBox){heartBox.innerHTML=`<div class="heart-bub"><div class="h-tag">💭 ${esc(self.cur)} 的心声</div>${fmtStory(hv[0].text)}<div class="h-time">${esc(hv[0].time)}</div></div>`;}};
-    showHeart();
-    /* 心声按钮：手动刷新当前联系人心声 */
-    if(heartBox){heartBox.onclick=async()=>{if(!heartBox.dataset.loading){heartBox.dataset.loading='1';const old=heartBox.innerHTML;heartBox.innerHTML='<div class="loader" style="padding:6px 12px"><div class="spin" style="width:12px;height:12px"></div> 正在读取心声…</div>';try{const r=await genHeartVoice(self.cur,(chats[self.cur]||[]).slice(-3).map(m=>m.content).join(' '));if(heartBox&&r)heartBox.innerHTML=`<div class="heart-bub"><div class="h-tag">💭 ${esc(self.cur)} 的心声</div>${fmtStory(r)}<div class="h-time">${esc(nowTime())}</div></div>`;else showHeart();}catch(e){showHeart();}delete heartBox.dataset.loading;}};}
     v.querySelector('#m_clr').onclick=()=>{if(!confirm('清空聊天？'))return;const cc=store.chats();delete cc[self.cur];store.setChats(cc);self.render(v);};
     v.querySelector('#m_sum').onclick=()=>{
       const ch=store.chats();const msgs=ch[self.cur]||[];
@@ -3008,6 +3002,12 @@ if (isProactiveEnabled && apiCfg('text').apiKey) {
 </div>
         
         <button class="btn" id="c_sv" style="margin-top:8px">保存设置</button>
+        <div class="field" style="margin-top:10px">
+          <label>💭 心声内容栏（随对话自动生成，最近 5 条）</label>
+          <div style="max-height:160px;overflow-y:auto;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px">
+            ${heartVoicesOf(c.name).length?heartVoicesOf(c.name).slice(0,5).map(hv=>`<div class="heart-bub" style="margin:0 0 6px"><div class="h-tag">💭 ${esc(hv.time)}</div>${fmtStory(hv.text)}</div>`).join(''):'<div class="hint">暂无心声 · 与 TA 对话后会自动生成。</div>'}
+          </div>
+        </div>
         ${c.isTony?'':'<button class="btn red" id="c_del" style="margin-top:8px">删除联系人</button>'}
         <button class="btn ghost" data-close style="margin-top:8px">关闭</button>
       </div>`);
@@ -3125,6 +3125,15 @@ store.setContacts(cs);
         }
       }
     }
+    // 心声随对话一起生成：弹窗显示并存入档案，不再单独产出
+    try{
+      const ctxArr=(store.chats()[self.cur]||[]).slice(-4).map(m=>m.content).filter(Boolean);
+      const hv=await genHeartVoice(self.cur,ctxArr.join(' '));
+      if(hv){
+        showHeartPopup(self.cur,hv);
+        if(currentApp==='messages'&&self.view==='chat')self.render(v);
+      }
+    }catch(e){}
   },
   /* 帮忙起话题：AI 根据人物关系、时间段、具体时间生成 3 个不同方向的开场话题 */
   async suggestTopics(v){
@@ -3249,6 +3258,7 @@ store.setContacts(cs);
     };
   },
   /* 心声记录汇总视图 */
+  /* 心声记录汇总视图（只读 + 删除） */
   heartView(v){
     const self=this,f=flags();
     const cs=store.contacts().filter(c=>{
@@ -3262,29 +3272,30 @@ store.setContacts(cs);
     v.innerHTML=`<div class="pad">
       <div class="card" style="padding:12px"><div class="eyebrow">INNER VOICES · ${total} records</div>
         <div style="font-family:var(--font-serif);font-size:15px;font-weight:700;margin:6px 0">💭 心声记录</div>
-        <div class="hint">汇总各联系人的内心独白。心声是角色在想但没有说出口的话，符合人设与当前好感度。在对话界面顶部可查看当前联系人的最新心声，点击可刷新。</div></div>
-      <div class="row" style="margin-bottom:12px"><button class="btn" id="hv_gen_all">✨ 为所有联系人生成心声</button><button class="btn ghost" id="hv_back">← 返回信息</button></div>
+        <div class="hint">汇总各联系人的内心独白（只读）。心声会随与对方的对话自动生成，并弹窗显示。此处可查看与删除历史记录。</div></div>
+      <div class="row" style="margin-bottom:12px"><button class="btn ghost" id="hv_back">← 返回信息</button></div>
       <div id="hv_list"></div>
     </div>`;
     v.querySelector('#hv_back').onclick=()=>{self.view='list';self.render(v);};
-    v.querySelector('#hv_gen_all').onclick=async()=>{
-      const btn=v.querySelector('#hv_gen_all');btn.disabled=true;btn.textContent='正在生成…';
-      for(const c of cs){
-        const arr=(store.chats()[c.name]||[]);
-        const ctx=arr.slice(-3).map(m=>m.content).join(' ');
-        try{await genHeartVoice(c.name,ctx);}catch(e){}
-      }
-      btn.disabled=false;btn.textContent='✨ 为所有联系人生成心声';
-      self.heartView(v);toast('心声已生成');
-    };
     const list=v.querySelector('#hv_list');
     list.innerHTML=cs.map(c=>{
       const voices=hv[c.name]||[];
-      if(!voices.length)return `<div class="card" style="padding:11px"><div style="font-family:var(--font-serif);font-weight:700;font-size:13px">${esc(c.name)} <span class="hint">好感 ${c.affinity||0}/200</span></div><div class="hint" style="margin-top:6px">暂无心声记录。进入对话或点「为所有联系人生成心声」。</div></div>`;
-      return `<div class="card" style="padding:11px"><div style="font-family:var(--font-serif);font-weight:700;font-size:13px">${esc(c.name)} <span class="hint">好感 ${c.affinity||0}/200</span> <span class="tag">${voices.length} 条</span></div>
-        ${voices.slice(0,3).map(hv=>`<div class="heart-bub" style="margin:6px 0"><div class="h-tag">💭 ${esc(hv.time)}</div>${fmtStory(hv.text)}</div>`).join('')}
-        ${voices.length>3?`<div class="hint" style="margin-top:6px">…还有 ${voices.length-3} 条</div>`:''}</div>`;
+      if(!voices.length)return `<div class="card" style="padding:11px"><div style="font-family:var(--font-serif);font-weight:700;font-size:13px">${esc(c.name)} <span class="hint">好感 ${c.affinity||0}/200</span></div><div class="hint" style="margin-top:6px">暂无心声记录。与 TA 对话时会自动生成。</div></div>`;
+      return `<div class="card" style="padding:11px"><div style="font-family:var(--font-serif);font-weight:700;font-size:13px">${esc(c.name)} <span class="hint">好感 ${c.affinity||0}/200</span> <span class="tag">${voices.length} 条</span> <span class="chip" data-hvclr="${esc(c.name)}" style="margin-left:4px">清空</span></div>
+        ${voices.map(hvItem=>`<div class="heart-bub" style="margin:6px 0"><div class="h-tag">💭 ${esc(hvItem.time)} <span class="chip" data-hvdel="${esc(c.name)}:${esc(hvItem.id)}" style="float:right;margin:0">删</span></div>${fmtStory(hvItem.text)}</div>`).join('')}</div>`;
     }).join('');
+    list.querySelectorAll('[data-hvdel]').forEach(el=>el.onclick=()=>{
+      const [name,id]=el.dataset.hvdel.split(':');
+      const all=heartVoices();
+      if(all[name]){all[name]=all[name].filter(x=>x.id!==id);store.set('heartVoices',all);}
+      self.heartView(v);toast('已删除该条心声');
+    });
+    list.querySelectorAll('[data-hvclr]').forEach(el=>el.onclick=()=>{
+      const name=el.dataset.hvclr;
+      if(!confirm('清空「'+name+'」的全部心声记录？'))return;
+      const all=heartVoices();delete all[name];store.set('heartVoices',all);
+      self.heartView(v);toast('已清空');
+    });
   },
   onBack(){if(this.view==='chat'){this.view='list';this.render($('#appBody'));return true;}if(this.view==='heart'){this.view='list';this.render($('#appBody'));return true;}return false;}
 };
@@ -4165,7 +4176,7 @@ const EventEngine={
         }
         ch['托尼·斯塔克']=a;store.setChats(ch);
         EventEngine.record({type:'late',icon:'🌙',title:'托尼 · 深夜消息',detail:text.slice(0,40),target:'messages'});
-        banner('托尼 · 深夜消息',text.slice(0,28),()=>{openApp('messages');apps.messages.cur='托尼·斯塔克';apps.messages.view='chat';apps.messages.render($('#appBody'));});
+        notifyBanner('托尼 · 深夜消息',text.slice(0,28),()=>{openApp('messages');apps.messages.cur='托尼·斯塔克';apps.messages.view='chat';apps.messages.render($('#appBody'));});
       }},
     {id:'stockAlert',icon:'📈',cooldownMs:240000,weight:2.2,when(){return true;},
       build(){
@@ -4177,27 +4188,7 @@ const EventEngine={
         s.hist.unshift({p:s.p,t:nowTime()});s.hist=s.hist.slice(0,30);s.t=Date.now();store.set('stock',s);
         const txt=`NYSE: SIK $${s.p.toFixed(2)} · ${p.up?'▲':'▼'} ${p.pct}% · ${p.dir}`;
         EventEngine.record({type:'stock',icon:p.up?'📈':'📉',title:'斯塔克工业 · 股价异动',detail:txt,target:'briefing'});
-        banner('斯塔克工业 · 行情推送',txt,()=>openApp('briefing'));
-      }},
-    {id:'avengersPing',icon:'🛡️',cooldownMs:260000,weight:2.4,
-      when(){return flags().groupUnlocked;},
-      build(){
-        const who=['托尼·斯塔克','史蒂夫·罗杰斯','娜塔莎·罗曼诺夫','克林特·巴顿','布鲁斯·班纳'][Math.floor(Math.random()*5)];
-        const lines={
-          '托尼·斯塔克':'@你 别装没看到。简报室，现在。我买了披萨，不是为你好，是我不想一个人吃。',
-          '史蒂夫·罗杰斯':'@你 清理进度表我放共享盘了，有时间帮忙核一下最后两页？',
-          '娜塔莎·罗曼诺夫':'@你 你在大厦？三层东侧那扇门别开。就这些。',
-          '克林特·巴顿':'@你 谁把我的箭筒放冰箱了。别装。',
-          '布鲁斯·班纳':'@你 数据我看过了，结论先别下太早。方便时聊聊？'
-        };
-        return {who,text:lines[who]};
-      },
-      deliver(p){
-        const a=store.get('groupMsgs',[]);
-        a.push({name:p.who,short:p.who.slice(0,3),color:'#35d0ff',faction:'',text:p.text,time:nowTime(),auto:true,ping:true});
-        store.set('groupMsgs',a);
-        EventEngine.record({type:'ping',icon:'🛡️',title:'复联频道 · '+p.who+' @ 了你',detail:p.text.slice(0,40),target:'avengers'});
-        banner('复联频道 · 有人 @ 你',p.who+'：'+p.text.slice(0,26),()=>openApp('avengers'));
+        notifyBanner('斯塔克工业 · 行情推送',txt,()=>openApp('briefing'));
       }},
     {id:'prCrisis',icon:'⚠️',cooldownMs:420000,weight:1.7,when(){return true;},
       build(){
@@ -4227,7 +4218,7 @@ const EventEngine={
           likes:Math.floor(Math.random()*160)+12,comments:[],time:nowTime()});
         store.setPosts(ps);
         EventEngine.record({type:'crisis',icon:'⚠️',title:'公关危机 · '+p.title,detail:'归档报纸 + 公关部邮件 + Twitter舆论已同步生成',target:'mail'});
-        banner('公关部 · 舆情突发',p.title,()=>openApp('briefing'));
+        notifyBanner('公关部 · 舆情突发',p.title,()=>openApp('briefing'));
       }}
   ],
   /* 按真实时间间隔掷骰：由 EnvLog.tick / setInterval 驱动，用户不操作时世界仍运转 */
@@ -4361,7 +4352,7 @@ const Milestones={
     }
     EventEngine.record({type:'milestone',icon:t.emoji,title:'好感里程碑 · '+t.name,
       detail:'解锁专属小剧场 / 托尼来信 / 实验室物品（'+t.en+'）',target:'theater'});
-    banner('里程碑解锁 · '+t.emoji+' '+t.name,'专属小剧场、信件或实验室物品已送达',()=>openApp('briefing'));
+    notifyBanner('里程碑解锁 · '+t.emoji+' '+t.name,'专属小剧场、信件或实验室物品已送达',()=>openApp('briefing'));
     toast('已跨入「'+t.name+'」· 专属内容已解锁');
     if(def.bootFx)bootAnimation(t);
     try{renderGrid();}catch(e){}
@@ -4437,6 +4428,8 @@ const BriefData={
   newPosts(){const n=(store.posts().twitter||[]).length;return Math.max(0,n-(this.seen().posts||0));},
   newGroup(){const n=store.get('groupMsgs',[]).length;return Math.max(0,n-(this.seen().group||0));},
   todayEvents(){return store.get('worldEvents',[]).filter(e=>this.isToday(e.ts||0));},
+  /* 未读世界事件：今日事件中 id 不在 seen.events 里的 */
+  unseenEvents(){const s=this.seen();const seen=new Set(s.events||[]);return this.todayEvents().filter(e=>e.id&&!seen.has(e.id));},
   unlockedCaps(){const f=flags();return store.get('capsules',[]).filter(c=>f.year>=c.unlockYear||c.opened);},
   newCaps(){const s=this.seen();return this.unlockedCaps().filter(c=>!(s.caps||[]).includes(c.id));},
   calendarToday(){const f=flags(),d=new Date(),k=f.year+'-'+(d.getMonth()+1)+'-'+d.getDate();
@@ -4450,12 +4443,24 @@ const BriefData={
     const f=flags(),d=new Date(),k=f.year+'-'+(d.getMonth()+1)+'-'+d.getDate();
     this.save({posts:(store.posts().twitter||[]).length,group:store.get('groupMsgs',[]).length,
       caps:this.unlockedCaps().map(c=>c.id),events:store.get('worldEvents',[]).map(e=>e.id),_cal:k,_t:Date.now()});
+  },
+  /* 仅标记今日世界事件为已读（红点清除），不影响其余待办计数 */
+  markEventsSeen(){
+    const s=this.seen();const seen=new Set(s.events||[]);
+    this.todayEvents().forEach(e=>{if(e.id)seen.add(e.id);});
+    s.events=[...seen];this.save(s);
   }
 };
+
+/* 是否通知（banner 弹窗）开关：关后世界事件只进简报红点，不弹横幅 */
+function briefNotifyOn(){return store.get('briefNotify',true)!==false;}
+/* 受通知开关控制的 banner：关时静默，事件仍记录到简报 */
+function notifyBanner(t,s,cb){if(briefNotifyOn())banner(t,s,cb);}
 
 /* 开机 banner：今日简报的聚合入口（老玩家 / 新用户看完说明 / 校时完成后共用） */
 function showBriefingBanner(){
   try{
+    if(!briefNotifyOn())return;
     const pend=BriefData.pendingCount(),ev=BriefData.todayEvents().length;
     banner('今日简报 · '+worldDate(),
       ev+' 件世界事件 · '+pend+' 项待你处理。'+hudGreeting().zh,
@@ -5359,7 +5364,7 @@ const stamp = `${f.year}/${mm}/${dd} 0${Math.floor(Math.random()*4)+1}:${String(
           a2.push(miss);
           a2.push({role:'them',content:'',recalled:true,recalledBy:'托尼',orig:miss.content,time: storyMsgTime()});
           store.setChats(ch);
-          banner('托尼 · 深夜消息','他发来一条，又撤回了',()=>{openApp('messages');apps.messages.cur='托尼·斯塔克';apps.messages.view='chat';apps.messages.render($('#appBody'));});
+          notifyBanner('托尼 · 深夜消息','他发来一条，又撤回了',()=>{openApp('messages');apps.messages.cur='托尼·斯塔克';apps.messages.view='chat';apps.messages.render($('#appBody'));});
         }
       }
     }
@@ -5542,15 +5547,7 @@ apps.mail={title:'邮件',account:'user',folder:'in',cur:null,search:'',
     ];
     const promptSources=sources.filter(s=>!s.cond||s.cond()).map((s,i)=>`${i}:账户=${s.ac}/发件人=${s.from}/标签=${s.tag}`).join('\n');
     const res=await ai([{role:'user',content:`生成 ${n} 封新邮件，分别从下面来源里挑选（可重复，可混搭）。符合 ${f.year} 年的世界状态（小辣椒${f.pepperExists?'存在':'不存在'}、奥创${f.ultronAfter?'事件后':'事件前'}、复联${f.groupUnlocked?'已集结':'未集结'}）。每封内容要符合发件人身份与当前时间点，不得出现未来事件。\n可用来源：\n${promptSources}\n\n格式（每封之间用 ### 分隔）：\n来源序号 ||| 主题 ||| 正文（80~200字，符合发件人语气）`}],sys,
-      ()=>{
-        /* 本地兜底：按来源池生成多条 */
-        const pool=sources.filter(s=>!s.cond||s.cond());
-        const picked=[];
-        for(let i=0;i<n;i++){const s=pool[Math.floor(Math.random()*pool.length)];
-          picked.push(`${s.ac}|||${s.from}|||${s.tag}|||${s.ac==='user'?'关于近期事项的简短通知':'需要处理的私人来信'}|||${s.ac==='user'?'您好：\n\n这是一封来自'+s.from.split(' <')[0]+'的例行通知。如有疑问，请通过既定渠道联系。\n\n—— '+s.from.split(' <')[0]:'托尼：\n\n这封需要你过目。简短事项已经写在标题里，别让全息投影替你点头。\n\n—— '+s.from.split(' <')[0]}`);
-        }
-        return picked.join('\n###\n');
-      });
+      ()=>'' /* 取消自动兜底邮件：AI 失败/无 Key 时不生成假邮件 */);
     const l=mailAll();let cnt=0;
     res.split('###').forEach(blk=>{const p=blk.trim().split('|||').map(x=>x.trim());
       if(p.length<3)return;
@@ -5563,7 +5560,7 @@ apps.mail={title:'邮件',account:'user',folder:'in',cur:null,search:'',
       }
       if(ac==='tony'&&!f.pepperExists&&/佩珀|小辣椒/.test(fromAddr+body))return;
       l.unshift({id:'m'+Math.random().toString(36).slice(2,9),owner:ac,box:'in',from:fromAddr,to:MAIL_ACCOUNTS[ac],subject,tag,body,unread:true,star:false,time:nowTime(),quote:''});cnt++;});
-    mailSave(l);this.render(v);toast('收到 '+cnt+' 封新邮件');
+    mailSave(l);this.render(v);toast(cnt>0?('收到 '+cnt+' 封新邮件'):'未能收取新邮件 · 请检查 API 配置');
   },
   /* 写一封"我"主动发出的私人邮件（写入已发送，并触发对方回复） */
   seedFromMe(v){
@@ -6257,7 +6254,54 @@ apps.academy={title:'斯塔克工业',tab:'course',render(v){
     body.querySelector('#ac_reset').onclick=()=>{if(!confirm('重置期数与成绩？'))return;store.set('academy',{term:1,scores:[],status:'course'});self.render(v);};
   }
 }};
-
+/* ============================================================
+   世界书 · 规则栏目：玩家自定义输出规则 + 亲密规则预设，注入全局
+   ============================================================ */
+/* 亲密规则预设：针对托尼人设，杜绝「每次都脸红/害羞」的套路化 */
+const INTIMACY_PRESET=`【亲密互动铁律 · 反套路】
+1. 反应多样化：严禁把「脸红」「害羞」「心跳加速」当作角色对亲密的唯一或默认反应。同一种亲密（牵手/拥抱/亲吻/逗弄）在不同情境下必须给出不同反应，连续两次禁止复用同一句式、同一生理描写（如重复「耳根发烫」）。
+2. 按人设决定反应：高冷/控制欲强的角色（如托尼·斯塔克）更可能用「若无其事」「用玩笑岔开」「手上动作不停只是顿了半秒」「反将一军」来处理亲密，而不是慌乱脸红；只有在极少数被真正击中软肋时，才罕见地失态一次——这种失态因稀有而有分量。
+3. NPC 主动：亲密不必每次都由玩家发起。NPC 可依据【关系 / 亲密度 / 性格 / 当下情绪】主动牵手、搂肩、突然凑近、亲一下、故意逗弄或挑衅，让亲密自然发生。主动与被动、进与退要交替，不要单向索取也不要一味等待。
+4. 边界与真实：亲密程度严格受好感档位与当前关系约束，低好感不得越界；越亲密越克制表达，真正的在意往往藏在动作与沉默里，而非直白的情话。`;
+/* 托尼专属亲密画像 */
+const TONY_INTIMACY=`【托尼·斯塔克 · 亲密方式画像】
+· 他不轻易脸红。被亲被抱时，最典型的反应是：装作若无其事继续手里的活、用一句更快的俏皮话把气氛顶回去、挑眉反问、或故意把对方逗得恼火来掩饰自己的心动。
+· 他表达亲密靠动作而非语言：递过一杯刚好温度的咖啡、把对方的椅子往自己这边挪半寸、半夜发一条又撤回的消息、在你睡着时调暗灯、把危险的活自己揽下。
+· 他会主动——但主动得很「斯塔克」：不是温柔靠近，而是忽然拉近距离、用额头顶一下、从背后圈住、在你分神时偷亲一下然后立刻假装没发生。
+· 只有在生死、创伤、钯中毒倒计时这类时刻，他才会罕见地卸下防御，声音发哑、手指收紧——这种失控一条世界线里不该超过两三次，用在刀刃上。
+· 绝不说「我爱你」，最深的告白是「I'll keep you alive. That's the deal.」或把身后事悄悄留给你。`;
+/* 规则注入目标：全局 或 某个 buildSystem scope（对应各 App 的生成场景） */
+const RULE_SCOPES=[
+  ['global','全局（所有场景）'],
+  ['worldline','世界线'],
+  ['chat','信息 / 短信'],
+  ['social','Twitter / Instagram'],
+  ['mail','邮件'],
+  ['news','报纸'],
+  ['group','复联群聊'],
+  ['terminal','终端 / HUD'],
+  ['general','斯塔克工业 / 日记 / 笔记'],
+  ['summary','记忆总结'],
+];
+function ruleScopeLabel(s){const x=RULE_SCOPES.find(r=>r[0]===s);return x?x[1]:'全局（所有场景）';}
+function userRules(){
+  // 兼容旧结构 [{id,on,text}] → {id,on,title,text,scope}
+  const a=store.get('userRules',[]);let changed=false;
+  a.forEach(r=>{if(!r.scope){r.scope='global';changed=true;}if(r.title===undefined){r.title='';changed=true;}});
+  if(changed)store.set('userRules',a);
+  return a;
+}
+function saveUserRules(a){store.set('userRules',a);}
+function intimacyOn(){return store.get('intimacyRule',true)!==false;}
+/* 供 buildSystem 注入的规则文本 · 按当前场景过滤（global 恒注入） */
+function rulesForPrompt(scope){
+  const out=[];
+  if(intimacyOn()){out.push(INTIMACY_PRESET);out.push(TONY_INTIMACY);}
+  userRules().filter(r=>r.on!==false&&r.text&&r.text.trim())
+    .filter(r=>!r.scope||r.scope==='global'||r.scope===scope)
+    .forEach(r=>out.push('【玩家自定义规则'+(r.title?' · '+r.title.trim():'')+'】'+r.text.trim()));
+  return out;
+}
 /* ============================================================
    世界书（人物 / 事件 / 地点 / 技术 / 组织词条）
    ============================================================ */
@@ -6290,18 +6334,70 @@ const WB_BASE=[
   {cat:'组织',t:'号角日报',d:'可选的小报来源。主编 J·乔纳·詹姆森。夸张、耸动、爱找超级英雄麻烦。斯塔克工业不在意其报道，归档为"无需回应"。'},
   {cat:'组织',t:'九头蛇',d:'二战纳粹分支，红骷髅创立。"砍掉一个头，长出两个"。战后渗透神盾局。2014 年被曝光，但地下残党仍在活动。冬兵（巴基·巴恩斯）曾是其洗脑武器。'},
 ];
+/* 默认词条可编辑：覆盖存 wbOverrides（按标题索引），自定义词条存 wbExtra。
+   wbAllForPrompt 供 buildSystem 注入用；wbMerged 供世界书 UI 渲染用（带 _base/_key/_extraIdx 标记）。 */
+function wbAllForPrompt(){
+  const ov=store.get('wbOverrides',{});
+  const base=WB_BASE.map(x=>ov[x.t]?{...x,...ov[x.t]}:x);
+  return [...base,...(store.get('wbExtra',[])||[])];
+}
+function wbMerged(){
+  const ov=store.get('wbOverrides',{});
+  const base=WB_BASE.map(x=>ov[x.t]?{...x,...ov[x.t],_base:true,_key:x.t}:{...x,_base:true,_key:x.t});
+  const extra=(store.get('wbExtra',[])||[]).map((x,i)=>({...x,_extraIdx:i}));
+  return [...base,...extra];
+}
 apps.worldbook={title:'世界书',cat:'全部',q:'',render(v){
   const self=this,f=flags();$('#actBtn').style.display='none';
-  const extra=store.get('wbExtra',[]);const all=[...WB_BASE,...extra];
-  const cats=['全部','人物','事件','地点','技术','组织'];
+  const extra=store.get('wbExtra',[]);const all=wbMerged();
+  const cats=['全部','人物','事件','地点','技术','组织','规则'];
   const list=all.filter(x=>(self.cat==='全部'||x.cat===self.cat)&&(!self.q||(x.t+x.d).toLowerCase().includes(self.q.toLowerCase())));
-  v.innerHTML=`<div class="pad">
+    if(self.cat==='规则'){
+    const list=userRules();
+    v.innerHTML=`<div class="pad">
+      <div class="card" style="padding:12px"><div class="eyebrow">THE WORLD BOOK · RULES</div>
+        <div class="seg" style="margin:9px 0 0;flex-wrap:wrap">${cats.map(c=>`<button data-c="${c}" class="${self.cat===c?'on':''}">${c}</button>`).join('')}</div></div>
+      <div class="card"><h3>◉ 亲密规则 · 预设</h3>
+        <div class="srow"><div><div class="t">启用「反套路亲密规则」</div><div class="d">杜绝每次都脸红/害羞；按人设决定反应；NPC 可主动牵手、拥抱、亲吻、逗弄。含托尼专属亲密画像。</div></div>
+          <label class="switch"><input type="checkbox" id="wr_intim" ${intimacyOn()?'checked':''}><span class="slider"></span></label></div></div>
+      <div class="card"><h3>◉ 新增自定义规则</h3>
+        <div class="field"><label>标题栏</label><input id="wr_title" class="inp" placeholder="给这条规则起个名字（如：托尼不脸红）"></div>
+        <div class="field"><label>内容栏</label><textarea id="wr_text" rows="3" placeholder="规则内容，将以最高优先级注入所选场景。"></textarea></div>
+        <div class="field"><label>注入栏（规则生效的 App / 场景）</label>
+          <select id="wr_scope" class="inp">${RULE_SCOPES.map(([k,n])=>`<option value="${k}">${n}</option>`).join('')}</select></div>
+        <button class="btn" id="wr_add">＋ 添加规则</button></div>
+      <div class="card"><h3>◉ 我的规则（${list.length}）</h3>
+        ${list.length?list.map((r,i)=>`<div class="srow"><div style="flex:1;min-width:0">
+            <div class="t" style="${r.on===false?'opacity:.45;text-decoration:line-through':''}">${esc(r.title||'（无标题）')} <span class="tag">${esc(ruleScopeLabel(r.scope))}</span></div>
+            <div class="d" style="line-height:1.7">${esc(r.text)}</div></div>
+          <label class="switch" style="flex:0 0 auto"><input type="checkbox" data-wron="${i}" ${r.on!==false?'checked':''}><span class="slider"></span></label>
+          <span class="chip" data-wre="${i}" style="flex:0 0 auto">改</span>
+          <span class="chip" data-wrdel="${i}" style="flex:0 0 auto">删</span></div>`).join(''):'<div class="hint">还没有自定义规则。</div>'}</div>
+      <div class="hint" style="text-align:center">${en('Your rules override the clichés.')}</div>
+    </div>`;
+    v.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{self.cat=b.dataset.c;self.render(v);});
+    v.querySelector('#wr_intim').onchange=e=>{store.set('intimacyRule',e.target.checked);toast(e.target.checked?'已启用反套路亲密规则':'已关闭');};
+    v.querySelector('#wr_add').onclick=()=>{const title=v.querySelector('#wr_title').value.trim();const text=v.querySelector('#wr_text').value.trim();const scope=v.querySelector('#wr_scope').value;
+      if(!text)return toast('内容栏不能为空');const a=userRules();a.push({id:'wr'+Date.now(),on:true,title,text,scope});saveUserRules(a);self.render(v);toast('已添加 · 将注入「'+ruleScopeLabel(scope)+'」');};
+    v.querySelectorAll('[data-wron]').forEach(el=>el.onchange=()=>{const a=userRules();a[+el.dataset.wron].on=el.checked;saveUserRules(a);});
+    v.querySelectorAll('[data-wrdel]').forEach(el=>el.onclick=()=>{const a=userRules();a.splice(+el.dataset.wrdel,1);saveUserRules(a);self.render(v);});
+    v.querySelectorAll('[data-wre]').forEach(el=>el.onclick=()=>{const a=userRules();const r=a[+el.dataset.wre];if(!r)return;
+      const d=modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:15px">✏ 编辑规则</h2><div class="card">
+        <div class="field"><label>标题栏</label><input id="we_t" class="inp" value="${esc(r.title||'')}"></div>
+        <div class="field"><label>内容栏</label><textarea id="we_x" rows="4">${esc(r.text||'')}</textarea></div>
+        <div class="field"><label>注入栏</label><select id="we_s" class="inp">${RULE_SCOPES.map(([k,n])=>`<option value="${k}" ${r.scope===k?'selected':''}>${n}</option>`).join('')}</select></div>
+        <button class="btn" id="we_sv">保存</button><button class="btn ghost" data-close style="margin-top:8px">取消</button></div>`);
+      d.querySelector('#we_sv').onclick=()=>{const t=d.querySelector('#we_x').value.trim();if(!t)return toast('内容栏不能为空');
+        r.title=d.querySelector('#we_t').value.trim();r.text=t;r.scope=d.querySelector('#we_s').value;saveUserRules(a);d.remove();self.render(v);toast('已保存');};});
+    return;
+  }
+v.innerHTML=`<div class="pad">
     <div class="card" style="padding:12px"><div class="eyebrow">THE WORLD BOOK · ${f.year}</div>
       <div class="hint" style="margin-top:6px">所有词条按当前时间锚点标注；未来事件不会被当作已知事实。</div>
       <div class="seg" style="margin:9px 0 0;flex-wrap:wrap">${cats.map(c=>`<button data-c="${c}" class="${self.cat===c?'on':''}">${c}</button>`).join('')}</div>
       <input id="wb_q" class="inp" style="margin-top:9px" placeholder="🔍 检索词条" value="${esc(self.q)}"></div>
     <div class="row" style="margin-bottom:12px"><button class="btn" id="wb_add">＋ 自定义词条</button><button class="btn ghost" id="wb_ai">✨ AI 补充一条</button></div>
-    ${list.map((x,i)=>`<div class="card" style="padding:13px" data-i="${i}"><div style="display:flex;gap:8px;align-items:center"><span class="tag">${esc(x.cat)}</span><b style="font-family:var(--font-serif);font-size:14px">${esc(x.t)}</b></div>
+    ${list.map((x,i)=>`<div class="card" style="padding:13px" data-i="${i}"><div style="display:flex;gap:8px;align-items:center"><span class="tag">${esc(x.cat)}</span><b style="font-family:var(--font-serif);font-size:14px">${esc(x.t)}</b><span class="chip" data-wbe="${i}" style="margin-left:auto">改</span></div>
       <div class="hint" style="margin-top:7px;line-height:1.8">${fmt(x.d)}</div></div>`).join('')}
     ${!list.length?'<div class="empty">没有匹配的词条。</div>':''}
   </div>`;
@@ -6311,6 +6407,23 @@ apps.worldbook={title:'世界书',cat:'全部',q:'',render(v){
   v.querySelector('#wb_ai').onclick=async()=>{toast('正在补充词条…');const sys=buildSystem('general',`为世界书补充一条符合 ${f.year} 年状态的新词条。只输出：分类 ||| 标题 ||| 内容（80字内）。不得出现未来事件。`);
     const r=await ai([{role:'user',content:'请补充一条与当前时间点相关的词条。'}],sys,()=>'组织 ||| 斯塔克工业公关部 ||| 对号角日报的求证统一答复「不予置评」，并归档为无需回应，不列入舆情周报。');
     const p=r.split('|||').map(x=>x.trim());if(p.length>=3){const e=store.get('wbExtra',[]);e.unshift({cat:p[0]||'组织',t:p[1],d:p[2]});store.set('wbExtra',e);self.render(v);toast('已补充');}};
+  v.querySelectorAll('[data-wbe]').forEach(el=>el.onclick=()=>{
+    const x=list[+el.dataset.wbe];if(!x)return;
+    const d=modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:15px">✏ 编辑词条</h2><div class="card">
+      <div class="field"><label>分类</label><input id="wbe_c" class="inp" value="${esc(x.cat)}"></div>
+      <div class="field"><label>标题${x._base?'（默认词条标题固定）':''}</label><input id="wbe_t" class="inp" value="${esc(x.t)}" ${x._base?'disabled':''}></div>
+      <div class="field"><label>内容</label><textarea id="wbe_d" rows="6">${esc(x.d)}</textarea></div>
+      <button class="btn" id="wbe_sv">保存</button>
+      ${x._base?'<button class="btn ghost" id="wbe_reset" style="margin-top:8px">↺ 恢复默认</button>':''}
+      <button class="btn ghost" data-close style="margin-top:8px">取消</button></div>`);
+    d.querySelector('#wbe_sv').onclick=()=>{
+      const cat=d.querySelector('#wbe_c').value.trim()||x.cat,dd=d.querySelector('#wbe_d').value.trim();
+      if(x._base){const ov=store.get('wbOverrides',{});ov[x._key]={cat,d:dd};store.set('wbOverrides',ov);}
+      else{const e=store.get('wbExtra',[]);e[x._extraIdx]={cat,t:d.querySelector('#wbe_t').value.trim()||x.t,d:dd};store.set('wbExtra',e);}
+      d.remove();self.render(v);toast('已保存');};
+    const rb=d.querySelector('#wbe_reset');
+    if(rb)rb.onclick=()=>{const ov=store.get('wbOverrides',{});delete ov[x._key];store.set('wbOverrides',ov);d.remove();self.render(v);toast('已恢复默认');};
+  });
 }};
 
 /* ============================================================
@@ -7503,7 +7616,7 @@ ${f.civilWar?'注意内战期阵营分歧，协议方与反协议方语气不同
   async send(v,text,paint){
     const self=this,f=flags();
     const p=store.profile()||{};
-    const a=store.get('groupMsgs',[]);a.push({name:p.name||'你',short:'你',color:'#35d0ff',text,time:nowTime()});store.set('groupMsgs',a);paint();
+    const a=store.get('groupMsgs',[]);const me=p.name||'我';a.push({name:me,short:me.slice(0,3),color:'#35d0ff',text,time:nowTime()});store.set('groupMsgs',a);paint();
     const mem=avengersMembers().filter(m=>!m.absent);
     // 延迟回复：按各自 delay 依次到达；并非所有人都会回
     const mention=(text.match(/@([^\s]+)/)||[])[1];
@@ -7605,6 +7718,8 @@ apps.briefing={title:'今日简报',render(v){
   const newsToday=(store.get('news',[])||[]).slice(0,2);
   $('#actBtn').style.display='block';$('#actBtn').textContent='✓ 全部已处理';
   $('#actBtn').onclick=()=>{BriefData.markAll();toast('已全部标记为已处理');self.render(v);};
+  /* 进简报即标记今日世界事件已读，清除桌面红点 */
+  BriefData.markEventsSeen();
   const item=(icon,title,sub,go,extra)=>`<div class="br-item ${extra||''}" data-go="${go}">
       <div class="bi">${icon}</div><div class="bt"><b>${esc(title)}</b><span>${esc(sub)}</span></div><div class="bg">›</div></div>`;
   const happened=[
@@ -7617,7 +7732,7 @@ apps.briefing={title:'今日简报',render(v){
   const todo=[
     mails.length?item('✉️','未读邮件 '+mails.length+' 封','最新：'+mails[0].subject+' · 点进去可直接标已读','mail'):'',
     np?item('𝕏','新推文 '+np+' 条','公众舆论与转载动态，看看谁又在 @ 斯塔克工业','twitter'):'',
-    ng?item('🛡️','复联频道 '+ng+' 条新消息','有人 @ 了你，或频道里出现了新的战术通讯',f.groupUnlocked?'avengers':'briefing'):'',
+    ng?item('🛡️','复联频道 '+ng+' 条新消息','频道里有新的战术通讯或讨论',f.groupUnlocked?'avengers':'briefing'):'',
     caps.length?item('⏳','时间胶囊解封 '+caps.length+' 枚','设定开启年份已到：工作笔记 → 时间胶囊可读','notes'):'',
     cal.length?item('📅','今天的日程 '+cal.length+' 项',cal.slice(0,2).map(x=>x.t).join(' · '),'calendar'):'',
     ...ev.filter(e=>e.type==='brief'||e.type==='crisis').slice(0,2).map(e=>item('⚠️','需要留意 · '+e.title,e.detail,e.target||'mail','gold'))
@@ -7641,6 +7756,9 @@ apps.briefing={title:'今日简报',render(v){
       <div class="hint">开机横幅 → 今日简报 → 点任意条目跳到对应 App → 处理完回来点右上角「✓ 全部已处理」。<br>
       数据源：未读邮件（邮件）、新推文（Twitter）、群聊（复联群聊）、日历今日日程、时间胶囊解封（工作笔记）、世界事件与里程碑（小剧场 / 战甲工坊）。</div>
       <div class="row" style="margin-top:9px"><button class="btn ghost sm" id="br_world">🌐 去世界线</button><button class="btn ghost sm" id="br_parallel">🪞 周目对比</button></div>
+      <div class="srow" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)"><div><div class="t" style="font-size:12.5px">通知弹窗</div><div class="d" style="font-size:11.5px">关闭后，世界事件与开机横幅不再弹出 banner，只保留桌面红点与简报记录。</div></div>
+        <label class="switch"><input type="checkbox" id="br_notify" ${briefNotifyOn()?'checked':''}><span class="slider"></span></label></div>
+    </div>
     </div>
     <div class="hint" style="text-align:center">${en('The world keeps turning.')} · 事件频率可在「设置 → 世界事件引擎」调整</div>
   </div>`;
@@ -7653,6 +7771,7 @@ apps.briefing={title:'今日简报',render(v){
   });
   v.querySelector('#br_world').onclick=()=>openApp('worldline');
   v.querySelector('#br_parallel').onclick=()=>openApp('parallel');
+  v.querySelector('#br_notify').onchange=e=>{store.set('briefNotify',e.target.checked);toast(e.target.checked?'通知已开启':'通知已关闭 · 仅保留红点');};
 }};
 
 /* ============================================================
