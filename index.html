@@ -73,10 +73,15 @@ body.fullscreen .device{
   border-radius:0;box-shadow:none;margin:0;
 }
 body.fullscreen .statusbar{
-  height:env(safe-area-inset-top,0px);min-height:0;padding-top:env(safe-area-inset-top,0px);
-  background:transparent;
+  height:calc(30px + env(safe-area-inset-top,0px));
+  min-height:30px;
+  padding-top:env(safe-area-inset-top,0px);
+  background:linear-gradient(180deg,rgba(7,9,13,.75) 0%,transparent 100%);
 }
-body.fullscreen .screen{padding-top:calc(env(safe-area-inset-top,0px) + 6px);}
+body.theme-light.fullscreen .statusbar{
+  background:linear-gradient(180deg,rgba(255,255,255,.75) 0%,transparent 100%);
+}
+body.fullscreen .screen{padding-top:calc(46px + env(safe-area-inset-top,0px));}
 body.fullscreen .device::before{content:none;}
 /* 全屏模式下隐藏桌面顶部的外观条移到安全区内 */
 body.fullscreen #deskSkinBar{padding-top:env(safe-area-inset-top,0px);}
@@ -567,7 +572,9 @@ body.theme-light .jhud-x{background:rgba(0,0,0,.06);}
 .en-strong{font-family:var(--font-en);font-weight:800;font-style:normal;letter-spacing:.4px;color:var(--gold);
   text-shadow:0 0 12px rgba(245,185,66,.25);padding:0 1px;}
 body.no-en-decor .en-strong{font-family:inherit;color:inherit;text-shadow:none;font-weight:700;}
-.en-line .zh{white-space:nowrap;}
+.en-line .zh{white-space:normal;word-break:break-word;}
+.en-line{display:inline;}
+.en,.en-strong{white-space:normal;word-break:break-word;}
 /* 短信：已读 / 正在输入 / 撤回 */
 .read-tick{color:var(--cyan);font-size:9.5px;letter-spacing:.2px;}
 .read-tick.pending{color:var(--muted);}
@@ -1162,10 +1169,15 @@ const store={
   g(k,d){try{const v=localStorage.getItem('so_'+k);return v?JSON.parse(v):d;}catch(e){return d;}},
   s(k,v){try{localStorage.setItem('so_'+k,JSON.stringify(v));}catch(e){toast('本地空间不足');}},
   get(k,d){return this.g(k,d);},set(k,v){this.s(k,v);},
-  cfg(){const d={text:{baseUrl:'https://api.openai.com/v1',apiKey:'',model:'gpt-4o-mini',temperature:0.85,presets:[]},image:{baseUrl:'',apiKey:'',model:'',presets:[]},summary:{baseUrl:'',apiKey:'',model:'',presets:[]}};
-    const c=this.g('cfg',d);
-    if(c&&!c.text){ // 旧版单栏配置 → 迁移为分栏
-      return {...d,text:{baseUrl:c.baseUrl||d.text.baseUrl,apiKey:c.apiKey||'',model:c.model||d.text.model,temperature:c.temperature??d.text.temperature,presets:[]},image:{...d.image,model:c.imgModel||''}};
+  cfg(){const d={
+  story:{baseUrl:'https://api.openai.com/v1',apiKey:'',model:'gpt-4o-mini',temperature:0.85,presets:[]},
+  social:{baseUrl:'',apiKey:'',model:'',presets:[]},
+  image:{baseUrl:'',apiKey:'',model:'',presets:[]},
+  summary:{baseUrl:'',apiKey:'',model:'',presets:[]}
+};
+        const c=this.g('cfg',d);
+    if(c&&!c.story&&!c.text){ // 极早期单栏配置 → 迁移为分栏
+      return {...d,story:{baseUrl:c.baseUrl||d.story.baseUrl,apiKey:c.apiKey||'',model:c.model||d.story.model,temperature:c.temperature??d.story.temperature,presets:[]},image:{...d.image,model:c.imgModel||''}};
     }
     return c;},
   setCfg(c){this.s('cfg',c);},
@@ -1528,19 +1540,20 @@ if(s && s.compactSummary){
    分栏配置：text 文本 / image 生图 / summary 总结（缺省回落 text）
    ============================================================ */
 function apiCfg(kind){
-  kind=kind||'text';
+  kind=kind||'story';
   const c=store.cfg();
-  const t={baseUrl:(c.text&&c.text.baseUrl)||'',apiKey:(c.text&&c.text.apiKey)||'',model:(c.text&&c.text.model)||'',temperature:(c.text&&c.text).temperature};
-  if(kind==='text')return t;
+  // story 是主栏；social/image/summary 未配时回落到 story
+  const primary=c.story||{};
+  const t={baseUrl:primary.baseUrl||'',apiKey:primary.apiKey||'',model:primary.model||'',temperature:primary.temperature};
+  if(kind==='story')return t;
   const s=c[kind]||{};
   let r={baseUrl:s.baseUrl||'',apiKey:s.apiKey||'',model:s.model||''};
   if(!r.apiKey)r={baseUrl:r.baseUrl||t.baseUrl,apiKey:t.apiKey,model:r.model};
-  /* model 也回落到 text 配置：summary/image 未单独配模型时，沿用 text 的模型，避免空 model 导致 400 */
   if(!r.model)r.model=t.model;
   return r;
 }
 async function callAI(messages,system,kind){
-  const c=apiCfg(kind||'text');
+  const c=apiCfg(kind||'story');
   if(!c.apiKey) throw new Error('未配置 API Key，请至「设置」中检查');
  const url=(c.baseUrl||'').replace(/\/+$/,'')+'/chat/completions';
 
@@ -1554,7 +1567,7 @@ const body={
   max_tokens: isLong ? longTokens : 4096
 };
 
-if((kind||'text')==='text'){
+if((kind||'story')==='story'){
   const t=parseFloat(c.temperature);
   if(!isNaN(t)) body.temperature=t;
 }
@@ -1589,7 +1602,7 @@ const to=setTimeout(()=>ctrl.abort(), timeoutMs);
 }
 async function ai(messages,system,fallback,kind){
   const fb=()=>typeof fallback==='function'?fallback():(fallback||'');
-  if(!apiCfg(kind||'text').apiKey){
+  if(!apiCfg(kind||'story').apiKey){
     toast('未检测到 API Key，正在呈现本地预设内容');
     return fb();
   }
@@ -1634,7 +1647,7 @@ function apiErrorHelp(msg){
   return {code:'UNKNOWN',title:'未知错误',fix:'把下方原始信息截图给服务商客服，或换一个中转站 / 模型重试。'};
 }
 async function fetchModels(kind){
-  const c=apiCfg(kind||'text');
+  const c=apiCfg(kind||'story');
   if(!c.apiKey)throw new Error('未配置 API Key');
   const r=await fetch((c.baseUrl||'').replace(/\/+$/,'')+'/models',{headers:{'Authorization':'Bearer '+c.apiKey}});
   if(!r.ok)throw new Error('拉取失败 '+r.status);const d=await r.json();return (d.data||[]).map(m=>m.id).sort();
@@ -2497,16 +2510,26 @@ function closeModals() {
    ============================================================ */
 apps.settings={title:'设置',render(v){
   const c=store.cfg(),p=store.profile()||{},s=store.state()||{},f=flags();
-  const ktab=store.get('cfgTab','text'),ctab=c[ktab]||{},presets=ctab.presets||[],activeP=(typeof ctab.activePreset==='number'?ctab.activePreset:-1);
+  const ktab=store.get('cfgTab','story'),ctab=c[ktab]||{},presets=ctab.presets||[],activeP=(typeof ctab.activePreset==='number'?ctab.activePreset:-1);
   const hidden=store.get('hiddenApps',[]),black=store.get('blacklist',[]);
   v.innerHTML=`<div class="pad">
-    <div class="card"><h3>◉ AI 接入 · 分栏配置（玩家自配，费用自付）</h3>
-      <div class="seg" id="s_tab"><button data-k="text" class="${store.get('cfgTab','text')==='text'?'on':''}">📝 文本 API</button><button data-k="image" class="${store.get('cfgTab','text')==='image'?'on':''}">🖼 生图 API</button><button data-k="summary" class="${store.get('cfgTab','text')==='summary'?'on':''}">📋 总结 API</button></div>
-      <div class="hint" style="margin:8px 0">${{text:'剧情 / 对话 / 报纸 / 终端 / HUD 问答等全部文本生成。',image:'Instagram App 的配图生成。未配置时自动沿用文本 API 的 Key 与 URL。',summary:'记忆摘要 / 邮件待办摘要 / 日记代笔 / 研发日志。未配置时自动回落文本 API。'}[store.get('cfgTab','text')]||''}</div>
-      <div class="field"><label>Base URL</label><input id="s_url" value="${esc((c[store.get('cfgTab','text')]||{}).baseUrl)}" placeholder="https://api.openai.com/v1"></div>
-      <div class="field"><label>API Key</label><div class="row"><input id="s_key" type="password" value="${esc((c[store.get('cfgTab','text')]||{}).apiKey)}" style="flex:1"><button class="btn ghost sm" id="s_eye" style="flex:0 0 46px">👁</button></div></div>
-      <div class="field"><label>模型</label><div class="row"><input id="s_model" value="${esc((c[store.get('cfgTab','text')]||{}).model)}" style="flex:1" placeholder="${store.get('cfgTab','text')==='image'?'dall-e-3 / gpt-image-1':'gpt-4o-mini'}"><button class="btn ghost sm" id="s_fetch" style="flex:0 0 58px">拉取</button></div></div>
-      ${store.get('cfgTab','text')==='text'?`<div class="field"><label>温度（留空＝默认）</label><input id="s_temp" value="${esc((c.text||{}).temperature??'')}"></div>`:''}
+        <div class="card"><h3>◉ AI 接入 · 分栏配置（玩家自配，费用自付）</h3>
+      <div class="seg" id="s_tab">
+        <button data-k="story" class="${store.get('cfgTab','story')==='story'?'on':''}">📖 长剧情 API</button>
+        <button data-k="social" class="${store.get('cfgTab','story')==='social'?'on':''}">💬 社交软件 API</button>
+        <button data-k="image" class="${store.get('cfgTab','story')==='image'?'on':''}">🖼 生图 API</button>
+        <button data-k="summary" class="${store.get('cfgTab','story')==='summary'?'on':''}">📋 总结 API</button>
+      </div>
+      <div class="hint" style="margin:8px 0">${{
+  story:'世界线 / 约饭 / 小剧场 / 邮件 / 报纸 / 终端 / HUD 等深度文本生成。',
+  social:'Twitter / Instagram / 短信聊天 / 群聊等社交场景的文本生成。未配置时回落长剧情 API。',
+  image:'Instagram App 的配图生成。未配置时沿用长剧情 API 的 Key。',
+  summary:'记忆摘要 / 邮件待办摘要 / 日记代笔。未配置时回落长剧情 API。'
+}[store.get('cfgTab','story')]||''}</div>
+      <div class="field"><label>Base URL</label><input id="s_url" value="${esc((c[store.get('cfgTab','story')]||{}).baseUrl)}" placeholder="https://api.openai.com/v1"></div>
+      <div class="field"><label>API Key</label><div class="row"><input id="s_key" type="password" value="${esc((c[store.get('cfgTab','story')]||{}).apiKey)}" style="flex:1"><button class="btn ghost sm" id="s_eye" style="flex:0 0 46px">👁</button></div></div>
+      <div class="field"><label>模型</label><div class="row"><input id="s_model" value="${esc((c[store.get('cfgTab','story')]||{}).model)}" style="flex:1" placeholder="${store.get('cfgTab','story')==='image'?'dall-e-3 / gpt-image-1':'gpt-4o-mini'}"><button class="btn ghost sm" id="s_fetch" style="flex:0 0 58px">拉取</button></div></div>
+      ${store.get('cfgTab','story')==='story'?`<div class="field"><label>温度（留空＝默认）</label><input id="s_temp" value="${esc((c.story||{}).temperature??'')}"></div>`:''}
       <div class="row"><button class="btn" id="s_save">保存配置</button><button class="btn ghost" id="s_test">🔍 测试连通性</button></div>
       <button class="btn ghost sm" id="s_presetsave" style="margin-top:8px;width:100%">💾 保存为自定义预设（api key / url / 模型）</button>
       <div id="s_pnew" class="s-pres-row" style="display:none">
@@ -2581,15 +2604,15 @@ apps.settings={title:'设置',render(v){
       <button class="btn ghost" id="s_skin" style="margin-top:8px">🎨 打开桌面外观面板</button></div>
   </div>`;
   const q=s=>v.querySelector(s);
-  const kind=()=>store.get('cfgTab','text');
+  const kind=()=>store.get('cfgTab','story');
   v.querySelectorAll('#s_tab [data-k]').forEach(b=>b.onclick=()=>{store.set('cfgTab',b.dataset.k);apps.settings.render(v);});
-  const label=()=>({text:'文本',image:'生图',summary:'总结'}[kind()]||'文本');
+  const label=()=>({story:'长剧情',social:'社交软件',image:'生图',summary:'总结'}[kind()]||'长剧情');
   const okBox=(msg)=>{const r=q('#s_res');if(r){r.className='so-res-ok';r.textContent=msg;}toast(msg);};
   const readCfg=()=>{
     const k=kind();
     const cur=store.cfg();
     const cc={baseUrl:q('#s_url').value.trim(),apiKey:q('#s_key').value.trim(),model:q('#s_model').value.trim()};
-    if(k==='text'&&q('#s_temp'))cc.temperature=q('#s_temp').value.trim();
+    if(k==='story'&&q('#s_temp'))cc.temperature=q('#s_temp').value.trim();
     const old=(cur[k]||{});cur[k]={...cc,presets:old.presets||[],activePreset:(typeof old.activePreset==='number'?old.activePreset:-1)};
     store.setCfg(cur);return cur;};
   q('#s_eye').onclick=()=>{const i=q('#s_key');i.type=i.type==='password'?'text':'password';};
@@ -2609,7 +2632,7 @@ apps.settings={title:'设置',render(v){
         r.textContent='✅ 生图通道连通 · 可用模型 '+ms.length+' 个'+(ms.length?'（如 '+ms[0]+'）':'');}
       else{const res=await callAI([{role:'user',content:'只回复两个字：在线'}],'你是测试助手',kind());
         r.className='so-res-ok';
-        r.textContent='✅ 连通成功（'+(kind()==='text'?'文本':'总结')+'通道）· AI 回复：'+res.slice(0,40);}
+        r.textContent='✅ 连通成功（'+label()+'通道）· AI 回复：'+res.slice(0,40);}
     }catch(err){
       const h=apiErrorHelp(err.message);
       r.className='hint';
@@ -2623,13 +2646,13 @@ apps.settings={title:'设置',render(v){
   const applyPreset=(i)=>{
     const k=kind(),p=((store.cfg()[k]||{}).presets||[])[i];if(!p)return;
     const cur=store.cfg(),old=(cur[k]||{});
-    cur[k]={baseUrl:p.baseUrl||'',apiKey:p.apiKey||'',model:p.model||'',...(k==='text'&&p.temperature!=null?{temperature:p.temperature}:{}),presets:old.presets||[],activePreset:i};
+    cur[k]={baseUrl:p.baseUrl||'',apiKey:p.apiKey||'',model:p.model||'',...(k==='story'&&p.temperature!=null?{temperature:p.temperature}:{}),presets:old.presets||[],activePreset:i};
     store.setCfg(cur);apps.settings.render(v);okBox('✅ 已套用预设「'+(p.name||'')+'」（'+label()+'栏）。');
   };
   const savePreset=(name)=>{
     const k=kind(),cur=store.cfg();
     const cc={baseUrl:q('#s_url').value.trim(),apiKey:q('#s_key').value.trim(),model:q('#s_model').value.trim()};
-    if(k==='text'&&q('#s_temp'))cc.temperature=q('#s_temp').value.trim();
+    if(k==='story'&&q('#s_temp'))cc.temperature=q('#s_temp').value.trim();
     const old=(cur[k]||{}),list=[...(old.presets||[])];
     const nm=(name||'').trim()||('预设 '+(list.length+1));
     list.push({name:nm,...cc});
@@ -2904,13 +2927,12 @@ apps.messages={title:'信息',view:'list',cur:'',last:'',langMode:'zh',
         const t=v.querySelector('#m_in');t.value='「'+m.content.slice(0,40)+'…」\n';t.focus();
       };
     });
-    if(self.cur==='托尼·斯塔克')processLateQueue(self,v);
 
 // 检查该角色是否满足主动搭话规则
 const contactObj = store.contacts().find(x=>x.name===self.cur) || {};
 const isProactiveEnabled = (contactObj.proactive !== false) && store.get('proactive', true);
 
-if (isProactiveEnabled && apiCfg('text').apiKey) {
+if (isProactiveEnabled && apiCfg('story').apiKey) {
   let shouldTrigger = false;
   const triggerType = contactObj.proacTrigger || 'immediate';
   const lastMsg = arr[arr.length - 1];
@@ -2944,7 +2966,7 @@ if (isProactiveEnabled && apiCfg('text').apiKey) {
     const self=this,f=flags();let who=self.cur;
     if(self.cur==='贾维斯'&&f.ultronAfter)who='幻视';
     const sys=buildSystem('chat',`你现在扮演【${who}】。${castText(who)}\n${isAI(who)?'严守保密铁律。':''}用 1 条短消息主动打招呼（不要解释为什么主动发消息）。`);
-    const res=await ai([{role:'user',content:'（玩家刚打开与你的对话，请按人设主动发一条短消息）'}],sys,()=>localReply(who,''));
+    const res=await ai([{role:'user',content:'（玩家刚打开与你的对话，请按人设主动发一条短消息）'}],sys,()=>localReply(who,''),'social');
     const ch=store.chats();(ch[self.cur]=ch[self.cur]||[]).push({role:'them',who:who==='幻视'?'幻视（代回）':'',content:res.replace(/\*/g,'').trim(),time:nowTime()});store.setChats(ch);
     if(currentApp==='messages'&&this.view==='chat')this.render($('#appBody'));
   },
@@ -3076,7 +3098,7 @@ store.setContacts(cs);
       replyPromise=ai(recent,sys,()=>{
         if(isTonyProxy)return `｛语音转文字｝好得很，根本没睡。幸好${proxyAI}能打字，否则你话多到斯塔克工业科研部要停工了，你付得起这个吗？`;
         return localReply(responder,text);
-      });
+      },'social');
     }catch(e){replyPromise=Promise.resolve(null);}
 
     // ① 已读回执：局部更新，不整块重绘，避免打断输入态
@@ -3159,7 +3181,7 @@ store.setContacts(cs);
       };
       const p=pool[period]||pool.evening;
       return `A. ${p[0]}\nB. ${p[1]}\nC. ${p[2]}`;
-    });
+    },'social');
     d.querySelector('.loader').innerHTML=`<div class="card"><h3 style="color:var(--cyan);margin:0 0 10px">💡 三个开场话题</h3>
       <div class="hint" style="margin-bottom:10px">联系人：${esc(self.cur)} · ${period} ${timeStr} · 好感 ${aff}/200</div>
       <div id="tp_list">${String(r).split('\n').filter(l=>/^[ABC][\.、]/.test(l.trim())).map(l=>`<button class="opt" data-tp="${esc(l).replace(/"/g,'&quot;')}" style="margin-bottom:8px">${fmt(l)}</button>`).join('')}</div>
@@ -3243,7 +3265,7 @@ store.setContacts(cs);
         ansBox.innerHTML='<div class="loader" style="padding:14px"><div class="spin"></div>'+esc(who)+' 正在思考…</div>';
         /* 把题发到当前聊天（如果 who === self.cur），并让对方回复 */
         const sys=buildSystem('chat',`你扮演【${who}】。${castText(who)}\n玩家向你提了一道真心话：「${q}」\n请按人设回答，不要回避，但可以保留分寸。${isAI(who)?'严守保密铁律，但可以坦诚回答非受限问题。':''}回答控制在 30~80 字。`);
-        const ans=await ai([{role:'user',content:'请回答这道真心话。'}],sys,()=>localReply(who,q));
+        const ans=await ai([{role:'user',content:'请回答这道真心话。'}],sys,()=>localReply(who,q),'social');
         ansBox.innerHTML=`<div class="bub them" style="margin-top:8px">${fmt(String(ans).replace(/\*/g,'').trim())}</div>`;
         /* 如果对方就是当前聊天对象，把问答写入聊天记录 */
         if(who===self.cur){
@@ -3331,7 +3353,7 @@ function socialApp(platform,title,hasImg){
         ${hasImg?(p.img?`<img src="${esc(p.img)}">`:(p.imgPrompt?`<div data-gen="${i}" style="aspect-ratio:1.4;background:var(--panel2);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;color:var(--muted);cursor:pointer;margin-bottom:10px"><div style="font-size:28px">🖼️</div><div style="font-size:12px">点击生成配图</div></div>`:'')):''}
         <div class="tx">${fmt(p.text)}</div>
         <div class="ft"><span data-like="${i}" class="${p.liked?'on':''}">♡ ${p.likes||0}</span><span>💬 ${(p.comments||[]).length}</span><span data-repost="${i}" style="margin-left:auto;color:var(--cyan)">⇄ 转载给托尼</span></div>
-        ${(p.comments||[]).map(cm=>`<div class="cmt"><b>${esc(cm.user)}</b> ${esc(cm.text)}</div>`).join('')}
+        ${(p.comments||[]).map((cm,ci)=>`<div class="cmt" data-reply="${i}:${ci}" title="双击追评" style="cursor:pointer">${cm.replyTo?`<span class="hint" style="font-size:10.5px">↳ 回复 @${esc(cm.replyTo)}</span><br>`:''}<b>${esc(cm.user)}</b> ${esc(cm.text)}</div>`).join('')}
         <div class="cmtbox"><input placeholder="评论…" data-ci="${i}"><button data-cs="${i}">发</button></div>
       </div>`).join('');
       list.querySelectorAll('[data-gen]').forEach(el=>el.onclick=async()=>{const i=+el.dataset.gen;const ps=store.posts();const p=ps[platform][i];el.innerHTML='<div class="spin"></div>';
@@ -3340,6 +3362,53 @@ function socialApp(platform,title,hasImg){
       list.querySelectorAll('[data-like]').forEach(el=>el.onclick=()=>{const i=+el.dataset.like;const ps=store.posts();const p=ps[platform][i];p.liked=!p.liked;p.likes=(p.likes||0)+(p.liked?1:-1);store.setPosts(ps);paint();});
       list.querySelectorAll('[data-repost]').forEach(el=>el.onclick=()=>{const i=+el.dataset.repost;const p=store.posts()[platform][i];repostToTony('Twitter动态 · '+p.name,p.text);});
       list.querySelectorAll('[data-cs]').forEach(b=>b.onclick=()=>{const i=+b.dataset.cs;const inp=list.querySelector(`[data-ci="${i}"]`);const t=inp.value.trim();if(t)addComment(i,t);});
+list.querySelectorAll('[data-reply]').forEach(el=>el.addEventListener('dblclick',()=>{
+  const [pi,ci]=el.dataset.reply.split(':').map(Number);
+  const post0=(store.posts()[platform]||[])[pi];
+  const target=(post0&&post0.comments||[])[ci];
+  if(!target)return;
+  const me=store.profile().name||'我';
+  if(target.user===me)return toast('这是你自己的评论');
+  const d=modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:15px">💬 回复 @${esc(target.user)}</h2>
+    <div class="card">
+      <div class="quote" style="margin-bottom:8px"><b>${esc(target.user)}</b> ${esc(target.text)}</div>
+      <div class="field"><label>你的追评</label><textarea id="rc_in" rows="3" placeholder="写点什么…"></textarea></div>
+      <button class="btn" id="rc_go">发送追评</button>
+      <button class="btn ghost" data-close style="margin-top:8px">取消</button>
+    </div>`);
+  d.querySelector('#rc_in').focus();
+  d.querySelector('#rc_go').onclick=async()=>{
+    const txt=d.querySelector('#rc_in').value.trim();
+    if(!txt)return toast('请填写追评内容');
+    const ps=store.posts();const p=ps[platform][pi];
+    p.comments=p.comments||[];
+    p.comments.splice(ci+1,0,{user:me,text:txt,replyTo:target.user});
+    store.setPosts(ps);d.remove();paint();
+    toast('已发送 · 等待回应');
+    try{
+      const contacts=visibleContacts().map(c=>c.name).filter(n=>n!==me);
+      const cc=2+Math.floor(Math.random()*2); // 2~3 条追评
+      const res=await ai([{role:'user',content:`${title} 评论区追评。\n原帖「${p.text}」\n被追评的评论：${target.user}：「${target.text}」\n玩家（${me}）回复 @${target.user}：「${txt}」\n\n请生成 ${cc} 条追评：第 1 条必须是【${target.user}】对玩家的直接回应，符合该角色人设；其余 ${cc-1} 条是围观网友或具名角色（${contacts.slice(0,5).join('、')}）的插话，可相互回复形成链。每行格式：名字 ||| 内容（15~35 字）。\n【硬性要求】评论者绝不能是玩家本人「${me}」，不要替玩家生成任何追评。`}],buildSystem('social'),()=>{
+        const lines=[target.user+' ||| 你这话有点意思，但我保留看法。'];
+        if(contacts[0])lines.push(contacts[0]+' ||| 他俩又开始了。');
+        lines.push('@onlooker_'+Math.floor(Math.random()*90+10)+' ||| 这波我站楼主');
+        return lines.slice(0,cc).join('\n');
+      },'social');
+      const q=store.posts();const p2=q[platform][pi];p2.comments=p2.comments||[];
+      let first=true,replyIdx=0;
+res.split('\n').filter(l=>l.includes('|||')).slice(0,cc).forEach(l=>{
+        const [u,x]=l.split('|||').map(s=>s.trim());
+        if(!u||!x||u===me)return;
+        // insert after the player's reply (ci+1), then sequentially after each new insert
+const insertAt=p2.comments.findIndex((c,j)=>j>ci&&c.user===me&&c.replyTo===target.user);
+const pos=insertAt>=0?insertAt+1+replyIdx:p2.comments.length;
+p2.comments.splice(pos,0,{user:u,text:x,replyTo:first?me:target.user});
+        replyIdx++;first=false;
+      });
+      store.setPosts(q);paint();
+    }catch(e){}
+  };
+}));
     };
     if(posts.length)paint();
     v.querySelector('#p_fts').onclick=()=>{ftIndexAll();openFTSearch();};
@@ -3357,13 +3426,14 @@ v.querySelector('#p_fts').onclick=()=>{ftIndexAll();openFTSearch();};
         lines.push(`${names[0]} ||| 只改两遍。第三遍是你自己加的。`);
         while(lines.length<cc)lines.push(`@user${lines.length} ||| 这条确实有道理。`);
         return lines.join('\n');
-      });
+      },'social');
         res.split('\n').filter(l=>l.includes('|||')).forEach(l=>{const[u,t]=l.split('|||').map(x=>x.trim());if(u&&t&&u!==(store.profile().name||'我')){const q=store.posts();q[platform][i].comments.push({user:u,text:t});store.setPosts(q);}});paint();}catch(e){}}
     v.querySelector('#p_new').onclick=async()=>{const t=prompt('发布内容：');if(!t)return;const me=store.profile().name||'Me';const ps=store.posts();ps[platform]=ps[platform]||[];
-      let imgP='';if(hasImg)imgP='Cinematic Stark Tower lab, holographic displays, blue-cyan lighting, photorealistic';
+  let imgP='';if(hasImg)imgP='Cinematic Stark Tower lab, holographic displays, blue-cyan lighting, photorealistic';
       ps[platform].unshift({name:me,handle:'@me',text:t,imgPrompt:imgP,likes:0,comments:[]});store.setPosts(ps);self.render(v);
       try{const cc=getCommentCount();const contacts=visibleContacts().map(c=>c.name).filter(n=>n!==me);
-        const res=await ai([{role:'user',content:`玩家(${me})在${title}发帖："${t}"。生成 ${cc} 条评论，可来自具名角色（${contacts.slice(0,6).join('、')}），或用【英文网名】的路人网友（有网感、呼应 ${flags().year} 年的网络梗）。其中至少 2 条是具名角色之间的互评对话。每行：名字 ||| 内容`}],buildSystem('social'),()=>{
+                const res=await ai([{role:'user',content:`玩家(${me})在${title}发帖："${t}"。生成 ${cc} 条评论，可来自具名角色（${contacts.slice(0,6).join('、')}），或用【英文网名】的路人网友（有网感、呼应 ${flags().year} 年的网络梗）。其中至少 2 条是具名角色之间的互评对话。每行：名字 ||| 内容\n【硬性要求】评论者绝不能是玩家本人「${me}」。`}],
+buildSystem('social'),()=>{
           const lines=[];
           const names=contacts.length>=2?contacts.slice(0,2):['托尼·斯塔克','佩珀·波茨'];
           lines.push(`${names[0]} ||| *"Cute. Wrong, but cute."*（挺可爱。错的，但挺可爱。）`);
@@ -3372,8 +3442,8 @@ v.querySelector('#p_fts').onclick=()=>{ftIndexAll();openFTSearch();};
           lines.push(`@si_pr_official ||| 本条内容与本公司立场无关。`);
           while(lines.length<cc)lines.push(`@user${lines.length} ||| 这条挺有意思。`);
           return lines.join('\n');
-        });
-        const q=store.posts();res.split('\n').filter(l=>l.includes('|||')).forEach(l=>{const[u,x]=l.split('|||').map(y=>y.trim());if(u&&x)q[platform][0].comments.push({user:u,text:x});});store.setPosts(q);self.render(v);}catch(e){}};
+       },'social');
+        const q=store.posts();res.split('\n').filter(l=>l.includes('|||')).forEach(l=>{const[u,x]=l.split('|||').map(y=>y.trim());if(u&&x&&u!==me)q[platform][0].comments.push({user:u,text:x});});store.setPosts(q);self.render(v);}catch(e){}};
    v.querySelector('#p_rf').onclick=async()=>{list.innerHTML='<div class="loader"><div class="spin"></div>加载动态…</div>';
       const n=store.get('socialCount',5);
       const yr=flags().year;
@@ -3388,11 +3458,12 @@ v.querySelector('#p_fts').onclick=()=>{ftIndexAll();openFTSearch();};
       const contactNames=visibleContacts().map(c=>c.name).slice(0,8).join('、');
       try{const res=await ai([{role:'user',content:`生成 ${n} 条${title}动态。发帖人可含托尼·斯塔克／初代复联／斯塔克工业员工／号角日报，以及英文网名的普通网友；内容符合 ${yr} 年。每条附 ${cc} 条评论，其中至少 2 条为具名角色（${contactNames}）之间的互评对话（A 回复 B，B 再回复 A）。${hasImg?'并给英文生图Prompt。':''}
 ${handleRule}
-格式每行：发帖人 ||| @账号 ||| 正文 ||| 评论者1:内容 ;; 评论者2:内容 ;; ...（共${cc}条评论）`}],buildSystem('social'),fb);
+格式每行：发帖人 ||| @账号 ||| 正文 ||| 评论者1:内容 ;; 评论者2:内容 ;; ...（共${cc}条评论）`}],buildSystem('social'),fb,'social');
         const ps=store.posts();ps[platform]=ps[platform]||[];const nw=[];
-        res.split('\n').filter(l=>l.includes('|||')).slice(0,n).forEach(l=>{const pt=l.split('|||').map(x=>x.trim());const name=pt[0],handle=pt[1],text=pt[2];const cstr=pt.slice(3).join('|||');
-          const comments=(cstr||'').split(';;').map(c=>{const k=c.indexOf(':'),k2=c.indexOf('：');const p0=k>-1?k:k2;if(p0<0)return null;return{user:c.slice(0,p0).trim(),text:c.slice(p0+1).trim()};}).filter(Boolean);
-          if(name&&text)nw.push({name,handle:handle||'@user',text,imgPrompt:hasImg?'Cinematic Marvel-style photo, dramatic blue and gold lighting':'',likes:Math.floor(Math.random()*300)+10,comments,time:nowTime()});});
+        const me=store.profile().name||'我';
+res.split('\n').filter(l=>l.includes('|||')).slice(0,n).forEach(l=>{const pt=l.split('|||').map(x=>x.trim());const name=pt[0],handle=pt[1],text=pt[2];const cstr=pt.slice(3).join('|||');
+  const comments=(cstr||'').split(';;').map(c=>{const k=c.indexOf(':'),k2=c.indexOf('：');const p0=k>-1?k:k2;if(p0<0)return null;return{user:c.slice(0,p0).trim(),text:c.slice(p0+1).trim()};}).filter(c=>c&&c.user!==me);
+  if(name&&text)nw.push({name,handle:handle||'@user',text,imgPrompt:hasImg?'Cinematic Marvel-style photo, dramatic blue and gold lighting':'',likes:Math.floor(Math.random()*300)+10,comments,time:nowTime()});});
         if(!nw.length)throw new Error('未按格式返回');
         ps[platform]=[...nw,...ps[platform]];store.setPosts(ps);self.render(v);
       }catch(e){toast('刷新失败：'+e.message);self.render(v);}};
@@ -3435,7 +3506,7 @@ function repostToTony(source,text){
 请以托尼极其简短、挑剔、自嘲但认真的口吻回复一封邮件（4~7行）。文末落款 T.S.。禁止套话。`);
         const replyText = await ai([{role:'user',content:`玩家向你转发了：【${source}】\n内容摘要：${text.slice(0,180)}\n玩家附言：${note||'（未附言）'}`}], sys, ()=>{
           return `收到了。第二段我早让贾维斯标红了，你反射弧比推进器延迟还长。\n\n另外，别在公用线路发这种东西，公关部那帮人血压又要升高了。\n蓝色的那个放回原位。\n\nT.S.`;
-        }, 'text');
+        }, 'story');
 
         const curMails = mailAll();
         curMails.unshift({
@@ -4120,7 +4191,7 @@ const EventEngine={
     tickMs:55000,          // EnvLog.tick 的真实时间间隔（毫秒）
     rollChance:0.34,       // 每次 tick 命中世界事件的概率
     minGapMs:120000,       // 两个世界事件之间的最小真实时间间隔
-    chain:{enabled:true,chance:0.5,steps:{mail:18000,tweet:42000,sms:72000}},
+    chain:{enabled:true,chance:0.25,steps:{mail:18000,tweet:42000,sms:72000}},
     flash:{enabled:true}
   },
   init(){const c=store.get('eventCfg',null);if(c&&typeof c==='object')Object.assign(this.CONFIG,{
@@ -4136,48 +4207,8 @@ const EventEngine={
     store.set('worldEvents',a.slice(0,60));
     EnvLog.push('世界事件 · '+(e.title||'新动态'));
   },
-  /* 四类世界事件：托尼深夜消息 / 股价异动推送 / 复联频道 @ / 公关危机 */
+  /* 四类世界事件：股价异动推送 / 复联频道 @ / 公关危机 */
   EVENTS:[
-    {id:'tonyLate',icon:'🌙',cooldownMs:300000,
-      weight(){const h=new Date().getHours();return (h>=23||h<5)?7:1.1;},
-      when(){return (store.contacts().find(c=>c.isTony)||{}).affinity>=0;},
-      build(){
-        const aff=(store.contacts().find(c=>c.isTony)||{}).affinity||0;
-        const f=flags();
-        const hour=new Date().getHours();
-        /* 收集情境参数，用于动态生成（AI 或本地兜底） */
-        const tier=aff>=181?'vow':aff>=151?'softspot':aff>=111?'trust':aff>=71?'friend':aff>=31?'partner':'guard';
-        const tierName={guard:'防备评估',partner:'技术搭档',friend:'破冰老友',trust:'深层信任',softspot:'盔甲软肋',vow:'非正式生死契约'}[tier];
-        const period=hour<2?'深夜':hour<5?'凌晨':'晚间';
-        const recentStory=((store.state()||{}).story||'').slice(-160);
-        const lastMsgs=(store.chats()['托尼·斯塔克']||[]).slice(-3).map(m=>m.content).join(' / ');
-        const mood=f.ultronAfter?'奥创事件后':f.civilWar?'内战期':f.snap?'响指之后':f.avengers1?'复联集结后':'集结前';
-        return {aff,tier,tierName,period,hour,recentStory,lastMsgs,mood,f};
-      },
-      async deliver(p){
-        const ch=store.chats();const a=ch['托尼·斯塔克']||[];
-        /* 动态生成深夜消息：基于好感档位 / 时间段 / 世界线 / 近期剧情 / 最近消息 */
-        let text='';
-        try{
-          const sys=buildSystem('chat',`你扮演【托尼·斯塔克】。${castText('托尼·斯塔克')}\n现在是${p.period}（${p.hour}点）。当前好感档位：${p.tierName}（${p.aff}/200）。世界线：${p.mood}。\n【任务】以托尼的口吻发1条深夜短消息（不超过35字），符合当前好感档位的亲密程度与防备程度。\n- 防备评估档：用公事口吻，避免私人话题；\n- 技术搭档档：可以提技术细节，但岔开私人话题；\n- 破冰老友档：可以带点别扭的关心，假装按错；\n- 深层信任档：可以说半句真话，立刻收口；\n- 盔甲软肋档：暴露一点脆弱，但用玩笑收尾；\n- 非正式生死契约档：最接近"留下"的说法。\n严禁动作描写、严禁剧透未来事件。只输出1条短信正文。`);
-          const ctx=p.recentStory?('最近剧情：'+p.recentStory+'\n'):'';
-          const last=p.lastMsgs?('最近消息：'+p.lastMsgs+'\n'):'';
-          text=await ai([{role:'user',content:ctx+last+'请发一条'+p.period+'的消息。'}],sys,
-            ()=>genLocalLateMsg(p));
-          text=String(text||'').replace(/\*/g,'').trim();
-          if(!text)text=genLocalLateMsg(p);
-        }catch(e){text=genLocalLateMsg(p);}
-        a.push({role:'them',who:'托尼·斯塔克',content:text,time:storyMsgTime(),worldEvent:true});
-        /* 偶发撤回：复用现有撤回 UI（.bub.recalled + 受限日志入口） */
-        if(Math.random()<0.22){
-          const miss=['刚才那句删掉，别看','算了，这条不是给你的','……当我没发'][Math.floor(Math.random()*3)];
-          a.push({role:'them',who:'托尼·斯塔克',content:miss,time:storyMsgTime(),worldEvent:true});
-          a.push({role:'them',content:'',recalled:true,recalledBy:'托尼',orig:miss,time:storyMsgTime(),worldEvent:true});
-        }
-        ch['托尼·斯塔克']=a;store.setChats(ch);
-        EventEngine.record({type:'late',icon:'🌙',title:'托尼 · 深夜消息',detail:text.slice(0,40),target:'messages'});
-        notifyBanner('托尼 · 深夜消息',text.slice(0,28),()=>{openApp('messages');apps.messages.cur='托尼·斯塔克';apps.messages.view='chat';apps.messages.render($('#appBody'));});
-      }},
     {id:'stockAlert',icon:'📈',cooldownMs:240000,weight:2.2,when(){return true;},
       build(){
         const up=Math.random()>=0.5,pct=+(1.2+Math.random()*4.6).toFixed(2);
@@ -4187,17 +4218,33 @@ const EventEngine={
         const s=Stock.d();s.prev=s.p;s.p=+(s.p*(1+(p.up?1:-1)*p.pct/100)).toFixed(2);
         s.hist.unshift({p:s.p,t:nowTime()});s.hist=s.hist.slice(0,30);s.t=Date.now();store.set('stock',s);
         const txt=`NYSE: SIK $${s.p.toFixed(2)} · ${p.up?'▲':'▼'} ${p.pct}% · ${p.dir}`;
+// 尝试用 API 补一句分析师口径的一句话摘要
+(async()=>{try{
+  const line=await ai([{role:'user',content:`斯塔克工业股价${p.up?'上涨':'下跌'} ${p.pct}%，以分析师口径写一句 20 字以内的市场点评。只输出一句话。`}],
+    buildSystem('terminal'),'');
+  if(line&&line.trim()){
+    const ev=store.get('worldEvents',[]);const last=ev[0];
+    if(last&&last.type==='stock')last.detail=txt+' · '+line.trim().slice(0,30);
+    store.set('worldEvents',ev);
+  }
+}catch(e){}})();
         EventEngine.record({type:'stock',icon:p.up?'📈':'📉',title:'斯塔克工业 · 股价异动',detail:txt,target:'briefing'});
         notifyBanner('斯塔克工业 · 行情推送',txt,()=>openApp('briefing'));
       }},
-    {id:'prCrisis',icon:'⚠️',cooldownMs:420000,weight:1.7,when(){return true;},
+    {id:'prCrisis',icon:'⚠️',cooldownMs:900000,weight:0.5,when(){return true;},
       build(){
-        const topics=[
-          ['市中心试飞噪音投诉','昨夜 23 时前后，曼哈顿中城多处报告低频爆响。目击者描述不一，市政方面要求说明。'],
-          ['清洁能源部门预算质疑','多位分析师就清洁能源部门资本开支节奏提出问询，公司沿用既定披露口径。'],
-          ['战甲公开露面争议','一段模糊影像在本地媒体流传，围绕私营企业承担公共安全角色的讨论再度升温。'],
-          ['号角日报头版追问','号角日报以整版篇幅要求「钢铁侠给个说法」，编辑部称已向斯塔克工业发出求证函。']
-        ];
+       const topics=[
+  ['市中心试飞噪音投诉','昨夜 23 时前后，曼哈顿中城多处报告低频爆响。'],
+  ['清洁能源部门预算质疑','多位分析师就清洁能源部门资本开支节奏提出问询。'],
+  ['战甲公开露面争议','一段模糊影像在本地媒体流传，围绕私营企业承担公共安全角色的讨论再度升温。'],
+  ['号角日报头版追问','号角日报以整版篇幅要求「钢铁侠给个说法」。'],
+  ['斯塔克大厦周边交通管制','因不明原因，大厦周边三个街区今晨临时封路 40 分钟。'],
+  ['匿名股东质询函','一封未署名的质询函被送达董事会秘书处，内容涉及研发预算。'],
+  ['清洁能源示范区电压异常','斯塔克工业清洁能源示范区昨日短暂出现电压波动，已恢复。'],
+  ['海外分部人事变动传闻','有媒体报道海外分部高层人事调整，公司尚未确认。'],
+  ['民间组织发起钢铁侠问责请愿','一家民间监督机构在网上发起请愿，要求披露战甲部署记录。'],
+  ['斯塔克工业年度慈善晚宴场地曝光','原定保密的慈善晚宴场地被拍到，公关部正在评估。'],
+];
         const t=topics[Math.floor(Math.random()*topics.length)];
         return {title:t[0],desc:t[1],year:flags().year};
       },
@@ -4252,7 +4299,9 @@ const EventEngine={
       const l=mailAll();l.unshift({id:'m'+Math.random().toString(36).slice(2,9),owner:'user',box:'in',
         from:'斯塔克工业公关部 <pr@starkindustries.com>',to:'you@starkmail.com',
         subject:'舆情联动 · 关于《'+String(title).slice(0,20)+'》',
-        body:'您好：\n\n注意到您关注了今日的报道。公关部统一口径如下：不予置评；如收到媒体求证，请直接转交本部处理。\n\n—— 系统自动联动（连锁事件）',
+        body:['您好：\n\n公关部注意到今日报道。统一口径：不予置评。\n\n—— 公关部',
+  '已收到关于《'+String(title).slice(0,16)+'》的舆情通知。依流程转交处理，无需回复。\n\n—— 公关部',
+  '今日媒体问询已归档。既定口径不变，请勿自行回应。\n\n—— 斯塔克工业 · 公关部'][Math.floor(Math.random()*3)],
         tag:'媒体',unread:true,star:false,time:nowTime(),quote:''});
       mailSave(l);
       this.record({type:'chain',icon:'✉️',title:'连锁事件 · 公关部联动邮件',detail:'关于《'+String(title).slice(0,18)+'…》',target:'mail'});
@@ -4261,7 +4310,9 @@ const EventEngine={
     at(steps.tweet,()=>{
       const ps=store.posts();ps.twitter=ps.twitter||[];
       ps.twitter.unshift({name:'号角日报读者',handle:'@bugle_fan',
-        text:'刚看完《'+String(title).slice(0,24)+'》！！这次他又在市中心搞出了什么？@starkindustries 给个说法？',
+        text:['刚看完《'+String(title).slice(0,20)+'》，这次又是什么情况？@starkindustries',
+  '有人能解释一下《'+String(title).slice(0,18)+'》到底说了什么吗',
+  '看了今天的报道。说真的，每次都是「不予置评」？@starkindustries'][Math.floor(Math.random()*3)],
         likes:Math.floor(Math.random()*80)+5,comments:[],time:nowTime()});
       store.setPosts(ps);
       this.record({type:'chain',icon:'𝕏',title:'连锁事件 · 网友开始转发报道',detail:String(title).slice(0,30),target:'twitter'});
@@ -4270,7 +4321,8 @@ const EventEngine={
     at(steps.sms,()=>{
       const ch=store.chats(),from=Math.random()<0.5?'哈皮':'罗迪';
       (ch[from]=ch[from]||[]).push({role:'them',who:from,
-        content:from==='哈皮'?'报纸看了吗。楼下又多了三个记者。车我挪到 B2 了，别问他。':'看到新闻了。下次他试飞前，麻烦提前告诉我一声——我还得写报告。',
+        content:from==='哈皮'?['报纸看了吗。楼下记者又多了。','今天别走正门，换侧门。原因不记录。','车挪到地下了。别问为什么。'][Math.floor(Math.random()*3)]
+  :['看到新闻了。帮我跟他说一声。','这次的报道我要写报告，你提前知会他。','下次试飞前说一声，我这边有程序要走。'][Math.floor(Math.random()*3)],
         time:nowTime(),worldEvent:true});
       store.setChats(ch);
       this.record({type:'chain',icon:'💬',title:'连锁事件 · '+from+' 发来短信',detail:'就今天的报道发来一条消息',target:'messages'});
@@ -4596,11 +4648,26 @@ const TonyStatus={
   get(){return this.cur||this.refresh();},
 };
 const ENV_POOL=[
-  'J.A.R.V.I.S. 将实验室照度下调了 4%','咖啡机完成自清洁 · 今日第 {coffee} 杯已萃取','哈皮把车从 B2 移到了地面层',
-  '大厦电网负载 99.97% · 无异常','清洁机器人在 37 层遇到一只纸飞机','贾维斯归档了 3 条受限日志','4 号工作台能耗较昨日 +12%',
-  '顶层空调调高了 0.5 ℃','访客电梯完成了例行检修','全息投影自动进入待机','贾维斯备份了今日全部对话摘要',
-  '战甲陈列廊的灯依次自检完毕','楼下又有记者被前台礼貌地拦下','冰箱里的第 4 杯咖啡被标记为「备用」',
-  '马里布方向的风速 14 节 · 浪高 0.6 米','大厦外部玻璃幕墙进入夜间反光模式',
+  'J.A.R.V.I.S. 将实验室照度下调了 4%',
+  '咖啡机完成自清洁 · 今日第 {coffee} 杯已萃取',
+  '哈皮把车从 B2 移到了地面层',
+  '大厦电网负载 99.97% · 无异常',
+  '清洁机器人在 37 层遇到一只纸飞机',
+  '贾维斯归档了 3 条受限日志',
+  '4 号工作台能耗较昨日 +12%',
+  '顶层空调调高了 0.5 ℃',
+  '访客电梯完成了例行检修',
+  '全息投影自动进入待机',
+  '贾维斯备份了今日全部对话摘要',
+  '战甲陈列廊的灯依次自检完毕',
+  '楼下又有记者被前台礼貌地拦下',
+  '冰箱里的第 4 杯咖啡被标记为「备用」',
+  '马里布方向的风速 14 节 · 浪高 0.6 米',
+  '大厦外部玻璃幕墙进入夜间反光模式',
+  '42 层的投影仪自行切换了幻灯片',
+  '实验室通风系统完成第 3 轮自清洁',
+  '3 号工作台有人留了一杯没喝的黑咖啡',
+  '楼顶直升机停机坪的风力传感器归零',
 ];
 const EnvLog={list:[],_i:0,
   init(){this.list=store.get('envlog',[]);
@@ -4612,7 +4679,12 @@ const EnvLog={list:[],_i:0,
       if(!this.list.length)return;this._i=(this._i+1)%this.list.length;
       const el=$('#envTickerTxt');if(el)el.textContent=this.list[this._i].t+' · '+this.list[this._i].x;
       this._rotate();},16000);},
-  tick(){const x=ENV_POOL[Math.floor(Math.random()*ENV_POOL.length)].replace('{coffee}',TonyStatus.coffee);
+  tick(){
+  // 从最近 6 条里排除已用过的，降低重复
+  const recent=new Set(this.list.slice(0,6).map(l=>l.x));
+  const pool=ENV_POOL.filter(t=>!recent.has(t.replace('{coffee}',TonyStatus.coffee)));
+  const pick=(pool.length?pool:ENV_POOL)[Math.floor(Math.random()*(pool.length||ENV_POOL.length))];
+  const x=pick.replace('{coffee}',TonyStatus.coffee);
     this.push(x);TonyStatus.refresh();
     // 世界事件引擎：按真实时间间隔掷骰，用户不操作时世界仍持续运转
     try{EventEngine.roll('tick');}catch(e){console.warn('EventEngine.roll',e);}
@@ -5189,7 +5261,7 @@ apps.armory={title:'战甲陈列室 / 工坊',tab:'hall',cur:null,
         const aa=armorData();aa.integrity[m.no]=100;store.set('armor',aa);
         const line=await ai([{role:'user',content:'玩家在工坊把 Mark '+m.no+' 返修到 100%。以托尼口吻吐槽一句（25字内，只对白）。'}],
           buildSystem('chat','你是托尼·斯塔克，在工坊看着玩家校准战甲。只输出 1 句吐槽，无动作描写。'),
-          ()=>'*"Maintenance. Riveting. Try not to scratch it before Tuesday."*（保养。真精彩。周二之前别刮花它。）');
+          ()=>'*"Maintenance. Riveting. Try not to scratch it before Tuesday."*（保养。真精彩。周二之前别刮花它。）','social');
         toast(line.replace(/\*/g,'').slice(0,44));self.render(v);};
       return;
     }
@@ -5213,7 +5285,7 @@ apps.armory={title:'战甲陈列室 / 工坊',tab:'hall',cur:null,
         el.innerHTML='<i style="color:var(--muted)">…</i>';
         const r=await ai([{role:'user',content:`玩家把战甲调参为：推力${t.thrust}、质量${t.mass}、能量分配${t.power}。以托尼口吻点评一句（30字内，只对白）。`}],
           buildSystem('chat','你是托尼·斯塔克，正在看玩家调战甲参数。只输出 1 句刻薄但专业的点评对白，无动作描写。'),
-          ()=>TUNE_SNARK[Math.floor(Math.random()*TUNE_SNARK.length)]);
+          ()=>TUNE_SNARK[Math.floor(Math.random()*TUNE_SNARK.length)],'social');
         el.innerHTML=fmt(r);};
       [['thrust','tn_t','#tn_thrust'],['mass','tn_m','#tn_mass'],['power','tn_p','#tn_power']].forEach(([k,lab,sel])=>{
         const inp=v.querySelector(sel);if(!inp)return;
@@ -5277,99 +5349,6 @@ apps.armory={title:'战甲陈列室 / 工坊',tab:'hall',cur:null,
       store.set('useItem',cur===id?null:id);toast(cur===id?'已收起':'已装备 · 世界线行动将带上它');self.render(v);});
   }
 };
-
-/* 深夜排队回复 / 深夜错发（渲染托尼对话时结算） */
-/* 本地兜底：根据情境参数组合生成多变的深夜消息（避免固定台词） */
-function genLocalLateMsg(p){
-  const {tier,period,hour,mood,aff}=p;
-  /* 按档位分组的多元素模板，随机组合"主句 + 修饰" */
-  const TEMPLATES={
-    guard:[
-      ['门禁记录显示你还在大厦。','别乱走。','4 号工作台已经断电。'],
-      ['这封不算消息。','系统自动发的。','大概。'],
-      [period+'了。','访客通道'+(hour<2?'23:30':'凌晨')+'关闭。','记得走侧门。'],
-    ],
-    partner:[
-      ['没睡就别硬撑。','咖啡机在 3 号台。','别碰蓝色那个。'],
-      ['你昨天说的参数。','算了。','是对的。','别得意。'],
-      ['这条按错了。','没有按错。','别回。'],
-      [period+'还亮着灯的，','除了我，','就剩你了。','别误会，我只是说数据。'],
-    ],
-    friend:[
-      ['实验室的灯我留着了。','你要是还没睡，','就别装睡。'],
-      ['4 号工作台散热我改了。','你明天别问。','问就是不记得。'],
-      ['刚才那条不是给你的。','算了。','你已经看到了。'],
-      [period+'这条算我手滑。','如果回了，','当我没说。'],
-    ],
-    trust:[
-      [period+'了。','我没睡。','原因就不告诉你。'],
-      ['第二个抽屉的东西。','你拿了吧。','我知道。','没追究的意思。'],
-      ['反应堆今天又疼了。','别问。','我说完就当没说。'],
-      [period+'发这条，','是因为只对你不设防。','明天别提。'],
-    ],
-    softspot:[
-      [period+'你那边安静吗。','这边太安静了。','不习惯。'],
-      ['墨镜摘了。','没什么原因。','就是累了。'],
-      ['你明天别走太早。','不是请求。','是建议。'],
-      [period+'了。','想到你就发了。','别回。','回了我也不知道说什么。'],
-    ],
-    vow:[
-      ['I\'ll keep you alive.','那是说定了的事。','别问为什么。'],
-      [period+'这条你留着。','哪天我不在了。','你拿出来看。'],
-      ['身后的事我办好了。','别担心。','你只管活着。'],
-      [period+'了。','你睡了吗。','我守着。'],
-    ],
-  };
-  const arr=TEMPLATES[tier]||TEMPLATES.guard;
-  const pick=arr[Math.floor(Math.random()*arr.length)];
-  /* 30% 概率追加一个修饰尾巴，进一步打破固定感 */
-  const tails=[' —— T.S.','（这条别回。）','（手滑。）','（凌晨手滑。）','（'+period+'手滑。）',' —— 别问。'];
-  let text=pick.join('');
-  if(Math.random()<0.3)text+=' '+tails[Math.floor(Math.random()*tails.length)];
-  return text;
-}
-function processLateQueue(self,v){
-  try{
-    const q=store.get('lateQueue',null);
-    const hour=new Date().getHours();
-    const late=hour>=23||hour<5;
-    if(q&&q.chat==='托尼·斯塔克'&&Date.now()-q.t>150000){
-      store.set('lateQueue',null);
-      const f = flags();
-const d = new Date();
-const mm = String(d.getMonth() + 1).padStart(2, '0');
-const dd = String(d.getDate()).padStart(2, '0');
-const stamp = `${f.year}/${mm}/${dd} 0${Math.floor(Math.random()*4)+1}:${String(Math.floor(Math.random()*60)).padStart(2,'0')}`;
-      (async()=>{
-        const fb=()=>['*"Couldn\'t sleep either, apparently."*（看来你也睡不着。）','*"...I saw this at 3am. We will not be discussing that."*（……我凌晨三点看到的。这事我们就不讨论了。）'][Math.floor(Math.random()*2)];
-        const sys=buildSystem('chat',`你现在扮演【托尼·斯塔克】。玩家深夜发的消息，你凌晨才回。只输出 1~2 条短信（用 || 分隔），开头不要解释为什么晚回，可以带一点刚醒或没睡的语气。严禁动作描写。`);
-        const r=await ai([{role:'user',content:'（玩家深夜发来：'+String(q.text||'').slice(0,80)+'。你凌晨醒了，简短回复）'}],sys,fb);
-        const ch=store.chats();const a2=ch['托尼·斯塔克']||[];
-        r.split('||').map(x=>x.replace(/[（）()]/g,'').trim()).filter(Boolean).forEach(x=>a2.push({role:'them',content:x,time:stamp}));
-        if(Math.random()<0.18){
-          const miss=['关于西伯利亚的事，我不是——','如果你听到那段录音，忘掉，','实验室的灯…算了，这条不是给你的'][Math.floor(Math.random()*3)];
-          a2.push({role:'them',content:miss,time:stamp,misfire:true});
-          a2.push({role:'them',content:'',recalled:true,recalledBy:'托尼',orig:miss,time:stamp});
-        }
-        store.setChats(ch);
-        if(currentApp==='messages'&&self.view==='chat'&&self.cur==='托尼·斯塔克')self.render(v);
-        else banner('托尼 · 深夜回复','他凌晨回了你的消息',()=>{openApp('messages');apps.messages.cur='托尼·斯塔克';apps.messages.view='chat';apps.messages.render($('#appBody'));});
-      })();
-    }else if(!q&&late&&Math.random()<0.14){
-      const aff=(store.contacts().find(c=>c.isTony)||{}).affinity||0;
-      if(aff>=31){
-        const ch=store.chats();const a2=ch['托尼·斯塔克']||[];
-        if(!a2.some(m=>m.misfire&&Date.now()-(m._t||0)<36e5)){
-          const miss={role:'them',content:['实验室的灯还是别关…算了，当我没说','刚才那条不是给你的。删掉它','你睡了的话，明天别提这条'][Math.floor(Math.random()*3)],time: storyMsgTime(),misfire:true,_t:Date.now()};
-          a2.push(miss);
-          a2.push({role:'them',content:'',recalled:true,recalledBy:'托尼',orig:miss.content,time: storyMsgTime()});
-          store.setChats(ch);
-          notifyBanner('托尼 · 深夜消息','他发来一条，又撤回了',()=>{openApp('messages');apps.messages.cur='托尼·斯塔克';apps.messages.view='chat';apps.messages.render($('#appBody'));});
-        }
-      }
-    }
-  }catch(e){}
-}
 
 /* ============================================================
    邮件 App（用户邮箱 + 托尼邮箱 · 整理托尼邮件 · 转载附言）
@@ -5726,7 +5705,7 @@ apps.facetime={
       const line = await ai([{role:'user',content:`【通话记录】\n${recent}\n\n玩家沉默了5秒，请主动说一句话：`}], sys, ()=>{
         if(who==='托尼·斯塔克') return '“喂？卡住了还是被我的全息屏震撼到了？说话。”';
         return '“先生/女士，您还在听吗？”';
-      });
+      },'social');
       this.log.push({who, text: line.replace(/[*"（）()]/g,'').trim()});
       this.updateSuggestions(recent);
       this.render(v);
@@ -5738,7 +5717,7 @@ apps.facetime={
     const sys = `你是 FaceTime 对话辅助系统。根据当前与【${this.peer}】的视频通话内容，生成 3 个玩家可以直接点击回复的备选简短台词/动作。每行一个，不要序号，不要引号，每句15字以内。`;
     const r = await ai([{role:'user',content:`【当前对话】\n${context}\n\n请生成3条玩家备选回复：`}], sys, ()=>{
       return '你在实验室呆了多久？\n看看这个设计图\n没什么，就想确认你活着';
-    }, 'text');
+    }, 'social');
     const opts = r.split('\n').map(s=>s.replace(/^[0-9A-Za-z\.\、\s"“”]+/, '').trim()).filter(Boolean).slice(0,3);
     if(opts.length) this.options = opts;
   },
@@ -5756,7 +5735,7 @@ apps.facetime={
 
     const f=flags();let who=this.peer;if(who==='贾维斯'&&f.ultronAfter)who='幻视';
     const sys=buildSystem('chat',`你现在扮演【${who}】。${castText(who)}\n你刚刚接通了玩家打来的 FaceTime 视频电话，请以极其地道自然的人设说出开场第一句话（20字以内）。纯中文口语，严禁任何括号、神态动作描写。`);
-    const line=await ai([{role:'user',content:'（视频通话刚接通，请说第一句话）'}],sys,()=>localReply(who,''));
+    const line=await ai([{role:'user',content:'（视频通话刚接通，请说第一句话）'}],sys,()=>localReply(who,''),'social');
     this.log.push({who,text:line.replace(/[*"（）()]/g,'').trim()});
     this.render(v);
     this.resetSilenceTimer(v);
@@ -5786,7 +5765,7 @@ apps.facetime={
     const f=flags();let who=this.peer;if(who==='贾维斯'&&f.ultronAfter)who='幻视';
     const recent = this.log.slice(-6).map(l=>`${l.who}: ${l.text}`).join('\n');
     const sys=buildSystem('chat',`你现在扮演【${who}】。${castText(who)}\n正在 FaceTime 视频通话中。请针对玩家说的话回复一句（20~40字）。纯中文口语，贴近电影节奏，严禁动作神态描写与英文括号。`);
-    const line=await ai([{role:'user',content:`【前文对话】\n${recent}\n\n玩家刚刚说：“${text}”，请回复：`}],sys,()=>localReply(who,text));
+    const line=await ai([{role:'user',content:`【前文对话】\n${recent}\n\n玩家刚刚说：“${text}”，请回复：`}],sys,()=>localReply(who,text),'social');
     this.log.push({who, text: line.replace(/[*"（）()]/g,'').trim()});
     this.render(v);
     this.resetSilenceTimer(v);
@@ -6847,7 +6826,7 @@ apps.dating={title:'约饭',_view:'setup',city:0,spot:null,people:[],
       v.innerHTML='<div class="loader"><div class="spin"></div>场景推进中…</div>';
            const sys=buildSystem('worldline',`继续这场约会。地点：${s.place}/${s.spot}。同行：${s.people.join('、')}。玩家选择：${choice}。写 ${Math.round(store.get('wlWords',3500)*0.25)} 字左右。\n【对白铁律】每句出声台词必须写成 "English"（中文翻译），旁白用纯中文。\n末尾输出【选项】A. … B. … C. …`);
       // 如果未配置 API Key，明确弹出提示，而不是直接悄悄进兜底
-if (!apiCfg('text').apiKey) {
+if (!apiCfg('story').apiKey) {
   toast('未配置文本 API Key · 正在使用本地默认剧情');
 }
 
@@ -6855,7 +6834,7 @@ let r = '';
 try {
   r = await callAI([
     { role: 'user', content: `【前情回顾】\n${s.story.slice(-500)}\n\n【本轮选择与行动】\n${choice}\n\n请紧接上文推进下一段约会场景（300~500字）。如果玩家在行动前带有【场景发展特别纠正要求】，必须严格无条件遵守！末尾必须另起一行附带【选项】A. ... B. ... C. ...` }
-  ], sys, 'text');
+  ], sys, 'story');
 } catch (err) {
   toast('AI 请求失败：' + err.message + ' · 已启用备用剧情');
   r = `他没有接那句话，只是把杯子转了半圈，让缺口朝里。\n\n窗外城市的灯一层层亮起来。"别搞得跟什么大事似的。"\n\n服务生来收走第一道几乎没动过的菜。他忽然问了一句跟今晚完全无关的事：「4 号工作台的散热你看了吗？」\n\n这就是他能给出的、最接近「留下」的说法。\n\n【选项】\nA. 回答工作台的事\nB. 反问「你是在岔开话题吗」\nC. 把话题留在今晚`;
@@ -7593,7 +7572,7 @@ apps.avengers={title:'复联群聊',render(v){
 ${f.civilWar?'注意内战期阵营分歧，协议方与反协议方语气不同。':''}
 请以各回复角色的口吻围绕话题各发 1~2 句，体现各自性格与立场。每行：姓名 ||| 内容。不替别人发言，不重复别人的话。`);
     const r=await ai([{role:'user',content:`话题发起人：${starter.name}\n话题：${topic.t}\n将参与讨论的角色：${responders.map(m=>m.name).join('、')}`}],sys,
-      ()=>responders.map(m=>m.name+' ||| '+localReply(m.name,topic.t)).join('\n'));
+      ()=>responders.map(m=>m.name+' ||| '+localReply(m.name,topic.t)).join('\n'),'social');
     const lines=r.split('\n').filter(l=>l.includes('|||'));
     responders.forEach((m,i)=>{
       setTimeout(()=>{
@@ -7607,7 +7586,7 @@ ${f.civilWar?'注意内战期阵营分歧，协议方与反协议方语气不同
   },
   async autoMessage(v,paint,n){
     const sys=buildSystem('group',`生成复仇者频道里 ${n||1} 条「自动发生」的消息：可以是清理进度、会议通知、一句吐槽。严格按角色卡说话，每行：姓名 ||| 内容。最多 ${n||1} 行。不得全员一起发言。`);
-    const r=await ai([{role:'user',content:'请生成'+ (n||1) +'条自动群消息。当前：'+eraName()}],sys,()=>LOCAL.groupAuto().slice(0,n||1).join('\n'));
+    const r=await ai([{role:'user',content:'请生成'+ (n||1) +'条自动群消息。当前：'+eraName()}],sys,()=>LOCAL.groupAuto().slice(0,n||1).join('\n'),'social');
     let cnt=0;
     r.split('\n').filter(l=>l.includes('|||')).slice(0,n||1).forEach(l=>{const[a,b]=l.split('|||').map(x=>x.trim());if(a&&b){this.push(a,b,{auto:true});cnt++;}});
     if(!cnt){const x=LOCAL.groupAuto()[0].split('|||');this.push(x[0].trim(),x[1].trim(),{auto:true});}
@@ -7624,7 +7603,7 @@ ${f.civilWar?'注意内战期阵营分歧，协议方与反协议方语气不同
     if(mention){const t=mem.find(m=>m.name.includes(mention)||m.short===mention);if(t&&!chosen.includes(t))chosen.unshift(t);}
     if(!chosen.length)chosen.push(mem[0]);
     const sys=buildSystem('group',`你在复仇者频道。玩家刚发了："${text}"。请只以【将回复的角色】的口吻各输出 1 句，每行：姓名 ||| 内容。严格按角色卡，不替别人发言，不复述玩家的话。内战期注意阵营语气。`);
-    const r=await ai([{role:'user',content:'玩家消息：'+text+'\n将回复的角色：'+chosen.map(x=>x.name).join('、')}],sys,()=>chosen.map(x=>x.name+' ||| '+localReply(x.name,text)).join('\n'));
+    const r=await ai([{role:'user',content:'玩家消息：'+text+'\n将回复的角色：'+chosen.map(x=>x.name).join('、')}],sys,()=>chosen.map(x=>x.name+' ||| '+localReply(x.name,text)).join('\n'),'social');
     const lines=r.split('\n').filter(l=>l.includes('|||')).slice(0,chosen.length+1);
     chosen.forEach((m,i)=>{
       setTimeout(()=>{
@@ -7640,7 +7619,7 @@ ${f.civilWar?'注意内战期阵营分歧，协议方与反协议方语气不同
     const d=modal(`<div class="loader" style="padding:26px"><div class="spin"></div>正在搭一场独立小剧场…</div>`);
     const sys=buildSystem('group',`写一段复仇者频道的「独立小剧场」：一个场景、3~5 条台词，每行：姓名 ||| 内容。严格按角色卡，不 OOC，不出现未来事件。开头先用【场景】写一行环境。`);
     const r=await ai([{role:'user',content:'请写一场独立小剧场，主题：一张不够长的桌子 / 一次谁都不肯先走的会议。当前：'+eraName()}],sys,
-      ()=>'【场景】复联基地，深夜。长桌上摊着战术地图和三个凉掉的披萨盒。\n托尼·斯塔克 ||| *"We\'re not a team."*（我们不算一支队伍。）\n史蒂夫·罗杰斯 ||| *"No. But we showed up."*（不算。但我们都来了。）\n托尔 ||| 你们的「披萨」，是某种献祭用的圆饼吗？\n娜塔莎·罗曼诺夫 ||| 谁把最后一盒拿走了。\n克林特·巴顿 ||| ……不是我。');
+      ()=>'【场景】复联基地，深夜。长桌上摊着战术地图和三个凉掉的披萨盒。\n托尼·斯塔克 ||| *"We\'re not a team."*（我们不算一支队伍。）\n史蒂夫·罗杰斯 ||| *"No. But we showed up."*（不算。但我们都来了。）\n托尔 ||| 你们的「披萨」，是某种献祭用的圆饼吗？\n娜塔莎·罗曼诺夫 ||| 谁把最后一盒拿走了。\n克林特·巴顿 ||| ……不是我。','social');
     const lines=r.split('\n').filter(l=>l.trim());
     let sceneLine='';
     lines.forEach(l=>{if(l.includes('【场景】'))sceneLine=l.replace(/【场景】/,'').trim();else if(l.includes('|||')){const[a,b]=l.split('|||').map(x=>x.trim());if(a&&b){const m=avengersMembers().find(x=>x.name===a);this.push(a,b,{auto:false});}}});
@@ -7927,6 +7906,14 @@ function bootReactorIntro(done){
     store.setCfg({text:{baseUrl:rawCfg.baseUrl||'https://api.openai.com/v1',apiKey:rawCfg.apiKey||'',model:rawCfg.model||'gpt-4o-mini',temperature:rawCfg.temperature??0.85,presets:[]},
       image:{baseUrl:'',apiKey:'',model:rawCfg.imgModel||'',presets:[]},summary:{baseUrl:'',apiKey:'',model:'',presets:[]}});
   }
+// text 栏 → story 栏迁移
+const curCfg=store.g('cfg',null);
+if(curCfg&&curCfg.text&&!curCfg.story){
+  curCfg.story=curCfg.text;
+  if(!curCfg.social)curCfg.social={baseUrl:'',apiKey:'',model:'',presets:[]};
+  delete curCfg.text;
+  store.setCfg(curCfg);
+}
   SFX.on=store.get('sfxOn',true);
   applyAppearance();
   applyFullscreen();
