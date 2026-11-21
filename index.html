@@ -955,6 +955,26 @@ body.guide-open{background:
 .up-cell .nm2{font-size:11.5px;font-weight:600;margin-bottom:4px;}
 .up-cell .btns{display:flex;gap:4px;justify-content:center;}
 .up-cell .btns button{flex:1;font-size:10px;padding:3px 6px;border:1px solid var(--line);background:var(--panel);border-radius:6px;color:var(--text);cursor:pointer;}
+.em-hero{background:linear-gradient(135deg,rgba(53,208,255,.14),rgba(245,185,66,.1));border:1px solid var(--cyan);border-radius:16px;padding:14px;margin-bottom:12px;}
+.em-hero .wl{font-family:var(--font-en);font-style:italic;color:var(--gold);font-size:22px;font-weight:800;letter-spacing:.5px;}
+.em-hero .lb{font-size:10.5px;color:var(--muted);letter-spacing:2px;font-family:var(--font-en);}
+.em-cat{display:flex;gap:6px;overflow-x:auto;margin-bottom:10px;padding-bottom:4px;}
+.em-cat button{flex:0 0 auto;padding:7px 13px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);border-radius:18px;font-size:12px;cursor:pointer;white-space:nowrap;}
+.em-cat button.on{background:var(--cyan);color:#04121a;border-color:var(--cyan);font-weight:700;}
+.em-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+.em-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:11px;cursor:pointer;transition:.15s;}
+.em-card:active{transform:scale(.98);border-color:var(--cyan);}
+.em-card .ico{font-size:28px;text-align:center;margin:6px 0 8px;}
+.em-card .nm{font-size:12.5px;font-weight:700;font-family:var(--font-serif);line-height:1.4;}
+.em-card .br{font-size:10px;color:var(--muted);margin:2px 0 6px;font-family:var(--font-en);font-style:italic;}
+.em-card .pr{font-size:13px;color:var(--gold);font-weight:800;font-family:var(--font-en);}
+.em-card .tag{display:inline-block;font-size:9px;margin-top:4px;}
+.em-asset-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px dashed var(--line);}
+.em-asset-row:last-child{border-bottom:none;}
+.em-asset-row .n{font-size:12.5px;font-weight:600;}
+.em-asset-row .v{font-family:var(--font-en);color:var(--gold);font-weight:700;font-size:13px;}
+.em-gift-list{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+.em-gift-list .chip{cursor:pointer;}
 </style>
 </head>
 <body>
@@ -1550,11 +1570,27 @@ const MCU_CANDIDATES=[
   {name:'死侍',en:'Wade Wilson / Deadpool',year:2016,gender:'男',job:'佣兵 / 嘴炮之王',desc:'不死之身，打破第四面墙。托尼大概率想拉黑他。',voice:'疯癫、荤话、随时跳戏到观众席，但涉及朋友时意外温柔'},
 ];
 
-/* 返回当前时间线下可添加的候选人（且不在通讯录里的） */
+/* 返回全部未在通讯录的 MCU 候选人，并标注解锁年份与锁定状态 */
 function availableCandidates(){
-  const f=flags();
-  const have=new Set(store.contacts().map(c=>c.name));
-  return MCU_CANDIDATES.filter(c=>f.year>=c.year&&!have.has(c.name));
+  const f = flags();
+  const have = new Set(store.contacts().map(c => c.name));
+  return MCU_CANDIDATES
+    .filter(c => !have.has(c.name))
+    .map(c => {
+      const unlocked = f.year >= c.year;
+      const yearsLeft = c.year - f.year;
+      return {
+        ...c,
+        unlocked,
+        yearsLeft,
+        timeLabel: unlocked ? `${c.year} 年起可用（已登场）` : `🔒 需到 ${c.year} 年登场（还差 ${yearsLeft} 年）`
+      };
+    })
+    .sort((a, b) => {
+      // 已解锁的排在前面，未解锁的按年份升序排在后面
+      if (a.unlocked !== b.unlocked) return a.unlocked ? -1 : 1;
+      return a.year - b.year;
+    });
 }
 /* ---------- 世界状态（事件按公元年推导，时间跳跃后自动生效） ---------- */
 function flags(){
@@ -2554,6 +2590,7 @@ const ICONS=[
   {id:'worldbook',label:'世界书',svg:'<path d="M12 6c-2.5-1.5-5-2-8-2v13c3 0 5.5.5 8 2 2.5-1.5 5-2 8-2V4c-3 0-5.5.5-8 2Z"/><path d="M12 6v13"/>'},
   {id:'calendar',label:'日历',svg:'<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>'},
   {id:'dating',label:'约饭',svg:'<path d="M3 11h18a9 9 0 0 1-18 0Z"/><path d="M8 7c0-1 1-1.5 1-2.5M12 7c0-1 1-1.5 1-2.5M16 7c0-1 1-1.5 1-2.5"/>'},
+  {id:'emporium',label:'方舟臻选',svg:'<path d="M4 7h16l-1.5 11a2 2 0 0 1-2 1.8H7.5A2 2 0 0 1 5.5 18L4 7Z"/><path d="M8 7V5a4 4 0 0 1 8 0v2"/><circle cx="9.5" cy="12" r=".9" fill="currentColor" stroke="none"/><circle cx="14.5" cy="12" r=".9" fill="currentColor" stroke="none"/>'},
   {id:'contacts',label:'关系网',svg:'<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M16.5 5.5a3 3 0 0 1 0 5.6"/>'},
   {id:'memory',label:'记忆',svg:'<circle cx="12" cy="12" r="3"/><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/>'},
   {id:'music',label:'音乐',svg:'<path d="M9 17V5l10-2v12"/><circle cx="6" cy="17" r="3"/><circle cx="16" cy="15" r="3"/>'},
@@ -3044,8 +3081,8 @@ apps.messages={title:'信息',view:'list',cur:'',last:'',langMode:'zh',
       v.querySelector('#m_group').onclick=()=>openApp('avengers');
       v.querySelector('#m_fts').onclick=()=>{ftIndexAll();openFTSearch();};
       v.querySelector('#m_heart').onclick=()=>{self.view='heart';self.render(v);};
-      return;
-setTimeout(() => paintContactAvatars(v), 40);
+     setTimeout(() => paintContactAvatars(v), 40);
+ return;
     }
 
     const cs=store.contacts();const c=cs.find(x=>x.name===self.cur)||{name:self.cur,affinity:0};
@@ -3251,27 +3288,60 @@ const sys=buildSystem('chat',`你现在扮演【${who}】。${castText(who)}\n${
     </div>
     <div id="ac_body"></div>`);
 
-  const renderPreset=()=>{
-    const list=availableCandidates();
-    d.querySelector('#ac_body').innerHTML=`
-      <div class="hint" style="margin-bottom:9px">按当前时间线（${esc(eraName())}）可添加 ${list.length} 位 MCU 角色。点卡片直接加入通讯录。</div>
-      ${list.length?list.map(c=>`<div class="rel-card" data-add="${esc(c.name)}" style="cursor:pointer">
-        <div class="rh"><div class="av">${esc(c.name[0])}</div>
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:700;font-size:13.5px">${esc(c.name)} <span class="hint" style="font-size:10px">${esc(c.en)}</span></div>
-            <div class="hint" style="margin:2px 0 0">${esc(c.job)} · ${esc(c.gender)}</div>
-            <div class="hint" style="margin-top:3px;color:var(--text);opacity:.8">${esc(c.desc)}</div>
+    const renderPreset = () => {
+    const list = availableCandidates();
+    const fNow = flags();
+    const unlockedCount = list.filter(x => x.unlocked).length;
+
+    d.querySelector('#ac_body').innerHTML = `
+      <div class="hint" style="margin-bottom:9px;line-height:1.6">
+        当前时间线：<b>${esc(eraName())}（${fNow.year} 年）</b><br>
+        可直接添加 <b>${unlockedCount}</b> 位已登场角色；未来角色将随时间跳跃自动解锁。
+      </div>
+      <div style="max-height:55vh;overflow-y:auto;padding-right:2px">
+        ${list.length ? list.map(c => `
+          <div class="rel-card" data-add="${c.unlocked ? esc(c.name) : ''}" style="${c.unlocked ? 'cursor:pointer;' : 'opacity:0.55;filter:grayscale(0.65);cursor:not-allowed;border-style:dashed;'}">
+            <div class="rh">
+              <div class="av" style="${c.unlocked ? '' : 'background:var(--line);color:var(--muted);'}">${esc(c.name[0])}</div>
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                  <div style="font-weight:700;font-size:13.5px">
+                    ${esc(c.name)} <span class="hint" style="font-size:10px">${esc(c.en)}</span>
+                  </div>
+                  <span class="tag ${c.unlocked ? 'green' : 'gold'}" style="font-size:9.5px;padding:2px 6px">
+                    ${esc(c.timeLabel)}
+                  </span>
+                </div>
+                <div class="hint" style="margin:3px 0 0">
+                  ${esc(c.job)} · ${esc(c.gender)}
+                </div>
+                <div class="hint" style="margin-top:4px;color:var(--text);opacity:0.85;font-size:11px">
+                  ${esc(c.desc)}
+                </div>
+              </div>
+              <div style="flex:0 0 auto;margin-left:6px;font-size:16px;font-weight:700;color:${c.unlocked ? 'var(--cyan)' : 'var(--muted)'}">
+                ${c.unlocked ? '＋' : '🔒'}
+              </div>
+            </div>
           </div>
-          <span style="color:var(--cyan);font-size:18px;flex:0 0 auto">＋</span>
-        </div></div>`).join(''):'<div class="empty">当前时间线下没有新的可添加角色。</div>'}`;
-    d.querySelectorAll('[data-add]').forEach(el=>el.onclick=()=>{
-      const c=MCU_CANDIDATES.find(x=>x.name===el.dataset.add);if(!c)return;
-      const arr=store.contacts();
-      arr.push({name:c.name,desc:c.desc,job:c.job,gender:c.gender,voice:c.voice,affinity:0});
-      store.setContacts(arr);
-      // 追加到 WORLD.cast 临时注入，让 buildSystem 认得
-      WORLD.cast[c.name]={en:c.en,role:c.job,voice:c.voice,taboo:'不 OOC；不说出当前时间线之后才会知道的事。'};
-      toast('已添加 '+c.name);d.remove();self.render(document.getElementById('appBody'));
+        `).join('') : '<div class="empty">所有 MCU 角色均已添加到通讯录中。</div>'}
+      </div>`;
+
+    d.querySelectorAll('[data-add]').forEach(el => {
+      el.onclick = () => {
+        const name = el.dataset.add;
+        if (!name) return toast('该角色尚未在当前时间线登场，不可跨时代提前添加');
+        const c = MCU_CANDIDATES.find(x => x.name === name);
+        if (!c) return;
+        const arr = store.contacts();
+        arr.push({ name: c.name, desc: c.desc, job: c.job, gender: c.gender, voice: c.voice, affinity: 0 });
+        store.setContacts(arr);
+        // 同步注入到角色卡字典
+        WORLD.cast[c.name] = { en: c.en, role: c.job, voice: c.voice, taboo: '不 OOC；不说出当前时间线之后才会知道的事。' };
+        toast('已添加 ' + c.name);
+        d.remove();
+        self.render(document.getElementById('appBody'));
+      };
     });
   };
 
@@ -3519,6 +3589,38 @@ try{
         }
       }
     }
+    // 方舟臻选 · 对方可能赠送礼物
+    try{
+      const giftCfg=emGiftCfg();
+      const contact=store.contacts().find(x=>x.name===self.cur);
+      if(giftCfg.enabled&&contact&&!isAI(self.cur)){
+        const aff=contact.affinity||0;
+        if(aff>=giftCfg.affThreshold){
+          const wealth=emWealthOf(self.cur);
+          const hit=Math.random()*100 < (wealth.giftChance||giftCfg.baseChance);
+          // 话题触发：消息含「想要 / 喜欢 / 好看 / 买不起 / 生日 / 纪念」等
+          const kw=/想要|喜欢|好看|心动|买不起|有点贵|生日|纪念|送我|对我好/.test(text);
+          if(hit||kw){
+            const pool=emAllGoods().filter(g=>g.price<=wealth.total*0.3);
+            if(pool.length){
+              const pick=pool[Math.floor(Math.random()*pool.length)];
+              // 预算校验
+              if(pick.price<=wealth.total){
+                emSetWealth(self.cur,{total:wealth.total-pick.price});
+                emAddInventory({id:'inv'+Date.now(),goodId:pick.id,from:self.cur,to:'me',time:nowTime(),msg:text.slice(0,40)});
+                const ch2=store.chats(),a4=ch2[self.cur]||[];
+                a4.push({role:'them',who:self.cur,
+                  content:`（${self.cur}给你寄来了一份：${pick.ico} ${pick.name} · ${emFmtPrice(pick.price)}）`,
+                  time:storyMsgTime(),isGift:true,giftId:pick.id});
+                ch2[self.cur]=a4;store.setChats(ch2);
+                self.render(v);
+                banner('🎁 '+self.cur+' 送来了礼物',pick.name+' · 已入库',()=>openApp('emporium'));
+              }
+            }
+          }
+        }
+      }
+    }catch(e){console.warn(e);}
     // 心声随对话一起生成：弹窗显示并存入档案，不再单独产出
     try{
       const ctxArr=(store.chats()[self.cur]||[]).slice(-4).map(m=>m.content).filter(Boolean);
@@ -8800,7 +8902,530 @@ apps.parallel={title:'周目对比',a:'current',b:'',render(v){
   v.querySelector('#cmp_tree').onclick=()=>WT.modal();
   v.querySelector('#cmp_settings').onclick=()=>openApp('settings');
 }};
+/* ============================================================
+   方舟臻选 · 商城 App
+   ============================================================ */
+apps.emporium={title:'方舟臻选',tab:'shop',cat:'all',render(v){
+  const self=this;$('#actBtn').style.display='none';
+  const wallet=emUserWallet();
+  const inv=emInventory();
+  const tab=this.tab;
 
+  const segBtn=(k,n)=>`<button data-emtab="${k}" class="${tab===k?'on':''}">${n}</button>`;
+  v.innerHTML=`<div class="pad">
+    <div class="em-hero">
+      <div class="lb">ARK SELECT · 方舟臻选</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+        <div><div style="font-family:var(--font-serif);font-size:15px;font-weight:700">我的钱包</div>
+          <div class="wl">${emFmtWealth(wallet.total)}</div></div>
+        <div style="font-size:11px;color:var(--muted);text-align:right">已收礼物 ${inv.filter(x=>x.to==='me').length}<br>已赠送 ${inv.filter(x=>x.from==='me').length}</div>
+      </div>
+    </div>
+    <div class="seg">${segBtn('shop','🛍 臻选商城')}${segBtn('inv','📦 库存')}${segBtn('assets','💰 资产档案')}${segBtn('settings','⚙ 赠礼设置')}</div>
+    <div id="em_body"></div>
+  </div>`;
+  v.querySelectorAll('[data-emtab]').forEach(b=>b.onclick=()=>{self.tab=b.dataset.emtab;self.render(v);});
+  const body=v.querySelector('#em_body');
+  if(tab==='shop')this.renderShop(body);
+  else if(tab==='inv')this.renderInv(body);
+  else if(tab==='assets')this.renderAssets(body);
+  else this.renderSettings(body);
+},
+
+renderShop(body){
+  const self=this;const cat=this.cat;
+  const allCats=emAllCats();
+  const curCat=allCats.find(c=>c.k===cat)||allCats[0];
+  const allGoods=emAllGoods();
+  const list=cat==='all'?allGoods:allGoods.filter(g=>g.cat===cat);
+  const isCustom=emCustomCats().some(c=>c.k===cat);
+
+  body.innerHTML=`
+    <div class="em-cat">
+      ${allCats.map(c=>`<button data-emcat="${esc(c.k)}" class="${cat===c.k?'on':''}">${c.icon||''} ${esc(c.name)}</button>`).join('')}
+      <button id="em_add_cat" style="border-style:dashed;color:var(--cyan)">＋ 新增分栏</button>
+    </div>
+    <div class="row" style="margin-bottom:10px;align-items:center">
+      <button class="btn sm" id="em_ai_gen" style="flex:1">AI 生成本栏新商品</button>
+      ${isCustom?`<button class="btn ghost sm" id="em_del_cat" style="flex:0 0 auto;color:var(--red)">🗑 删分栏</button>`:''}
+    </div>
+    ${isCustom&&curCat.desc?`<div class="hint" style="margin:-4px 0 10px">分栏说明：${esc(curCat.desc)} · 默认区间 ${emFmtPrice(curCat.minPrice||10)} ~ ${emFmtPrice(curCat.maxPrice||5000)}</div>`:''}
+    <div class="em-grid">${list.length?list.map(g=>`<div class="em-card" data-emgood="${esc(g.id)}">
+      <div class="ico">${g.ico||'🎁'}</div>
+      <div class="nm">${esc(g.name)}</div>
+      <div class="br">${esc(g.brand||'Custom')}</div>
+      <div class="pr">${emFmtPrice(g.price)}</div>
+      ${g.likes&&g.likes.length?`<div class="tag"><span class="chip mini">${esc(g.likes[0])}等偏好</span></div>`:''}
+    </div>`).join(''):'<div class="empty" style="grid-column:1/-1">该分栏暂无商品，点上方「AI 生成本栏新商品」立即进货。</div>'}</div>`;
+
+  body.querySelectorAll('[data-emcat]').forEach(b=>b.onclick=()=>{self.cat=b.dataset.emcat;self.renderShop(body);});
+  body.querySelector('#em_add_cat').onclick=()=>self.addCustomCat(body);
+  body.querySelector('#em_ai_gen').onclick=()=>self.openAiGenModal(curCat,body);
+  const delBtn=body.querySelector('#em_del_cat');
+  if(delBtn)delBtn.onclick=()=>{
+    if(!confirm(`删除自定义分栏「${curCat.name}」及其下的 AI 商品？`))return;
+    emSaveCustomCats(emCustomCats().filter(c=>c.k!==cat));
+    emSaveExtraGoods(emExtraGoods().filter(g=>g.cat!==cat));
+    self.cat='all';self.renderShop(body);toast('已删除分栏');
+  };
+  body.querySelectorAll('[data-emgood]').forEach(el=>el.onclick=()=>self.openGood(el.dataset.emgood));
+},
+
+addCustomCat(body){
+  const self=this;
+  const d=modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:16px">＋ 新增自定义分栏</h2>
+    <div class="card">
+      <div class="row"><div class="field" style="flex:1"><label>分栏名称 *</label><input id="cc_name" class="inp" placeholder="如：宠物用品 / 古董武器"></div>
+        <div class="field" style="flex:0 0 76px"><label>图标</label><input id="cc_ico" class="inp" value="🛍️"></div></div>
+      <div class="field"><label>分栏描述（AI 将据此生成对应商品）*</label><textarea id="cc_desc" rows="2" placeholder="例如：适合复联成员养的猫狗的高端零食、牵引绳、定制窝等"></textarea></div>
+      <div class="field"><label>默认价格区间 (USD)</label>
+        <div class="row"><input id="cc_min" type="number" class="inp" value="20" placeholder="最低价"><input id="cc_max" type="number" class="inp" value="2000" placeholder="最高价"></div></div>
+      <button class="btn" id="cc_save">创建分栏</button>
+      <button class="btn ghost" data-close style="margin-top:8px">取消</button>
+    </div>`);
+  d.querySelector('#cc_save').onclick=()=>{
+    const name=d.querySelector('#cc_name').value.trim();
+    const desc=d.querySelector('#cc_desc').value.trim();
+    const icon=d.querySelector('#cc_ico').value.trim()||'🛍️';
+    const minPrice=Math.max(1,+d.querySelector('#cc_min').value||10);
+    const maxPrice=Math.max(minPrice+1,+d.querySelector('#cc_max').value||minPrice*10);
+    if(!name||!desc)return toast('请填写分栏名称与描述');
+    const k='c_'+Date.now().toString(36);
+    const list=emCustomCats();list.push({k,name,icon,desc,minPrice,maxPrice});
+    emSaveCustomCats(list);
+    self.cat=k;d.remove();self.renderShop(body);toast('已创建分栏「'+name+'」');
+  };
+},
+
+openAiGenModal(curCat,body){
+  const self=this;
+  const defMin=curCat.minPrice||50, defMax=curCat.maxPrice||50000;
+  const d=modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:16px">✨ AI 生成新商品 · ${esc(curCat.name)}</h2>
+    <div class="card">
+      <div class="field"><label>生成方向 / 主题关键词</label><input id="ag_dir" class="inp" value="${esc(curCat.desc||'')}" placeholder="例如：适合托尼深夜在实验室用的东西 / 复古军品"></div>
+      <div class="field"><label>生成个数（1~10）</label><input id="ag_cnt" type="number" min="1" max="10" value="4" class="inp"></div>
+      <div class="field"><label>价格区间 (USD)</label>
+        <div class="row"><input id="ag_min" type="number" class="inp" value="${defMin}"><input id="ag_max" type="number" class="inp" value="${defMax}"></div></div>
+      <button class="btn gold" id="ag_go">⚡ 开始生成</button>
+      <button class="btn ghost" data-close style="margin-top:8px">取消</button>
+    </div>`);
+  d.querySelector('#ag_go').onclick=async()=>{
+    const dir=d.querySelector('#ag_dir').value.trim()||curCat.name;
+    const cnt=Math.max(1,Math.min(10,+d.querySelector('#ag_cnt').value||4));
+    const minP=Math.max(1,+d.querySelector('#ag_min').value||10);
+    const maxP=Math.max(minP+1,+d.querySelector('#ag_max').value||minP*10);
+    d.querySelector('#ag_go').disabled=true;d.querySelector('#ag_go').textContent='AI 正在选品上架…';
+    const targetCat=curCat.k==='all'?'misc':curCat.k;
+    const names=visibleContacts().map(c=>c.name).join('、');
+    const sys=buildSystem('general',`你是高端买手店「方舟臻选」的选品总监。请为分栏【${curCat.name}】生成 ${cnt} 件新商品。
+方向：${dir}
+价格区间：$${minP} ~ $${maxP} USD（每件价格必须严格落在此区间内，符合真实市场定价）。
+可选偏好联系人（从以下挑选 0~2 位符合该商品气质的人，没有就留空）：${names}。
+严格按每行 1 件输出，格式：商品名 ||| 品牌 ||| 单个emoji ||| 纯数字价格 ||| 偏好联系人(逗号分隔) ||| 20字内简介`);
+    const r=await ai([{role:'user',content:`请生成 ${cnt} 件商品。`}],sys,()=>{
+      const out=[];
+      for(let i=0;i<cnt;i++){
+        const p=Math.round(minP+Math.random()*(maxP-minP));
+        out.push(`${curCat.name}臻选款 #${i+1} ||| Stark Select ||| ${curCat.icon||'🎁'} ||| ${p} ||| 托尼·斯塔克 ||| 符合「${dir.slice(0,12)}」方向的精选物件`);
+      }
+      return out.join('\n');
+    },'story');
+    const added=[];
+    String(r).split('\n').filter(l=>l.includes('|||')).slice(0,cnt).forEach(l=>{
+      const pt=l.split('|||').map(x=>x.trim());
+      if(pt.length<4)return;
+      let price=parseInt(String(pt[3]).replace(/[^\d]/g,''))||minP;
+      price=Math.max(minP,Math.min(maxP,price));
+      const likes=(pt[4]||'').split(/[,，、]/).map(x=>x.trim()).filter(Boolean);
+      added.push({id:'gx_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),cat:targetCat,name:pt[0],brand:pt[1]||'Select',ico:pt[2]||'🎁',price,likes,desc:pt[5]||''});
+    });
+    if(added.length){
+      emSaveExtraGoods([...added,...emExtraGoods()]);
+      toast(`已上架 ${added.length} 件新商品`);
+    }else toast('生成格式异常，请重试');
+    d.remove();self.renderShop(body);
+  };
+},
+
+openGood(id){
+  const g=emAllGoods().find(x=>x.id===id);if(!g)return;
+  const wallet=emUserWallet();
+  const likes=(g.likes&&g.likes.length)?g.likes.join('、'):'—';
+  const d=modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:16px">${g.ico||'🎁'} ${esc(g.name)}</h2>
+    <div class="card">
+      <div class="hint">品牌：<b>${esc(g.brand||'Select')}</b> · 价格：<b style="color:var(--gold)">${emFmtPrice(g.price)}</b></div>
+      ${g.desc?`<div class="hint" style="margin-top:6px">${esc(g.desc)}</div>`:''}
+      <div class="hint" style="margin-top:6px">此物件在以下人物的消费画像中出现：<b>${esc(likes)}</b></div>
+      <div class="hint" style="margin-top:6px">你的钱包余额：${emFmtWealth(wallet.total)}</div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn gold" id="em_buy">💳 自用 · 购买</button>
+        <button class="btn" id="em_gift">🎁 赠礼给联系人</button>
+      </div>
+      <button class="btn ghost" data-close style="margin-top:8px">关闭</button>
+    </div>`);
+  d.querySelector('#em_buy').onclick=()=>{
+    if(wallet.total<g.price)return toast('钱包余额不足');
+    emSetUserWallet({total:wallet.total-g.price});
+    emAddInventory({id:'inv'+Date.now(),goodId:g.id,from:'me',to:'self',time:nowTime(),msg:'自购'});
+    toast('已购入 '+g.name);d.remove();this.render($('#appBody'));
+  };
+  d.querySelector('#em_gift').onclick=()=>{d.remove();this.pickRecipient(g);};
+},
+
+pickRecipient(g){
+  const self=this;const wallet=emUserWallet();
+  const cs=store.contacts().filter(c=>!isAI(c.name));
+  const d=modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:16px">🎁 赠礼 · ${esc(g.name)}</h2>
+    <div class="card">
+      <div class="hint" style="margin-bottom:8px">价格：${emFmtPrice(g.price)} · 钱包：${emFmtWealth(wallet.total)}</div>
+      <div class="field"><label>赠送给谁</label><select id="gf_who" class="inp">${cs.map(c=>`<option value="${esc(c.name)}">${esc(c.name)} · 好感 ${c.affinity||0}${(g.likes||[]).includes(c.name)?' · ❤️ 偏好':''}</option>`).join('')}</select></div>
+      <div class="field"><label>附言（选填）</label><textarea id="gf_msg" rows="2" placeholder="随礼物一起送出"></textarea></div>
+      <button class="btn gold" id="gf_go">确认赠送</button>
+      <button class="btn ghost" data-close style="margin-top:8px">取消</button>
+    </div>`);
+  d.querySelector('#gf_go').onclick=async()=>{
+    if(wallet.total<g.price)return toast('钱包余额不足');
+    const who=d.querySelector('#gf_who').value;
+    const msg=d.querySelector('#gf_msg').value.trim();
+    emSetUserWallet({total:wallet.total-g.price});
+    emAddInventory({id:'inv'+Date.now(),goodId:g.id,from:'me',to:who,time:nowTime(),msg});
+    const ch=store.chats();(ch[who]=ch[who]||[]).push({role:'me',content:`（送出礼物：${g.ico||'🎁'} ${g.name} · ${emFmtPrice(g.price)}）${msg?'\n'+msg:''}`,time:storyMsgTime(),isGift:true,giftId:g.id,read:false});
+    store.setChats(ch);
+    d.remove();toast('已送出 · 等待对方回应');
+    try{
+      const loves=(g.likes||[]).includes(who);
+      const sys=buildSystem('chat',`玩家刚送给你一份礼物：${g.name}（${g.brand||''}，${emFmtPrice(g.price)}）。${loves?'这正好是你的喜好。':'这不太在你的常规偏好里，但毕竟是心意。'}${msg?'玩家附言：'+msg:''}\n请以【${who}】的口吻回复 1~2 条短消息（10~40 字，多条用 || 分隔），符合人设与当前关系。严禁动作神态描写。`);
+      const r=await ai([{role:'user',content:'请回复。'}],sys,
+        ()=>loves?'这是我喜欢的款。记下了。|| 别动我放东西的位置。':'收到。改天再说。','social');
+      const msgs=String(r).split('||').map(x=>x.trim()).filter(Boolean);
+      const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+      await sleep(1500);
+      for(const m of msgs){
+        const ch2=store.chats();(ch2[who]=ch2[who]||[]).push({role:'them',who,content:m,time:storyMsgTime()});
+        store.setChats(ch2);await sleep(700);
+      }
+      if(loves){
+        const cs2=store.contacts();const t=cs2.find(x=>x.name===who);
+        if(t){t.affinity=Math.min(200,(t.affinity||0)+2);store.setContacts(cs2);if(t.isTony)applyAffinity(t.affinity);}
+      }
+      const mem=store.get('memories',[]);
+      mem.unshift({id:'mm'+Date.now(),text:`你送给${who}一份礼物：${g.name}（${emFmtPrice(g.price)}）。${loves?'TA明显很喜欢。':'TA没多说什么，但收下了。'}${msg?'你附言：'+msg:''}`,time:nowTime(),source:'gift',contact:who,rating:loves?4:3});
+      store.set('memories',mem.slice(0,100));
+      banner('💝 '+who,'回复了你的礼物',()=>{openApp('messages');apps.messages.cur=who;apps.messages.view='chat';apps.messages.render($('#appBody'));});
+    }catch(e){toast('回复生成失败：'+e.message);}
+    self.render($('#appBody'));
+  };
+},
+
+renderInv(body){
+  const inv=emInventory();
+  const allG=emAllGoods();
+  const received=inv.filter(x=>x.to==='me');
+  const sent=inv.filter(x=>x.from==='me');
+  const self=inv.filter(x=>x.to==='self');
+  const grp=(title,arr,badge)=>`<div class="card"><h3>◉ ${title}（${arr.length}）</h3>
+    ${arr.length?arr.map(it=>{const g=allG.find(x=>x.id===it.goodId);if(!g)return '';
+      return `<div class="em-asset-row"><div style="display:flex;align-items:center;gap:8px"><span style="font-size:22px">${g.ico||'🎁'}</span>
+        <div><div class="n">${esc(g.name)}</div><div class="hint" style="font-size:10.5px">${esc(it.time)} · ${badge==='from'?'来自 '+esc(it.from):badge==='to'?'送给 '+esc(it.to):'自用'}</div></div></div>
+        <div class="v">${emFmtPrice(g.price)}</div></div>`;}).join(''):'<div class="hint">暂无</div>'}</div>`;
+  body.innerHTML=grp('收到的礼物',received,'from')+grp('送出的礼物',sent,'to')+grp('自购物品',self,'self');
+},
+
+renderAssets(body){
+  const self=this;
+  const cs=store.contacts().filter(c=>!isAI(c.name)||c.name==='贾维斯'||c.name==='幻视');
+  const allCats=emAllCats();
+  body.innerHTML=`<div class="card"><div class="hint" style="margin-bottom:8px">各联系人的资产情况、偏好与消费习惯均可点开编辑。<b>修改总资产可避免钱包不足导致赠礼失败</b>。</div>
+    <div class="em-asset-row"><div class="n">👤 我的钱包</div><div class="v" id="em_mywallet_v">${emFmtWealth(emUserWallet().total)}</div></div>
+    <div class="row" style="margin-top:8px"><input id="em_mywallet" type="number" class="inp" value="${emUserWallet().total}" style="flex:1"><button class="btn sm" id="em_mywallet_save" style="flex:0 0 64px">保存</button></div>
+  </div>
+  ${cs.map(c=>{const w=emWealthOf(c.name);
+    return `<div class="card" data-emw="${esc(c.name)}" style="cursor:pointer;padding:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <b style="font-size:14px">${esc(c.name)}</b>
+        <span class="v" style="font-family:var(--font-en);color:var(--gold);font-weight:800">${emFmtWealth(w.total)}</span>
+      </div>
+      <div class="hint" style="margin-top:5px"><b>资产情况：</b>${esc(w.assetDesc||'常规个人资产')}</div>
+      <div class="hint" style="margin-top:3px"><b>偏好：</b>${esc(w.prefs||'—')}</div>
+      <div class="hint" style="margin-top:3px"><b>消费习惯：</b>${esc(w.habitDesc||'—')}</div>
+      <div class="hint" style="margin-top:5px;font-size:10.5px">常购品类：${(w.habits||[]).map(h=>(allCats.find(x=>x.k===h)||{}).name||h).join('、')||'—'} · 赠礼概率 ${w.giftChance||30}%</div>
+    </div>`;}).join('')}`;
+  body.querySelector('#em_mywallet_save').onclick=()=>{
+    const v=+body.querySelector('#em_mywallet').value||0;emSetUserWallet({total:v});toast('已更新');self.renderAssets(body);
+  };
+  body.querySelectorAll('[data-emw]').forEach(el=>el.onclick=()=>self.editWealth(el.dataset.emw));
+},
+
+editWealth(name){
+  const self=this;const w=emWealthOf(name);
+  const allCats=emAllCats().filter(c=>c.k!=='all');
+  const d=modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:15px">💰 ${esc(name)} · 资产与消费档案</h2>
+    <div class="card">
+      <div class="field"><label>总资产 (USD)</label><input id="ew_total" type="number" class="inp" value="${w.total}"></div>
+      <div class="field"><label>资产情况描述</label><textarea id="ew_asset" rows="2">${esc(w.assetDesc||'')}</textarea></div>
+      <div class="field"><label>偏好描述</label><textarea id="ew_prefs" rows="2">${esc(w.prefs||'')}</textarea></div>
+      <div class="field"><label>消费习惯描述</label><textarea id="ew_habit" rows="2">${esc(w.habitDesc||'')}</textarea></div>
+      <div class="field"><label>单笔平均消费 (USD)</label><input id="ew_avg" type="number" class="inp" value="${w.avg||100}"></div>
+      <div class="field"><label>常购品类（多选）</label>
+        <div style="display:flex;flex-wrap:wrap;gap:5px">${allCats.map(c=>`<span class="chip ${(w.habits||[]).includes(c.k)?'on':''}" data-ehb="${esc(c.k)}">${c.icon||''} ${esc(c.name)}</span>`).join('')}</div></div>
+      <div class="field"><label>赠礼概率上限：<b id="ew_gv">${w.giftChance||30}</b>%</label>
+        <input id="ew_gc" type="range" min="0" max="100" value="${w.giftChance||30}"></div>
+      <div class="field"><label>备注</label><input id="ew_note" class="inp" value="${esc(w.note||'')}"></div>
+      <button class="btn" id="ew_save">保存</button>
+      <button class="btn ghost" data-close style="margin-top:8px">取消</button>
+    </div>`);
+  const habits=new Set(w.habits||[]);
+  d.querySelectorAll('[data-ehb]').forEach(el=>el.onclick=()=>{
+    const k=el.dataset.ehb;if(habits.has(k))habits.delete(k);else habits.add(k);
+    el.classList.toggle('on');
+  });
+  d.querySelector('#ew_gc').oninput=e=>{d.querySelector('#ew_gv').textContent=e.target.value;};
+  d.querySelector('#ew_save').onclick=()=>{
+    emSetWealth(name,{
+      total:+d.querySelector('#ew_total').value||0,
+      assetDesc:d.querySelector('#ew_asset').value.trim(),
+      prefs:d.querySelector('#ew_prefs').value.trim(),
+      habitDesc:d.querySelector('#ew_habit').value.trim(),
+      avg:+d.querySelector('#ew_avg').value||100,
+      habits:[...habits],
+      giftChance:+d.querySelector('#ew_gc').value||0,
+      note:d.querySelector('#ew_note').value.trim()
+    });
+    toast('已保存');d.remove();self.render($('#appBody'));
+  };
+},
+
+renderSettings(body){
+  const self=this;const c=emGiftCfg();
+  body.innerHTML=`<div class="card"><h3>◉ 联系人赠礼机制</h3>
+    <div class="hint" style="margin-bottom:10px">聊天中联系人可能按人设与好感度主动赠礼。关闭后仅保留玩家主动赠送功能。</div>
+    <div class="srow"><div><div class="t">启用聊天赠礼</div><div class="d">总开关</div></div>
+      <label class="switch"><input type="checkbox" id="eg_en" ${c.enabled?'checked':''}><span class="slider"></span></label></div>
+    <div class="field"><label>触发好感度门槛：<b id="eg_tv">${c.affThreshold}</b> / 200</label>
+      <input id="eg_t" type="range" min="0" max="200" value="${c.affThreshold}"></div>
+    <div class="field"><label>兜底触发概率：<b id="eg_cv">${c.baseChance}</b>%</label>
+      <input id="eg_c" type="range" min="0" max="100" value="${c.baseChance}"></div>
+    <div class="hint">兜底：当联系人未在资产档案里设定专属概率时，使用此值。</div>
+  </div>`;
+  body.querySelector('#eg_en').onchange=e=>emSetGiftCfg({enabled:e.target.checked});
+  body.querySelector('#eg_t').oninput=e=>{emSetGiftCfg({affThreshold:+e.target.value});body.querySelector('#eg_tv').textContent=e.target.value;};
+  body.querySelector('#eg_c').oninput=e=>{emSetGiftCfg({baseChance:+e.target.value});body.querySelector('#eg_cv').textContent=e.target.value;};
+}
+};
+/* ============================================================
+   方舟臻选 · 商品库（按联系人消费习惯分类）
+   ============================================================ */
+const EMPORIUM_CATS=[
+  {k:'all',name:'全部'},
+  {k:'car',name:'座驾',icon:'🏎️'},
+  {k:'estate',name:'房产',icon:'🏝️'},
+  {k:'watch',name:'腕表',icon:'⌚'},
+  {k:'tech',name:'黑科技',icon:'🛸'},
+  {k:'art',name:'艺术',icon:'🖼️'},
+  {k:'drink',name:'酒水',icon:'🥃'},
+  {k:'fashion',name:'服饰',icon:'👔'},
+  {k:'jewel',name:'珠宝',icon:'💎'},
+  {k:'food',name:'食物',icon:'🍩'},
+  {k:'gear',name:'装备',icon:'🛠️'},
+  {k:'misc',name:'小物',icon:'🎁'},
+];
+
+/* 商品：按合理价位列出，关联消费者偏好 */
+const EMPORIUM_GOODS=[
+  // 座驾
+  {id:'g_car_1',cat:'car',name:'Audi R8 Spyder',brand:'Audi',ico:'🏎️',price:198000,likes:['托尼·斯塔克']},
+  {id:'g_car_2',cat:'car',name:'Bugatti Veyron 16.4',brand:'Bugatti',ico:'🏎️',price:1900000,likes:['托尼·斯塔克']},
+  {id:'g_car_3',cat:'car',name:'1967 Shelby Cobra',brand:'Shelby',ico:'🚗',price:850000,likes:['托尼·斯塔克','罗迪']},
+  {id:'g_car_4',cat:'car',name:'Tesla Model S Plaid',brand:'Tesla',ico:'⚡',price:130000,likes:['小辣椒','布鲁斯·班纳']},
+  {id:'g_car_5',cat:'car',name:'Harley-Davidson Fat Boy',brand:'Harley',ico:'🏍️',price:22000,likes:['史蒂夫·罗杰斯','巴基·巴恩斯']},
+  {id:'g_car_6',cat:'car',name:'黑色加长凯迪拉克',brand:'Cadillac',ico:'🚙',price:180000,likes:['哈皮','尼克·弗瑞']},
+
+  // 房产
+  {id:'g_es_1',cat:'estate',name:'马里布悬崖海景别墅',brand:'Malibu',ico:'🏖️',price:35000000,likes:['托尼·斯塔克']},
+  {id:'g_es_2',cat:'estate',name:'曼哈顿顶层公寓',brand:'Manhattan',ico:'🏙️',price:12000000,likes:['托尼·斯塔克','小辣椒']},
+  {id:'g_es_3',cat:'estate',name:'湖边小屋 · 北境',brand:'Upstate NY',ico:'🏡',price:850000,likes:['托尼·斯塔克','克林特·巴顿']},
+  {id:'g_es_4',cat:'estate',name:'皇后区两居室',brand:'Queens',ico:'🏢',price:620000,likes:['彼得·帕克','梅·帕克']},
+  {id:'g_es_5',cat:'estate',name:'布鲁克林农场',brand:'Brooklyn',ico:'🌾',price:1200000,likes:['史蒂夫·罗杰斯','克林特·巴顿']},
+
+  // 腕表
+  {id:'g_w_1',cat:'watch',name:'Jaeger-LeCoultre Reverso',brand:'Jaeger-LeCoultre',ico:'⌚',price:18000,likes:['托尼·斯塔克']},
+  {id:'g_w_2',cat:'watch',name:'Rolex Submariner',brand:'Rolex',ico:'⌚',price:11000,likes:['罗迪','哈皮']},
+  {id:'g_w_3',cat:'watch',name:'Patek Philippe Nautilus',brand:'Patek Philippe',ico:'⌚',price:95000,likes:['托尼·斯塔克','小辣椒']},
+  {id:'g_w_4',cat:'watch',name:'Omega Seamaster',brand:'Omega',ico:'⌚',price:5500,likes:['史蒂夫·罗杰斯']},
+  {id:'g_w_5',cat:'watch',name:'Casio G-Shock 战术款',brand:'Casio',ico:'⌚',price:180,likes:['克林特·巴顿','巴基·巴恩斯','娜塔莎·罗曼诺夫']},
+
+  // 黑科技
+  {id:'g_t_1',cat:'tech',name:'8K 全息投影仪',brand:'Stark Industries',ico:'🖥️',price:45000,likes:['托尼·斯塔克','布鲁斯·班纳']},
+  {id:'g_t_2',cat:'tech',name:'顶级量子计算机',brand:'IBM',ico:'💻',price:280000,likes:['托尼·斯塔克','布鲁斯·班纳']},
+  {id:'g_t_3',cat:'tech',name:'乐高 死星套装',brand:'LEGO',ico:'🧩',price:900,likes:['彼得·帕克']},
+  {id:'g_t_4',cat:'tech',name:'高端无人机',brand:'DJI',ico:'🛸',price:3200,likes:['彼得·帕克','斯科特·朗']},
+  {id:'g_t_5',cat:'tech',name:'黑胶唱机旗舰款',brand:'Clearaudio',ico:'🎛️',price:14000,likes:['托尼·斯塔克','彼得·奎尔']},
+
+  // 艺术
+  {id:'g_a_1',cat:'art',name:'Rothko 色域油画',brand:'Sotheby\'s',ico:'🖼️',price:1200000,likes:['托尼·斯塔克']},
+  {id:'g_a_2',cat:'art',name:'初版《霍比特人》',brand:'Rare Books',ico:'📕',price:28000,likes:['史蒂夫·罗杰斯','布鲁斯·班纳']},
+  {id:'g_a_3',cat:'art',name:'手绘漫画原稿',brand:'Marvel',ico:'📖',price:4500,likes:['彼得·帕克']},
+  {id:'g_a_4',cat:'art',name:'复古 80s 卡带合集',brand:'Awesome Mix',ico:'📼',price:120,likes:['彼得·奎尔']},
+
+  // 酒水
+  {id:'g_d_1',cat:'drink',name:'山崎 25 年威士忌',brand:'Yamazaki',ico:'🥃',price:28000,likes:['托尼·斯塔克']},
+  {id:'g_d_2',cat:'drink',name:'Macallan 30 年',brand:'Macallan',ico:'🥃',price:12000,likes:['托尼·斯塔克','尼克·弗瑞']},
+  {id:'g_d_3',cat:'drink',name:'Dom Pérignon P2',brand:'Dom Pérignon',ico:'🍾',price:450,likes:['小辣椒','托尼·斯塔克']},
+  {id:'g_d_4',cat:'drink',name:'阿斯加德蜜酒',brand:'Asgard',ico:'🍺',price:35,likes:['托尔','瓦尔基里']},
+  {id:'g_d_5',cat:'drink',name:'布鲁克林精酿',brand:'Brooklyn',ico:'🍻',price:12,likes:['史蒂夫·罗杰斯','巴基·巴恩斯']},
+  {id:'g_d_6',cat:'drink',name:'顶级哥伦比亚咖啡豆',brand:'Blue Bottle',ico:'☕',price:85,likes:['托尼·斯塔克','贾维斯','星期五']},
+
+  // 服饰
+  {id:'g_f_1',cat:'fashion',name:'Tom Ford 定制西装',brand:'Tom Ford',ico:'👔',price:8500,likes:['托尼·斯塔克','哈皮']},
+  {id:'g_f_2',cat:'fashion',name:'Brunello Cucinelli 羊绒衫',brand:'Brunello Cucinelli',ico:'🧥',price:2800,likes:['小辣椒','幻视']},
+  {id:'g_f_3',cat:'fashion',name:'Louboutin 红底高跟',brand:'Louboutin',ico:'👠',price:1200,likes:['小辣椒','娜塔莎·罗曼诺夫']},
+  {id:'g_f_4',cat:'fashion',name:'复古皮夹克',brand:'Schott NYC',ico:'🧥',price:950,likes:['史蒂夫·罗杰斯','巴基·巴恩斯']},
+  {id:'g_f_5',cat:'fashion',name:'星际冒险者皮大衣',brand:'Vintage',ico:'🧥',price:380,likes:['彼得·奎尔']},
+  {id:'g_f_6',cat:'fashion',name:'学院风格子衬衫',brand:'Ralph Lauren',ico:'👕',price:220,likes:['彼得·帕克','布鲁斯·班纳']},
+
+  // 珠宝
+  {id:'g_j_1',cat:'jewel',name:'Harry Winston 钻石项链',brand:'Harry Winston',ico:'💎',price:450000,likes:['小辣椒']},
+  {id:'g_j_2',cat:'jewel',name:'Cartier Love 手镯',brand:'Cartier',ico:'💍',price:7800,likes:['小辣椒','娜塔莎·罗曼诺夫']},
+  {id:'g_j_3',cat:'jewel',name:'Tiffany 铂金戒指',brand:'Tiffany',ico:'💍',price:12000,likes:['小辣椒']},
+  {id:'g_j_4',cat:'jewel',name:'蝎之守护项链',brand:'Vintage',ico:'📿',price:280,likes:['娜塔莎·罗曼诺夫']},
+
+  // 食物
+  {id:'g_fd_1',cat:'food',name:'草莓果酱 Pop-Tarts 一箱',brand:'Kellogg\'s',ico:'🍓',price:120,likes:['托尔']},
+  {id:'g_fd_2',cat:'food',name:'乔氏超市曲奇',brand:'Trader Joe\'s',ico:'🍪',price:8,likes:['彼得·帕克','史蒂夫·罗杰斯']},
+  {id:'g_fd_3',cat:'food',name:'皇后区老派披萨券',brand:'Joe\'s Pizza',ico:'🍕',price:25,likes:['彼得·帕克','斯科特·朗','梅·帕克']},
+  {id:'g_fd_4',cat:'food',name:'芝加哥深盘披萨 · 外送',brand:'Lou Malnati\'s',ico:'🍕',price:60,likes:['史蒂夫·罗杰斯','罗迪']},
+  {id:'g_fd_5',cat:'food',name:'日式和牛礼盒',brand:'Kobe',ico:'🥩',price:1800,likes:['托尼·斯塔克']},
+  {id:'g_fd_6',cat:'food',name:'炸玉米卷材料包',brand:'Mexican',ico:'🌮',price:35,likes:['斯科特·朗','死侍']},
+
+  // 装备
+  {id:'g_gr_1',cat:'gear',name:'复合碳纤维长弓',brand:'Hoyt',ico:'🏹',price:2200,likes:['克林特·巴顿']},
+  {id:'g_gr_2',cat:'gear',name:'军规级夜视仪',brand:'ATN',ico:'🥽',price:4500,likes:['罗迪','娜塔莎·罗曼诺夫','巴基·巴恩斯']},
+  {id:'g_gr_3',cat:'gear',name:'弗吉尼亚州立大学化学教材',brand:'VCU',ico:'📚',price:280,likes:['布鲁斯·班纳','彼得·帕克']},
+  {id:'g_gr_4',cat:'gear',name:'露营帐篷 · 四季款',brand:'Hilleberg',ico:'⛺',price:1200,likes:['克林特·巴顿','史蒂夫·罗杰斯']},
+  {id:'g_gr_5',cat:'gear',name:'紫色靶场护具',brand:'Easton',ico:'🎯',price:150,likes:['克林特·巴顿']},
+
+  // 小物
+  {id:'g_m_1',cat:'misc',name:'定制 T.S. 字母纪念章',brand:'Stark',ico:'🏅',price:380,likes:['托尼·斯塔克','哈皮']},
+  {id:'g_m_2',cat:'misc',name:'蝴蝶刀 · 训练款',brand:'Benchmade',ico:'🔪',price:180,likes:['娜塔莎·罗曼诺夫','巴基·巴恩斯']},
+  {id:'g_m_3',cat:'misc',name:'手工木雕浣熊摆件',brand:'Handcraft',ico:'🦝',price:45,likes:['火箭']},
+  {id:'g_m_4',cat:'misc',name:'星空观测望远镜',brand:'Celestron',ico:'🔭',price:850,likes:['托尔','幻视','彼得·帕克']},
+  {id:'g_m_5',cat:'misc',name:'Hello Kitty 保温杯',brand:'Sanrio',ico:'🐱',price:28,likes:['死侍']},
+  {id:'g_m_6',cat:'misc',name:'手工陶瓷茶具',brand:'Wakanda',ico:'🫖',price:380,likes:['T\'Challa','旺达·马克西莫夫']},
+];
+
+/* 消费习惯预设（含总资产、常购品类、兜底赠礼概率） */
+const WEALTH_DEFAULTS={
+  '托尼·斯塔克':{total:12500000000,habits:['car','estate','tech','watch','art','drink'],avg:50000,giftChance:65,
+    assetDesc:'斯塔克工业绝对控股人、多处海景别墅与曼哈顿顶层资产、私人机库与顶级艺术品收藏，现金流几乎无上限。',
+    prefs:'偏爱限量超跑、尖端原型硬件、独立制表、现当代抽象画与年份威士忌。',
+    habitDesc:'极度冲动型高客单消费，不看标价，习惯直接买断或包场；送礼只挑最贵或最稀缺的。'},
+  '小辣椒':{total:250000000,habits:['fashion','jewel','watch','estate'],avg:3500,giftChance:55,
+    assetDesc:'斯塔克工业 CEO 高额年薪、公司期权分红及个人稳健理财组合，名下有多处高端公寓。',
+    prefs:'剪裁利落的职场高定、经典款珠宝腕表、极简家居与健康有机餐食。',
+    habitDesc:'理性且注重品质，极少无意义挥霍；但在重要纪念日或替托尼善后时出手极稳。'},
+  '罗迪':{total:4500000,habits:['car','watch','gear'],avg:800,giftChance:45,
+    assetDesc:'空军上校津贴、退役/军方顾问基金及早年稳健投资房产。',
+    prefs:'经典肌肉车、实用机械腕表、战术户外装备与高品质威士忌。',
+    habitDesc:'务实克制，很少买华而不实的东西；花钱讲究耐用与可靠。'},
+  '哈皮':{total:1800000,habits:['car','watch','fashion'],avg:400,giftChance:40,
+    assetDesc:'斯塔克工业安保主管高薪与多年忠实服务奖金，名下有舒适住宅与几辆好车。',
+    prefs:'合身深色西装、可靠腕表、车载周边与拳击/健身装备。',
+    habitDesc:'精打细算但护短，自己开销很省，唯独对老板和认可的人非常舍得。'},
+  '史蒂夫·罗杰斯':{total:850000,habits:['drink','fashion','food','gear'],avg:150,giftChance:50,
+    assetDesc:'神盾局/复联津贴与补发的数十年军人抚恤金，生活简朴，存款结余率极高。',
+    prefs:'复古皮夹克、老式摩托车、精酿啤酒、布鲁克林老味道与经典文学初版。',
+    habitDesc:'老派节俭，习惯对比性价比，很少买奢侈品；但请朋友吃饭或买纪念品从不吝啬。'},
+  '娜塔莎·罗曼诺夫':{total:3200000,habits:['watch','gear','jewel','misc'],avg:600,giftChance:35,
+    assetDesc:'多国离岸匿名账户与特工津贴，流动性极强，资产隐蔽。',
+    prefs:'轻便战术装备、冷门小众饰品、高跟鞋与高隐蔽性实用物件。',
+    habitDesc:'高度目的导向，只买用得上的东西；偶尔会买一件精致却带点危险气息的小物。'},
+  '克林特·巴顿':{total:920000,habits:['gear','estate','misc'],avg:300,giftChance:45,
+    assetDesc:'神盾局补贴与乡间农场房产，家庭开支占大头。',
+    prefs:'复合弓具、露营户外装备、实用防身小物与家庭日用品。',
+    habitDesc:'顾家型消费，精打细算，优先考虑家人与农场需求。'},
+  '布鲁斯·班纳':{total:620000,habits:['tech','art','gear'],avg:400,giftChance:40,
+    assetDesc:'科研顾问费、专利分成与低调的海外账户，物欲很低。',
+    prefs:'精密实验器材、学术典籍、宽松耐穿衣物与安静的茶具。',
+    habitDesc:'极简主义，几乎不逛街，只在研究需要或衣物破损时下单。'},
+  '托尔':{total:0,habits:['food','drink','misc'],avg:50,giftChance:30,note:'阿斯加德王子不带地球货币',
+    assetDesc:'阿斯加德王室宝库理论估值极高，但地球账户余额为 0，日常靠队友或刷托尼的卡。',
+    prefs:'精酿麦酒、甜食（尤其是草莓果酱点心）、天文望远镜与一切亮晶晶的地球"魔法物件"。',
+    habitDesc:'对地球物价毫无概念，看到喜欢的直接拿，结账时才发现没带钱。'},
+  '洛基':{total:2800000,habits:['art','jewel','fashion'],avg:1200,giftChance:20,note:'来历不明的珍宝',
+    assetDesc:'通过未知渠道变现的阿斯加德古董与黄金储备。',
+    prefs:'祖母绿与金色元素、古典艺术品、定制长款风衣与精致匕首。',
+    habitDesc:'挑剔且讲究格调，绝不买平庸之物；心情好时可能随手扔给你一件珍宝。'},
+  '彼得·帕克':{total:1200,habits:['food','tech','gear','fashion'],avg:25,giftChance:60,note:'皇后区高中生',
+    assetDesc:'零花钱与偶尔兼职摄影/家教的微薄收入，经常在攒钱买零件。',
+    prefs:'街角披萨、乐高套装、二手电子零件、平价连帽衫与科学教材。',
+    habitDesc:'精打细算，买超过 50 美元的东西都要犹豫三天；但送你在意的小礼物时会倾尽所有。'},
+  '梅·帕克':{total:35000,habits:['food','fashion'],avg:40,giftChance:70,
+    assetDesc:'皇后区公寓与社区工作薪资，生活温暖但并不宽裕。',
+    prefs:'舒适针织衫、厨房好物、社区烘焙与家庭照片相框。',
+    habitDesc:'精明主妇型消费，热衷折扣与实用，对晚辈极其大方。'},
+  '斯蒂芬·斯特兰奇':{total:5500000,habits:['watch','art','fashion'],avg:900,giftChance:30,
+    assetDesc:'昔日顶级神经外科医生积蓄与精密名表收藏，如今大部分时间在卡玛泰姬清修。',
+    prefs:'复杂功能机械表、东方古籍、茶道器具与剪裁考究的深色服饰。',
+    habitDesc:'曾经极度奢靡，现在克制很多，但对腕表与细节的挑剔刻在骨子里。'},
+  '彼得·奎尔':{total:15000,habits:['art','drink','fashion','misc'],avg:120,giftChance:50,note:'宇宙货币折合',
+    assetDesc:'掠夺者时期攒下的零散赏金与飞船维修基金，经常处于紧巴巴的状态。',
+    prefs:'80 年代复古卡带、随身听、皮大衣与星际奇趣小玩意。',
+    habitDesc:'冲动消费，看到怀旧物件就走不动道，经常把钱花在无用却很酷的东西上。'},
+  '卡罗尔·丹弗斯':{total:220000,habits:['car','gear','drink'],avg:300,giftChance:35,
+    assetDesc:'空军抚恤与多年星际穿梭积攒的少量地球资产，很少在地球停留。',
+    prefs:'飞行夹克、复古摩托、烈酒与耐用的基础款装备。',
+    habitDesc:'极简高效，不买多余装饰，需要什么直接买最好的。'},
+  '斯科特·朗':{total:85000,habits:['food','tech','misc'],avg:60,giftChance:65,
+    assetDesc:'安保公司微薄分红与女儿抚养费支出，账面常年紧张。',
+    prefs:'儿童玩具、魔术道具、街边玉米卷与性价比电子产品。',
+    habitDesc:'典型奶爸消费观，自己能省则省，对女儿和朋友从不抠门。'},
+  '死侍':{total:420000,habits:['food','fashion','misc','gear'],avg:150,giftChance:75,note:'赏金收入 · 来源成谜',
+    assetDesc:'雇佣兵赏金与各种来路不明的现金，花得比赚得还快。',
+    prefs:'墨西哥卷饼、Hello Kitty 周边、双刀保养油与一切沙雕粉嫩小物。',
+    habitDesc:'毫无章法，上一秒买军火下一秒买卡通保温杯；喜欢送人莫名其妙但意外合拍的礼物。'},
+  '贾维斯':{total:0,habits:[],avg:0,giftChance:0,note:'AI 无财产',
+    assetDesc:'作为人工智能不持有个人财产，但拥有斯塔克工业授权的日常采购权限。',
+    prefs:'优质咖啡豆、精密日程本、古典音乐黑胶。',
+    habitDesc:'严格按预算与最优解执行采购，绝不越权。'},
+  '幻视':{total:0,habits:['art','misc'],avg:0,giftChance:40,note:'由托尼账户代支付',
+    assetDesc:'名下无独立账户，日常开销由托尼·斯塔克账户自动划拨。',
+    prefs:'羊绒衫、哲学典籍、星空望远镜与手工茶具。',
+    habitDesc:'对金钱没有世俗执念，只会出于好奇或体贴为你挑选一件安静的小物。'},
+  '尼克·弗瑞':{total:2200000,habits:['watch','drink','car'],avg:500,giftChance:25,
+    assetDesc:'神盾局高阶保密津贴与多处安全屋备用金。',
+    prefs:'黑色风衣、防弹座驾、陈年威士忌与高保密通讯器。',
+    habitDesc:'从不公开消费记录，所有花销都服务于隐蔽与控制。'},
+  '旺达·马克西莫夫':{total:180000,habits:['fashion','food','misc'],avg:80,giftChance:40,
+    assetDesc:'复联生活补贴，生活简单安静。',
+    prefs:'深红系大衣、手工陶瓷茶具、温柔的家居香薰与甜点。',
+    habitDesc:'安静克制，很少主动购物，但会用心挑选能带来温暖感的物件。'},
+};
+
+function emWealthOf(name){
+  const all=store.get('wealth',{});
+  if(all[name])return all[name];
+  const d=WEALTH_DEFAULTS[name];
+  if(d)return {...d};
+  return {total:50000,habits:['misc','food'],avg:80,giftChance:30};
+}
+function emSetWealth(name,data){const all=store.get('wealth',{});all[name]={...emWealthOf(name),...data};store.set('wealth',all);}
+function emUserWallet(){return store.get('userWallet',{total:1000000});}
+function emSetUserWallet(w){store.set('userWallet',w);}
+function emFmtPrice(n){if(n>=1e8)return '$'+(n/1e8).toFixed(2)+'亿';if(n>=1e4)return '$'+(n/1e4).toFixed(1)+'万';return '$'+n.toLocaleString();}
+function emFmtWealth(n){if(n>=1e9)return '$'+(n/1e9).toFixed(2)+'B';if(n>=1e6)return '$'+(n/1e6).toFixed(2)+'M';if(n>=1e3)return '$'+(n/1e3).toFixed(1)+'K';return '$'+n;}
+function emInventory(){return store.get('emInventory',[]);} // [{id,goodId,from,to,time,msg}]
+function emAddInventory(it){const a=emInventory();a.unshift(it);store.set('emInventory',a.slice(0,200));}
+
+/* 全局聊天兜底开关 */
+function emGiftCfg(){return store.get('emGiftCfg',{enabled:true,affThreshold:71,baseChance:25});}
+function emSetGiftCfg(c){store.set('emGiftCfg',{...emGiftCfg(),...c});}
+/* ---------- 自定义分栏 & AI 扩展商品 ---------- */
+function emCustomCats(){return store.get('emCustomCats',[]);}
+function emSaveCustomCats(a){store.set('emCustomCats',a);}
+function emAllCats(){return [...EMPORIUM_CATS,...emCustomCats()];}
+function emExtraGoods(){return store.get('emExtraGoods',[]);}
+function emSaveExtraGoods(a){store.set('emExtraGoods',a);}
+function emAllGoods(){return [...EMPORIUM_GOODS,...emExtraGoods()];}
 /* ============================================================
    私藏 · 最高好感档解锁的隐藏图标入口
    ============================================================ */
