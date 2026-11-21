@@ -3780,7 +3780,7 @@ apps.worldline.render(v);
   let choice=choice0;
     const uid=store.get('useItem',null);
     if(uid){const it=labItems().find(x=>x.id===uid);if(it)choice='（使用了：'+it.name+'）'+choice;}
-    s=store.state();s.history.push({story:s.story,options:s.options,choice,_aff:s.affinity});
+    s=store.state();s.history.push({story:s.story,options:s.options,choice,_aff:s.affinity,_year:flags().year,_eraName:eraName()});
     const tags=WT.keyTag(choice,s.story);
     relApply(choice);
     WT.addNode(choice,tags);
@@ -3814,9 +3814,93 @@ apps.worldline.render(v);
   }
 }};
 function showMemory(){
-  const s=store.state();const d=modal(`<h2 style="color:var(--cyan);font-size:17px;margin-top:0">📜 回忆 · 共 ${s.history.length} 段</h2>
-    ${s.history.length?s.history.map((h,i)=>`<div class="card"><div class="hint">— 第 ${i+1} 段 —</div><div class="story" style="max-height:180px;overflow-y:auto">${fmtStory(h.story)}</div><div style="color:var(--gold);font-size:13px">➤ ${esc(h.choice)}</div></div>`).join(''):'<div class="hint">还没有历史。</div>'}
-    <button class="btn" data-close style="margin-top:8px">关闭</button>`);
+  const s=store.state()||{};
+  const f=flags();
+  const p=store.profile()||{};
+  const hist=s.history||[];
+  const d=modal(`<h2 style="color:var(--cyan);font-size:17px;margin-top:0">📜 回忆 · 共 ${hist.length} 段</h2>
+    <div class="row" style="margin-bottom:10px">
+      <button class="btn gold sm" id="mem_export_txt" ${hist.length?'':'disabled'}>📥 导出全部回忆 (TXT)</button>
+    </div>
+    <div style="max-height:60vh;overflow-y:auto">
+      ${hist.length?hist.map((h,i)=>`<div class="card" style="margin-bottom:8px">
+        <div class="hint" style="display:flex;justify-content:space-between">
+          <span>— 第 ${i+1} 阶段 —</span>
+          <span style="color:var(--cyan)">${esc(h._eraName||f.era.name)} · 托尼 ${tonyAgeAt(h._year||f.year)} 岁</span>
+        </div>
+        <div class="story" style="max-height:180px;overflow-y:auto;font-size:13px;margin:6px 0">${fmtStory(h.story)}</div>
+        <div style="color:var(--gold);font-size:12.5px;line-height:1.6">➤ 玩家行动：${esc(h.choice)}</div>
+      </div>`).join(''):'<div class="hint">还没有历史。在世界线推进剧情后会沉淀在这里。</div>'}
+    </div>
+    <button class="btn ghost" data-close style="margin-top:10px">关闭</button>`);
+
+  const expBtn=d.querySelector('#mem_export_txt');
+  if(expBtn){
+    expBtn.onclick=()=>{
+      const confirmModal=modal(`
+        <h2 style="color:var(--gold);margin-top:0;font-size:16px">⚠️ 个人收藏承诺与版权约定</h2>
+        <div class="card">
+          <div class="story" style="font-size:13px;line-height:1.85;margin-bottom:12px">
+            本世界线回忆记录属于你与当前世界模型推演的私人互动数据。<br><br>
+            在下载前，你必须保证并承诺：<br>
+            <b>1. 本文件仅限个人离线存档、回味与私人收藏使用；</b><br>
+            <b>2. 绝不擅自提取、整理或用于公开发表同人文小说、剧本、商业作品，亦不得上传至任何网文/内容平台二次传播；</b><br>
+            <b>3. 尊重漫威原作设定与本作独立版权，违背承诺由导出者自行承担一切合规与侵权后果。</b>
+          </div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);cursor:pointer;padding:8px 0">
+            <input type="checkbox" id="mem_agree_cb" style="accent-color:var(--cyan);width:16px;height:16px">
+            <span>我已阅读并承诺：仅作个人收藏，绝不外发为小说或其他渠道</span>
+          </label>
+          <div class="row" style="margin-top:12px">
+            <button class="btn gold" id="mem_do_download" disabled>确认无误并导出 TXT</button>
+            <button class="btn ghost" data-close>取消</button>
+          </div>
+        </div>
+      `);
+
+      const cb=confirmModal.querySelector('#mem_agree_cb');
+      const downBtn=confirmModal.querySelector('#mem_do_download');
+      cb.onchange=()=>{downBtn.disabled=!cb.checked;};
+
+      downBtn.onclick=()=>{
+        confirmModal.remove();
+        // 组装结构化 TXT 文件内容
+        let txt=`=================================================================\r\n`;
+        txt+=`  STARK OS · 世界线完整推演回忆录\r\n`;
+        txt+=`  时间锚点: ${f.year} 年 · ${f.era.name} (托尼·斯塔克 ${f.tonyAge} 岁)\r\n`;
+        txt+=`  观测玩家: ${p.name||'访客'} (${p.identity||'未填身份'})\r\n`;
+        txt+=`  导出时间: ${nowTime()}\r\n`;
+        txt+=`  免责声明: 本文档仅作玩家个人珍藏，不得作为同人小说或其他公开出版物使用。\r\n`;
+        txt+=`=================================================================\r\n\r\n`;
+
+        hist.forEach((h,idx)=>{
+          const stageEra=h._eraName||f.era.name;
+          const stageYr=h._year||f.year;
+          txt+=`-----------------------------------------------------------------\r\n`;
+          txt+=`【第 ${idx+1} 阶段】\r\n`;
+          txt+=`时间节点 / 锚点名: ${stageEra} (${stageYr} 年 · 托尼 ${tonyAgeAt(stageYr)} 岁)\r\n`;
+          txt+=`记录好感度: ${h._aff??0} / 200\r\n`;
+          txt+=`\r\n[剧情呈现]\r\n`;
+          txt+=`${(h.story||'').replace(/\r?\n/g,'\r\n')}\r\n`;
+          txt+=`\r\n[用户行动选项与纠偏]\r\n`;
+          txt+=`➤ ${h.choice||'（无记录）'}\r\n\r\n`;
+        });
+
+        txt+=`=================================================================\r\n`;
+        txt+=`  END OF RECORD · STARK INDUSTRIES ARCHIVE\r\n`;
+        txt+=`=================================================================\r\n`;
+
+        const blob=new Blob([txt],{type:'text/plain;charset=utf-8'});
+        const a=document.createElement('a');
+        a.href=URL.createObjectURL(blob);
+        a.download=`StarkOS_Worldline_Memory_${f.year}_T${s.turn||1}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(()=>{a.remove();URL.revokeObjectURL(a.href);},1500);
+        toast('世界线回忆已导出为 TXT');
+      };
+    };
+  }
 }
 
 /* ============================================================
@@ -6709,18 +6793,6 @@ apps.dating={title:'约饭',_view:'setup',city:0,spot:null,people:[],
     if(this.city>=places.length)this.city=0;
     const city=places[this.city]||places[0];
     const names=activeNames().filter(n=>!isAI(n));
-    /* 存档槽：最多 5 个，存的是当前 dateSession 完整快照 */
-    const slots=store.get('dateSlots',[]);
-    const slotRow=()=>Array.from({length:5},(_,i)=>{
-      const s=slots[i];
-      return `<div class="srow" style="padding:7px 0"><div style="flex:1;min-width:0">
-        <div class="t" style="font-size:12.5px">档位 ${i+1}${s?' · 第 '+s.turn+' 回合 · '+esc(s.place||'').slice(0,18):' · 空'}</div>
-        <div class="d">${s?esc((s.people||[]).join('、')||'—')+' · '+esc(s.time||''):'未保存'}</div></div>
-        <div style="flex-shrink:0;display:flex;gap:4px">
-          ${session?`<button class="btn ghost sm" data-slot-save="${i}" style="padding:5px 8px;font-size:11px">存</button>`:''}
-          ${s?`<button class="btn sm" data-slot-load="${i}" style="padding:5px 8px;font-size:11px">读</button><button class="btn ghost sm" data-slot-del="${i}" style="padding:5px 8px;font-size:11px">✕</button>`:''}
-        </div></div>`;
-    }).join('');
     v.innerHTML=`<div class="pad">
       <div class="card" style="padding:12px"><div class="eyebrow">AN INVITATION · ${esc(eraName())}</div>
         <div style="font-family:var(--font-serif);font-size:15px;font-weight:700;margin:6px 0">🍷 约饭 · 高端场所与私人住宅</div>
@@ -6738,10 +6810,6 @@ apps.dating={title:'约饭',_view:'setup',city:0,spot:null,people:[],
         <div>${names.map(n=>`<span class="chip ${this.people.includes(n)?'on':''}" data-p="${esc(n)}">${esc(n)}</span>`).join('')}</div>
         <div class="hint" style="margin-top:8px">已选 ${this.people.length} 人：${esc(this.people.join('、')||'（至少选一位）')}</div></div>
       <div class="row" style="margin-bottom:12px"><button class="btn" id="dt_start">▶ 开始这场约会</button><button class="btn ghost" id="dt_hist">📜 历史记录</button></div>
-      <div class="card"><h3>◉ 存档 / 读档（5 槽）</h3>
-        <div class="hint" style="margin-bottom:6px">${session?'当前有进行中的约会，点「存」可把当前回合状态写入该档位；点「读」会用档位内容覆盖当前。':'没有进行中的约会时，只能读取或删除已有档位。'}</div>
-        <div id="dt_slots">${slotRow()}</div>
-        <div class="hint" style="margin-top:6px">存档内容包括：场所、同行人物、当前回合、剧情文本与选项 —— 完整快照，读取后可直接续接。</div></div>
       <div class="hint" style="text-align:center">${en('Dress code: black tie, or a lab coat.')} · 托尼大概会迟到八分钟</div>
     </div>`;
     v.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{self.city=+b.dataset.c;self.spot=null;self.render(v);});
@@ -6752,36 +6820,78 @@ apps.dating={title:'约饭',_view:'setup',city:0,spot:null,people:[],
     if(resumeBtn)resumeBtn.onclick=()=>{self._view='date';self.render(v);};
     const abandonBtn=v.querySelector('#dt_abandon');
     if(abandonBtn)abandonBtn.onclick=()=>{if(!confirm('放弃当前进行中的约会？已进行的剧情不会写入历史记录。'))return;store.set('dateSession',null);self.spot=null;self.people=[];self.render(v);toast('已放弃当前约会');};
-    v.querySelector('#dt_start').onclick=()=>{
-      if(self.spot===null)return toast('先选一个具体场所');
-      if(!self.people.length)return toast('至少选一位同行的人');
-      if(!f.groupUnlocked&&self.people.filter(n=>['史蒂夫·罗杰斯','托尔','布鲁斯·班纳','娜塔莎·罗曼诺夫','克林特·巴顿'].includes(n)).length>1)toast('提示：纽约之战前，复联成员彼此不熟，同场人数过多可能穿帮');
-      const city=datePlacesFor()[self.city]||datePlacesFor()[0];
-      const session={place:city.name,spot:city.spots[self.spot].name,emoji:city.spots[self.spot].emoji,
-        people:[...self.people],turn:1,story:'',options:[],mood:'',aff:0,time:nowTime()};
-      store.set('dateSession',session);self._view='date';self.render(v);
-    };
-    v.querySelector('#dt_hist').onclick=()=>{const h=store.get('dateHistory',[]);const d=modal(`<h2 style="color:var(--cyan);margin-top:0">📜 约饭记录</h2>${h.length?h.map(x=>`<div class="card"><div class="hint">${esc(x.time)} · ${esc(x.place)} / ${esc(x.spot)}</div><div style="font-family:var(--font-serif);font-size:13.5px;margin-top:5px">同行：${esc(x.people.join('、'))}</div><div style="color:var(--gold);font-size:12.5px;margin-top:5px">心情：${esc(x.mood)} · 好感 ${x.aff>0?'+':''}${x.aff}</div></div>`).join(''):'<div class="hint">还没有记录。</div>'}<button class="btn" data-close style="margin-top:8px">关闭</button>`);};
-    /* 存档槽位操作 */
-    v.querySelectorAll('[data-slot-save]').forEach(b=>b.onclick=()=>{
-      const i=+b.dataset.slotSave;const cur=store.get('dateSession',null);
-      if(!cur)return toast('没有进行中的约会可存');
-      const arr=store.get('dateSlots',[]);arr[i]={...cur,_savedAt:nowTime()};store.set('dateSlots',arr);
-      self.render(v);toast('已写入档位 '+(i+1));
+    v.querySelector('#dt_hist').onclick=()=>{
+  const allHistory=store.get('dateHistory',[]); // 完整读取全部历史，不设上限
+  let filterPerson='全部';
+
+  // 提取历史中所有出现过的同行人作为分类标签
+  const personSet=new Set();
+  allHistory.forEach(item=>(item.people||[]).forEach(p=>personSet.add(p)));
+  const personTags=['全部',...Array.from(personSet)];
+
+  let currentModal=null;
+
+  const renderHistoryModal=(hostEl)=>{
+    const filtered=filterPerson==='全部'?allHistory:allHistory.filter(x=>(x.people||[]).includes(filterPerson));
+    hostEl.innerHTML=`
+      <h2 style="color:var(--cyan);margin-top:0;font-size:16px">📜 约饭完整记录 · 共 ${allHistory.length} 次</h2>
+      <div class="hint" style="margin-bottom:8px">已完整记录所有约饭历史（无数量上限）。点击下方标签按同行人即时检索。</div>
+      
+      <div class="seg" style="flex-wrap:wrap;margin-bottom:10px" id="dh_tags">
+        ${personTags.map(p=>`<button class="${filterPerson===p?'on':''}" data-dh-tag="${esc(p)}">${esc(p)}${p==='全部'?` (${allHistory.length})`:''}</button>`).join('')}
+      </div>
+
+      <div style="max-height:58vh;overflow-y:auto;padding-right:2px" id="dh_list">
+        ${filtered.length?filtered.map((x)=>`
+          <div class="card" style="margin-bottom:8px;padding:11px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span class="hint" style="font-size:11px">${esc(x.time||'—')}</span>
+              <span class="tag gold" style="font-size:10px">第 ${allHistory.length - (allHistory.indexOf(x))} 次</span>
+            </div>
+            <div style="font-family:var(--font-serif);font-size:13.5px;font-weight:700;margin:4px 0">
+              ${esc(x.emoji||'🍷')} ${esc(x.place)} · ${esc(x.spot)}
+            </div>
+            <div class="hint" style="margin:2px 0 5px">
+              同行伙伴：<b>${esc((x.people||[]).join('、')||'独处')}</b>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px dashed var(--line);padding-top:5px;font-size:12px">
+              <span style="color:var(--gold)">体验状态：${esc(x.mood||'—')}</span>
+              <span style="color:var(--cyan);font-family:var(--font-mono);font-weight:700">好感变动 ${x.aff>0?'+':''}${x.aff||0}</span>
+            </div>
+            ${(x.fullStory||x.story)?`<details style="margin-top:6px;font-size:12px;color:var(--muted)">
+  <summary style="cursor:pointer;color:var(--cyan)">展开完整约会剧情（${x.turnStories?x.turnStories.length+' 回合':'全文'}）</summary>
+  <div class="story" style="margin-top:6px;font-size:12px;line-height:1.75;max-height:400px;overflow-y:auto;background:var(--panel2);padding:10px;border-radius:8px">${fmtStory(x.fullStory||x.story)}</div>
+  ${x.comment?`<div class="hint" style="margin-top:6px;padding:8px;background:rgba(53,208,255,.08);border-radius:6px;border-left:2px solid var(--cyan)"><b>AI 评语：</b>${fmtStory(x.comment)}</div>`:''}
+</details>`:''}
+          </div>
+        `).join(''):`<div class="empty">${filterPerson==='全部'?'还没有约饭记录。':'没有与 '+esc(filterPerson)+' 的约饭记录。'}</div>`}
+      </div>
+
+      <button class="btn ghost" id="dh_close_btn" style="margin-top:10px">关闭</button>
+    `;
+
+    // 重新绑定标签切换
+    hostEl.querySelectorAll('[data-dh-tag]').forEach(btn=>{
+      btn.onclick=()=>{
+        filterPerson=btn.dataset.dhTag;
+        renderHistoryModal(hostEl);
+      };
     });
-    v.querySelectorAll('[data-slot-load]').forEach(b=>b.onclick=()=>{
-      const i=+b.dataset.slotLoad;const arr=store.get('dateSlots',[]);const s=arr[i];
-      if(!s)return toast('该档位为空');
-      if(store.get('dateSession',null)&&!confirm('读取将覆盖当前进行中的约会，继续？'))return;
-      const restored={...s};delete restored._savedAt;
-      store.set('dateSession',restored);self._view='date';self.render(v);
-      toast('已读取档位 '+(i+1)+' · 第 '+(restored.turn||1)+' 回合');
-    });
-    v.querySelectorAll('[data-slot-del]').forEach(b=>b.onclick=()=>{
-      const i=+b.dataset.slotDel;const arr=store.get('dateSlots',[]);arr.splice(i,1);store.set('dateSlots',arr);
-      self.render(v);toast('已删除档位 '+(i+1));
-    });
-  },
+
+    // 显式绑定关闭事件，确保随时能退出弹窗
+    const closeBtn=hostEl.querySelector('#dh_close_btn');
+    if(closeBtn){
+      closeBtn.onclick=()=>{
+        if(currentModal) currentModal.remove();
+      };
+    }
+  };
+
+  currentModal=modal(`<div id="dh_modal_root"></div>`);
+  const root=currentModal.querySelector('#dh_modal_root');
+  renderHistoryModal(root);
+};
+},
   async renderDate(v,session){
     const self=this,f=flags();
     if(!session.story){
@@ -6815,8 +6925,8 @@ apps.dating={title:'约饭',_view:'setup',city:0,spot:null,people:[],
     <button class="btn" id="dt_send">继续推进</button>
     <button class="btn ghost" id="dt_end">结束这场约会</button>
   </div>
-  <div class="row" style="margin-top:8px">
-    <button class="btn ghost sm" id="dt_save_slot" title="把当前回合状态写入存档槽">💾 快存档</button>
+    <div class="row" style="margin-top:8px">
+    <button class="btn ghost sm" id="dt_slot_manager" title="管理 5 个独立的约饭存档槽位">💾 约饭剧情存读档</button>
     <button class="btn ghost sm" id="dt_reset_turn" title="清空本回合剧情，重新生成当前场景">↺ 重置当前回合</button>
   </div>
 </div>
@@ -6877,15 +6987,93 @@ if (dtInp && dtInp.value === '（）') {
   }, { once: true });
 }
     v.querySelector('#dt_end').onclick=()=>{self._view='result';self.render(v);};
-    /* 快存档：把当前 dateSession 写入第一个空槽，或覆盖档位 1 */
-    const saveSlotBtn=v.querySelector('#dt_save_slot');
-    if(saveSlotBtn)saveSlotBtn.onclick=()=>{
-      const cur=store.get('dateSession',null);if(!cur)return toast('没有可存的内容');
-      const arr=store.get('dateSlots',[]);let idx=arr.findIndex(x=>!x);
-      if(idx<0){if(!confirm('5 个档位均已占用，是否覆盖档位 1？'))return;idx=0;}
-      arr[idx]={...cur,_savedAt:nowTime()};store.set('dateSlots',arr);
-      toast('已快存至档位 '+(idx+1));
-    };
+        // 剧情内独立 5 槽位存读档管理器
+    const slotMgrBtn=v.querySelector('#dt_slot_manager');
+    if(slotMgrBtn){
+      slotMgrBtn.onclick=()=>{
+        const slots=store.get('date_slots',Array(5).fill(null));
+
+        const renderDateSlots=()=>{
+          return slots.map((sl,idx)=>`
+            <div class="card" style="padding:10px;margin-bottom:8px;background:var(--panel2)">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <b style="color:var(--cyan)">约饭槽位 ${idx+1}</b>
+                <span class="hint" style="font-size:10px">${sl?esc(sl.saveTime):'空槽位'}</span>
+              </div>
+              ${sl?`<div class="hint" style="margin:5px 0;font-size:11px;line-height:1.6">
+                场所：<b>${esc(sl.session.emoji||'🍷')} ${esc(sl.session.place)} · ${esc(sl.session.spot)}</b><br>
+                进度：第 ${sl.session.turn||1} 回合 · 同行：${esc((sl.session.people||[]).join('、'))}
+                <div style="max-height:36px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px;color:var(--text);opacity:.85">${esc((sl.session.story||'').slice(0,45))}...</div>
+              </div>`:'<div class="hint" style="margin:5px 0">暂无存档记录</div>'}
+              <div class="row" style="margin-top:6px">
+                <button class="btn sm" data-dtsave="${idx}">覆盖保存</button>
+                <button class="btn ghost sm" data-dtload="${idx}" ${sl?'':'disabled'}>读取本槽</button>
+                ${sl?`<button class="btn ghost sm" data-dtdel="${idx}" style="color:var(--red);flex:0 0 46px">删</button>`:''}
+              </div>
+            </div>
+          `).join('');
+        };
+
+        const d=modal(`
+          <h2 class="title-en" style="color:var(--cyan);margin-top:0;font-size:16px">💾 约饭剧情存读档 (5 独立槽位)</h2>
+          <div class="hint" style="margin-bottom:10px">本存读档专用于约饭场景，与主线世界线存档完全独立。读取后直接无缝恢复本场约会的全部对话与分支选项。</div>
+          <div id="dt_slot_container" style="max-height:65vh;overflow-y:auto">${renderDateSlots()}</div>
+          <button class="btn ghost" id="dt_modal_close" style="margin-top:10px">关闭</button>
+        `);
+
+        const bindDateSlotEvents=()=>{
+          // 保存覆盖
+          d.querySelectorAll('[data-dtsave]').forEach(b=>{
+            b.onclick=()=>{
+              const idx=+b.dataset.dtsave;
+              const curSession=store.get('dateSession',null);
+              if(!curSession) return toast('当前没有进行中的约会');
+              slots[idx]={
+                saveTime:nowTime(),
+                session:JSON.parse(JSON.stringify(curSession))
+              };
+              store.set('date_slots',slots);
+              toast(`已存入约饭槽位 ${idx+1}`);
+              d.querySelector('#dt_slot_container').innerHTML=renderDateSlots();
+              bindDateSlotEvents();
+            };
+          });
+
+          // 读取
+          d.querySelectorAll('[data-dtload]').forEach(b=>{
+            b.onclick=()=>{
+              const idx=+b.dataset.dtload;
+              const target=slots[idx];
+              if(!target||!target.session) return;
+              if(!confirm(`确定读取约饭槽位 ${idx+1}？当前未保存的约会进展将被完全覆盖！`)) return;
+              
+              store.set('dateSession',JSON.parse(JSON.stringify(target.session)));
+              d.remove();
+              toast(`已载入槽位 ${idx+1} · 继续约会`);
+              self.renderDate(v,target.session);
+            };
+          });
+
+          // 删除
+          d.querySelectorAll('[data-dtdel]').forEach(b=>{
+            b.onclick=()=>{
+              const idx=+b.dataset.dtdel;
+              if(!confirm(`确定清空约饭槽位 ${idx+1}？`)) return;
+              slots[idx]=null;
+              store.set('date_slots',slots);
+              d.querySelector('#dt_slot_container').innerHTML=renderDateSlots();
+              bindDateSlotEvents();
+            };
+          });
+        };
+
+        bindDateSlotEvents();
+
+        // 显式绑定关闭按钮
+        const closeBtn=d.querySelector('#dt_modal_close');
+        if(closeBtn) closeBtn.onclick=()=>d.remove();
+      };
+    }
     /* 重置当前回合：清空 story/options，把回合数回退 1（若已是第 1 回合则保持），重新生成开场/当前场景 */
     const resetBtn=v.querySelector('#dt_reset_turn');
     if(resetBtn)resetBtn.onclick=()=>{
@@ -6903,45 +7091,100 @@ if (dtInp && dtInp.value === '（）') {
       self.renderDate(v,restored);
     };
   },
-  renderResult(v,session){
-    const self=this;
-    const moods=['☺️ 愉快','🙂 平淡','😔 不愉快'];
-    v.innerHTML=`<div class="pad">
-      <div class="card" style="text-align:center;padding:24px"><div style="font-size:38px">${esc(session.emoji)}</div>
-        <h2 style="font-family:var(--font-serif);margin:10px 0 6px">这场约会结束了</h2>
-        <div class="hint">${esc(session.place)} · ${esc(session.spot)}<br>同行：${esc(session.people.join('、'))} · 共 ${session.turn} 回合</div></div>
-      <div class="card"><h3>◉ 结算</h3>
-        <div class="hint" style="margin-bottom:9px">选一个心情，并确认好感变动（单场景上限 +5）。</div>
-        <div class="seg" id="dt_mood">${moods.map((m,i)=>`<button data-m="${i}" class="${i===0?'on':''}">${m}</button>`).join('')}</div>
-        <div class="field"><label>好感变动（-20 ~ +5）</label><input id="dt_aff" type="number" min="-20" max="5" value="2"></div>
-        <button class="btn gold" id="dt_save">💾 保存这场记录</button>
-        <button class="btn ghost" id="dt_more" style="margin-top:8px">↩ 再续一回合</button></div>
-      <div class="hint" style="text-align:center">${en('The best part is the part nobody writes down.')}</div>
-    </div>`;
-    let mood=0;
-    v.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{mood=+b.dataset.m;v.querySelectorAll('[data-m]').forEach(x=>x.classList.toggle('on',x===b));});
-    v.querySelector('#dt_more').onclick=()=>{self._view='date';self.render(v);};
-    v.querySelector('#dt_save').onclick=()=>{
-      const aff=Math.max(-20,Math.min(5,parseInt(v.querySelector('#dt_aff').value)||0));
-      const h=store.get('dateHistory',[]);h.unshift({...session,mood:moods[mood],aff});store.set('dateHistory',h);
-      applyAffinity(((store.state()||{}).affinity||0)+aff);
-      store.set('dateSession',null);self._view='setup';self.spot=null;self.people=[];
-      // 约饭后的连锁：托尼的一面日记 + 哈皮的抓拍推文
-      (async()=>{
-        try{
-          const sys=buildSystem('worldline',`替托尼·斯塔克写一面 3~5 行日记（刚结束一场在${session.place}的饭局）。只用物件、动作、技术细节，不出现情绪词，不解释。`);
-          const dr=await ai([{role:'user',content:'场所：'+session.place+' / '+session.spot+'。同行：'+session.people.join('、')+'。心情：'+moods[mood]}],sys,
-            ()=>'酒单第 2 页没人翻。\n杯沿缺口朝里放好了。\n侍者记住了不要冰。\n回去的车里比来时安静。够了，不写了。');
-          const a=store.get('diary',[]);a.unshift({id:'d'+Date.now(),author:'托尼·斯塔克',text:dr,paper:1,time:nowTime()});store.set('diary',a);
-          const ps=store.posts();ps.twitter=ps.twitter||[];
-          ps.twitter.unshift({name:'哈皮·霍根',handle:'@happy_hogan',text:'（抓拍）'+session.emoji+' '+session.place+'。他今晚没迟到——这次真是意外。别转了，我会被问。',likes:Math.floor(Math.random()*120)+20,comments:[]});
-          store.setPosts(ps);
-          banner('约饭 · 连锁记录','托尼写了一面日记；哈皮的抓拍推文已发出',()=>openApp('diary'));
-        }catch(e){}
-      })();
-      self.render(v);toast('已保存 · 好感 '+(aff>0?'+':'')+aff);
-    };
-  }
+  async renderResult(v,session){
+  const self=this;
+  // 组装完整约会剧情（所有回合）
+  const fullStory=(session._turnStories||[]).map((t,i)=>`【第${i+1}回合】\n${t.story||''}`).join('\n\n');
+  const storyForAI=fullStory||session.story||'';
+  
+  v.innerHTML=`<div class="pad">
+    <div class="card" style="text-align:center;padding:24px"><div style="font-size:38px">${esc(session.emoji)}</div>
+      <h2 style="font-family:var(--font-serif);margin:10px 0 6px">这场约会结束了</h2>
+      <div class="hint">${esc(session.place)} · ${esc(session.spot)}<br>同行：${esc(session.people.join('、'))} · 共 ${session.turn} 回合</div></div>
+    <div class="card"><h3>◉ AI 正在评判这场约会</h3>
+      <div class="loader" id="dt_judge_loading"><div class="spin"></div>根据全程氛围与剧情推演好感变动…</div>
+      <div id="dt_judge_result" style="display:none"></div>
+    </div>
+    <div class="hint" style="text-align:center">${en('The best part is the part nobody writes down.')}</div>
+  </div>`;
+  
+  // AI 评判
+  const sys=buildSystem('general',`你是约会情感评估器。根据玩家与${session.people.join('、')}这场约会的全程剧情，客观评判：
+1. 整场氛围属于下列哪一类：愉快 / 平淡 / 不愉快
+2. 好感度变动（整数），范围严格 -10 ~ +5。判定标准：
+   - 对方明显卸下防备、有肢体或语言上的靠近、留有余味 → +3~+5
+   - 有默契、不尴尬、符合彼此节奏 → +1~+2
+   - 平平无奇、无进展 → 0
+   - 玩家踩雷、触碰角色禁忌、被对方刻意拉开距离 → -3~-10
+3. 一段 40~80 字的点评，解释为什么是这个结果（写给玩家看）
+严格按格式输出，用三个 ||| 分隔，不要多余文字：
+氛围 ||| 数字 ||| 点评`);
+  
+  const r=await ai([{role:'user',content:`约会地点：${session.place} / ${session.spot}
+同行：${session.people.join('、')}
+共 ${session.turn} 回合
+
+【全程剧情】
+${storyForAI.slice(0,3500)}
+
+请评判。`}],sys,()=>'平淡 ||| 1 ||| 场面维持得体，没有明显突破，也没有踩雷。下次可以再多推一步。','summary');
+  
+  const parts=r.split('|||').map(x=>x.trim());
+  const mood=parts[0]||'平淡';
+  let aff=parseInt(parts[1])||0;
+  aff=Math.max(-10,Math.min(5,aff));
+  const comment=parts[2]||'这场约会按部就班地结束了。';
+  const moodEmoji=/愉快|好|融洽|亲密/.test(mood)?'☺️':/不愉快|糟|冷|尴尬|踩雷/.test(mood)?'😔':'🙂';
+  
+  v.querySelector('#dt_judge_loading').style.display='none';
+  const box=v.querySelector('#dt_judge_result');
+  box.style.display='block';
+  box.innerHTML=`<div style="text-align:center;margin:8px 0 14px">
+      <div style="font-size:32px">${moodEmoji}</div>
+      <div style="font-family:var(--font-serif);font-size:15px;font-weight:700;margin-top:4px">${esc(mood)}</div>
+      <div class="affval" style="font-size:22px;margin-top:6px;color:${aff>0?'var(--gold)':aff<0?'var(--red)':'var(--muted)'}">好感 ${aff>0?'+':''}${aff}</div>
+    </div>
+    <div class="story" style="font-size:13px;background:var(--panel2);padding:11px;border-radius:10px;border-left:3px solid var(--cyan)">${fmtStory(comment)}</div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn gold" id="dt_save">💾 保存记录并结算好感</button>
+      <button class="btn ghost" id="dt_more">↩ 再续一回合</button>
+    </div>
+    <div class="hint" style="margin-top:8px;text-align:center">评判由 AI 根据全程剧情推演，不可手动调整</div>`;
+  
+  v.querySelector('#dt_more').onclick=()=>{self._view='date';self.render(v);};
+  v.querySelector('#dt_save').onclick=()=>{
+    const h=store.get('dateHistory',[]);
+    h.unshift({
+      ...session,
+      mood:moodEmoji+' '+mood,
+      aff,
+      comment,
+      fullStory:storyForAI,  // 保存完整剧情（所有回合）
+      turnStories:(session._turnStories||[]).slice()  // 保留分回合结构
+    });
+    store.set('dateHistory',h);
+    applyAffinity(((store.state()||{}).affinity||0)+aff);
+    store.set('dateSession',null);
+    self._view='setup';self.spot=null;self.people=[];
+    
+    // 托尼日记 + 哈皮抓拍（保留原连锁）
+    (async()=>{
+      try{
+        const sys2=buildSystem('worldline',`替托尼·斯塔克写一面 3~5 行日记（刚结束一场在${session.place}的饭局，氛围：${mood}）。只用物件、动作、技术细节，不出现情绪词，不解释。`);
+        const dr=await ai([{role:'user',content:'场所：'+session.place+' / '+session.spot+'。同行：'+session.people.join('、')+'。氛围：'+mood}],sys2,
+          ()=>'酒单第 2 页没人翻。\n杯沿缺口朝里放好了。\n侍者记住了不要冰。\n回去的车里比来时安静。够了，不写了。');
+        const a2=store.get('diary',[]);a2.unshift({id:'d'+Date.now(),author:'托尼·斯塔克',text:dr,paper:1,time:nowTime()});store.set('diary',a2);
+        const ps=store.posts();ps.twitter=ps.twitter||[];
+        ps.twitter.unshift({name:'哈皮·霍根',handle:'@happy_hogan',text:'（抓拍）'+session.emoji+' '+session.place+'。'+(aff>=3?'他今晚没迟到——这次真是意外。':aff<=-3?'气氛有点凉。别问我细节。':'正常的一晚。')+'别转了，我会被问。',likes:Math.floor(Math.random()*120)+20,comments:[]});
+        store.setPosts(ps);
+        banner('约饭 · 连锁记录','托尼写了一面日记；哈皮的抓拍推文已发出',()=>openApp('diary'));
+      }catch(e){}
+    })();
+    
+    self.render(v);
+    toast('已保存 · AI 判定好感 '+(aff>0?'+':'')+aff);
+  };
+},
 };
 
 /* ============================================================
