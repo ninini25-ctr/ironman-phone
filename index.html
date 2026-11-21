@@ -944,7 +944,17 @@ body.guide-open{background:
   .bi-svg .ar-ln,.bi-svg .ar-tri,.bi-line i{animation-duration:.01s}
   .bi-svg .ar-rot,.bi-rays,.bi-aura,.bi-svg .ar-wave,.bi-svg .ar-core-wrap,.bi-svg .ar-halo{animation:none}
 }
-
+.up-area{border:2px dashed var(--line);border-radius:12px;padding:16px;text-align:center;cursor:pointer;transition:.15s;background:var(--panel2);}
+.up-area:hover{border-color:var(--cyan);}
+.up-area.has{border-style:solid;border-color:var(--cyan);padding:8px;}
+.up-area img{max-width:100%;max-height:120px;border-radius:8px;display:block;margin:0 auto;}
+.up-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;}
+.up-cell{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px;text-align:center;}
+.up-cell .av2{width:60px;height:60px;border-radius:50%;margin:0 auto 6px;background:var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden;font-weight:700;font-size:20px;color:var(--text);}
+.up-cell .av2 img{width:100%;height:100%;object-fit:cover;}
+.up-cell .nm2{font-size:11.5px;font-weight:600;margin-bottom:4px;}
+.up-cell .btns{display:flex;gap:4px;justify-content:center;}
+.up-cell .btns button{flex:1;font-size:10px;padding:3px 6px;border:1px solid var(--line);background:var(--panel);border-radius:6px;color:var(--text);cursor:pointer;}
 </style>
 </head>
 <body>
@@ -1173,7 +1183,8 @@ const store={
   story:{baseUrl:'https://api.openai.com/v1',apiKey:'',model:'gpt-4o-mini',temperature:0.85,presets:[]},
   social:{baseUrl:'',apiKey:'',model:'',presets:[]},
   image:{baseUrl:'',apiKey:'',model:'',presets:[]},
-  summary:{baseUrl:'',apiKey:'',model:'',presets:[]}
+  summary:{baseUrl:'',apiKey:'',model:'',presets:[]},
+  vector:{baseUrl:'',apiKey:'',model:'',presets:[]}  // ← 新增：向量记忆检索/总结专用
 };
         const c=this.g('cfg',d);
     if(c&&!c.story&&!c.text){ // 极早期单栏配置 → 迁移为分栏
@@ -1187,6 +1198,52 @@ const store={
   chats(){return this.g('chats',{});},setChats(c){this.s('chats',c);},
   posts(){return this.g('posts',{twitter:[],instagram:[]});},setPosts(p){this.s('posts',p);},
 };
+
+/* ============================================================
+   V3 扩展：叙事人称 / 社交联动 / 字数区间
+   ============================================================ */
+const NARRATIVE_PERSONS=[
+  {k:'you',label:'第二人称「你」（默认）',rule:'叙事指代玩家一律用「你」，禁止出现玩家姓名或"我"。'},
+  {k:'name',label:'第三人称（玩家姓名）',rule:(p)=>`叙事指代玩家一律用玩家姓名「${p.name||'访客'}」或第三人称代词（他/她/TA），禁止用「你」「我」。`},
+  {k:'i',label:'第一人称「我」',rule:'叙事全程以玩家第一人称「我」进行，所有玩家视角描写用"我"，禁止用「你」或姓名指代玩家。'},
+];
+function narrativePerson(){return store.get('narrativePerson','you');}
+function narrativePersonRule(){
+  const k=narrativePerson(),def=NARRATIVE_PERSONS.find(x=>x.k===k)||NARRATIVE_PERSONS[0];
+  const p=store.profile()||{};
+  return typeof def.rule==='function'?def.rule(p):def.rule;
+}
+
+/* 字数区间：{min,max,preset} · preset ∈ 预设名 | 'custom' */
+const WL_WORD_PRESETS={
+  short:{label:'短篇',min:1200,max:1800},
+  medium:{label:'中篇（推荐）',min:2500,max:3500},
+  long:{label:'长篇',min:4000,max:5500},
+  epic:{label:'史诗',min:6000,max:8000},
+};
+const WL_WORD_HARD_MAX=10000;  // 硬上限，防止超时
+function wlWordRange(){
+  const v=store.get('wlWords',null);
+  if(typeof v==='number')return {min:Math.round(v*0.85),max:v,preset:'custom'};  // 旧版单值迁移
+  if(v&&typeof v==='object'&&v.min&&v.max)return v;
+  return {min:2500,max:3500,preset:'medium'};
+}
+function setWlWordRange(r){
+  const min=Math.max(500,Math.min(WL_WORD_HARD_MAX-200,+r.min||1200));
+  const max=Math.max(min+200,Math.min(WL_WORD_HARD_MAX,+r.max||min+800));
+  store.set('wlWords',{min,max,preset:r.preset||'custom'});
+}
+
+/* 社交联动设置 */
+function socialLinkCfg(){
+  return store.get('socialLink',{
+    chatToPostChance:15,     // 聊天后触发角色发动态的概率（%）
+    postToDmThreshold:70,    // 你发帖后，好感 ≥ 该值的联系人会私信你
+    postToDmChance:60,       // 命中阈值后的触发概率（%）
+    enabled:true,
+  });
+}
+function setSocialLinkCfg(p){const c=socialLinkCfg();Object.assign(c,p);store.set('socialLink',c);}
 
 /* ---------- 记忆系统设置：文风预设 / 频率 / 自动总结开关 ---------- */
 const SUMMARY_STYLE_PRESETS={
@@ -1310,6 +1367,59 @@ function allMemoryDocs(){
   return docs;
 }
 
+/* ---------- 混合记忆检索：向量10 + 关键字10 → 时间衰减 + 评分 → 前8条 ---------- */
+function _keywordSearch(query, docs, topK){
+  const q=String(query||'').toLowerCase();
+  const ks=q.split(/\s+/).filter(k=>k.length>=1);
+  if(!ks.length)return [];
+  return docs.map(d=>{
+    const t=d.text.toLowerCase();
+    let hits=0;
+    ks.forEach(k=>{const n=t.split(k).length-1;hits+=n;});
+    return {id:d.id,score:hits};
+  }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score).slice(0,topK||10);
+}
+function hybridMemorySearch(query,opts){
+  opts=opts||{};
+  const topKEach=10, finalTop=opts.finalTop||8, forContact=opts.contact||null;
+  let docs=allMemoryDocs();
+  const chatArr=store.get('memories',[]);
+  const wlArr=store.get('memWorldline',[]);
+  const meta={};
+  chatArr.forEach(m=>meta['chat-'+m.id]={...m,_type:'对话'});
+  wlArr.forEach(m=>meta['wl-'+m.id]={...m,_type:'世界线'});
+  // 关键：按联系人隔离——只取「属于该联系人」或「世界线通用」的文档
+  if(forContact){
+    docs=docs.filter(d=>{
+      const it=meta[d.id];if(!it)return false;
+      if(it._type==='世界线')return true;                 // 世界线剧情所有人共享
+      return !it.contact||it.contact===forContact;        // 对话记忆：只认同名联系人
+    });
+  }
+  if(!docs.length||!query)return [];
+  const vec=tfidfSearch(query,docs,topKEach);
+  const kw=_keywordSearch(query,docs,topKEach);
+  const merged={};
+  const vMax=Math.max(...vec.map(x=>x.score),1);
+  const kMax=Math.max(...kw.map(x=>x.score),1);
+  vec.forEach((h,i)=>{merged[h.id]={id:h.id,vecN:h.score/vMax,vecRank:i,kwN:0,kwRank:-1};});
+  kw.forEach((h,i)=>{
+    const cur=merged[h.id]||{id:h.id,vecN:0,vecRank:-1,kwN:0,kwRank:-1};
+    cur.kwN=h.score/kMax;cur.kwRank=i;merged[h.id]=cur;
+  });
+  const now=Date.now();
+  return Object.values(merged).map(m=>{
+    const it=meta[m.id];if(!it)return null;
+    const ts=it.ts||(it.time?new Date(String(it.time).replace(/[年月]/g,'/').replace('日','')).getTime():now);
+    const days=Math.max(0,(now-(isNaN(ts)?now:ts))/86400000);
+    const timeScore=Math.exp(-days/45);
+    const rating=(typeof it.rating==='number'?it.rating:3)/5;
+    const final=m.vecN*0.35 + m.kwN*0.30 + timeScore*0.15 + rating*0.20;
+    return {id:m.id,item:it,vecN:+m.vecN.toFixed(3),kwN:+m.kwN.toFixed(3),
+            timeScore:+timeScore.toFixed(3),rating:it.rating??3,final:+final.toFixed(4)};
+  }).filter(Boolean).sort((a,b)=>b.final-a.final).slice(0,finalTop);
+}
+
 /* ============================================================
    世界观 · 时间线 / 人物库 / 规则
    ============================================================ */
@@ -1415,7 +1525,37 @@ const WORLD={
       {name:'湖畔木栈道',emoji:'🌅'},{name:'壁炉前的旧沙发',emoji:'🔥'},{name:'菜园旁的长椅',emoji:'🌿'},{name:'清晨的码头',emoji:'🛶'},{name:'没有战甲的车库',emoji:'🕊️'}]},
   ],
 };
+/* ---------- 可添加的 MCU 备选联系人（按时间线筛选 + 符合人设） ---------- */
+const MCU_CANDIDATES=[
+  {name:'山姆·威尔逊',en:'Sam Wilson',year:2014,gender:'男',job:'空军退伍 / 猎鹰',desc:'退伍兵咨询小组。话不多，眼睛很准。',voice:'温和、直接、关心人但不越界'},
+  {name:'巴基·巴恩斯',en:'Bucky Barnes',year:2014,gender:'男',job:'前冬兵 / 史蒂夫的老友',desc:'从冰里醒来的 107 步兵团军士。话少，眼神警觉。',voice:'低沉、短句、克制的疲惫'},
+  {name:'彼得·帕克',en:'Peter Parker',year:2015,gender:'男',job:'斯塔克工业实习生 / 蜘蛛侠',desc:'皇后区高中生。被托尼拎进实习生项目的那位。',voice:'话密、紧张、敬语过多、会跑题；对托尼带崇拜又想证明自己'},
+  {name:'托尔',en:'Thor',year:2011,gender:'男',job:'阿斯加德雷神',desc:'庄重、豪爽，把地球电器当魔法。',voice:'庄重、比喻宏大、把现代科技当魔法；对小物件郑重其事'},
+  {name:'洛基',en:'Loki',year:2011,gender:'男',job:'阿斯加德王子 / 诡计之神',desc:'说话带莎剧腔，笑容里永远藏着一刀。',voice:'文雅、讽刺、句尾常留钩子；真话假话混着说'},
+  {name:'幻影猫',en:'T\'Challa',year:2016,gender:'男',job:'瓦坎达国王 / 黑豹',desc:'振金之国的王。话少而精准，不轻易动怒。',voice:'正式、沉稳、不露声色的威严'},
+  {name:'斯蒂芬·斯特兰奇',en:'Stephen Strange',year:2016,gender:'男',job:'至尊法师 / 原神经外科医生',desc:'卡玛泰姬。傲慢，但真的很厉害。',voice:'快嘴、尖锐、与托尼有竞争意味的智商碰撞'},
+  {name:'彼得·奎尔',en:'Peter Quill',year:2014,gender:'男',job:'星爵 / 银河护卫队',desc:'80 年代歌单，老式随身听。认为自己很酷。',voice:'嘴碎、自嗨、情绪化'},
+  {name:'卡罗尔·丹弗斯',en:'Carol Danvers',year:1995,gender:'女',job:'惊奇队长 / 空军飞行员',desc:'能一拳打穿战舰的女人。话不多，笑不多。',voice:'硬朗、简短、不喜欢被低估'},
+  {name:'斯科特·朗',en:'Scott Lang',year:2015,gender:'男',job:'蚁人 / 前劫匪',desc:'有个女儿。话痨，心软，容易紧张。',voice:'紧张话痨、自嘲、对托尼有点崇拜'},
+  {name:'霍普·范·戴恩',en:'Hope Van Dyne',year:2015,gender:'女',job:'黄蜂女 / 皮姆科技',desc:'皮姆博士的女儿。比父亲更冷静，比斯科特更靠谱。',voice:'冷静、专业、句短'},
+  {name:'梅·帕克',en:'May Parker',year:2016,gender:'女',job:'彼得的姨妈',desc:'皇后区的梅姨。看起来温柔，发起火来谁都挡不住。',voice:'温暖、带点自嘲、关心人'},
+  {name:'瓦尔基里',en:'Valkyrie',year:2017,gender:'女',job:'阿斯加德女武神',desc:'喝得比谁都多，打得比谁都狠。',voice:'散漫、嘲弄、偶尔露出真心'},
+  {name:'古一',en:'The Ancient One',year:2016,gender:'女',job:'前任至尊法师',desc:'她看过很多种结局。',voice:'平静、谜语、每句话都像在提示什么'},
+  {name:'尼布拉',en:'Nebula',year:2014,gender:'女',job:'灭霸的女儿之一',desc:'蓝紫色皮肤，机械义体。话极少。',voice:'冷、短、带敌意的克制'},
+  {name:'卡莫拉',en:'Gamora',year:2014,gender:'女',job:'全宇宙最危险的女人',desc:'刺客出身。看托尼这种聒噪人会皱眉。',voice:'简短、锋利、警戒'},
+  {name:'火箭',en:'Rocket',year:2014,gender:'—',job:'改造浣熊 / 工程师',desc:'别叫他浣熊。会骂人，会修一切。',voice:'损、暴躁、但技术细节极准'},
+  {name:'德拉克斯',en:'Drax',year:2014,gender:'男',job:'毁灭者',desc:'不懂隐喻。一切话都从字面理解。',voice:'一本正经、直译一切、无自觉的幽默'},
+  {name:'猩红女巫',en:'Wanda Maximoff',year:2015,gender:'女',job:'复仇者',desc:'心灵与现实操纵。情绪越强能力越强。',voice:'轻声、克制、藏得住的锋利'},
+  {name:'幻视',en:'Vision',year:2015,gender:'—',job:'人工存在 / 心灵宝石',desc:'由贾维斯与心灵宝石合成。思考速度惊人。',voice:'正式、逻辑严密、略带非人感'},
+  {name:'死侍',en:'Wade Wilson / Deadpool',year:2016,gender:'男',job:'佣兵 / 嘴炮之王',desc:'不死之身，打破第四面墙。托尼大概率想拉黑他。',voice:'疯癫、荤话、随时跳戏到观众席，但涉及朋友时意外温柔'},
+];
 
+/* 返回当前时间线下可添加的候选人（且不在通讯录里的） */
+function availableCandidates(){
+  const f=flags();
+  const have=new Set(store.contacts().map(c=>c.name));
+  return MCU_CANDIDATES.filter(c=>f.year>=c.year&&!have.has(c.name));
+}
 /* ---------- 世界状态（事件按公元年推导，时间跳跃后自动生效） ---------- */
 function flags(){
   const s=store.state()||{};const e=WORLD.eras.find(x=>x.id===s.era)||WORLD.eras[2];
@@ -1435,8 +1575,12 @@ function flags(){
 function tonyAgeAt(year){return year-WORLD.tonyBirthYear;}
 function eraName(){const f=flags();return f.era.name+(store.state()?.customYear?'（自定义 '+f.year+'）':'');}
 function castText(name){
-  const c=WORLD.cast[name];if(!c)return '';
-  return `【角色卡 · ${name} / ${c.en}】身份：${c.role}\n语气：${c.voice}\n禁忌：${c.taboo}`;
+  const c=WORLD.cast[name];
+  if(c)return `【角色卡 · ${name} / ${c.en}】身份：${c.role}\n语气：${c.voice}\n禁忌：${c.taboo}`;
+  // 自定义联系人兜底
+  const uc=store.contacts().find(x=>x.name===name);
+  if(uc&&uc.custom)return `【角色卡 · ${name}】职业：${uc.job||'—'}／性别：${uc.gender||'—'}\n人设简介：${uc.desc||'（未填）'}\n与玩家关系：${uc.userRel||'未定义'}\n禁忌：不 OOC，不剧透未来，不说出当前时间点之后的事。`;
+  return '';
 }
 function isAI(name){return ['贾维斯','星期五','幻视'].includes(name);}
 
@@ -1498,16 +1642,20 @@ if(s && s.compactSummary){
     head+=`\n（以上为当前时间锚点 ${year} 年的已知设定。事件类词条只列已发生的事件。不得让角色知道尚未发生的事件，不得违反设定。）\n`;
   }
   const more={
-        worldline:`【世界线深度文学模式】
-1. 篇幅：本次输出必须达到 ${(store.get('wlWords',3500))} 字左右（±15%），严禁敷衍缩写。必须包含环境镜头、人物微表情与肢体暗号、技术参数支撑、心理潜台词与电影分镜式的动作交互。
-2. 叙事：刻画空气里的焦糊味、机油冷却声、托尼握紧又松开的手指、全息光晕在眼角的反射；对话留毛边与停顿。
-3. 【对白语言铁律 · 本模式强制覆盖全局中文规则】所有角色的每一句出声台词都必须写成：
+        worldline:(()=>{
+  const r=wlWordRange();
+  return `【世界线深度文学模式】
+1. 篇幅：本次输出字数控制在 ${r.min}~${r.max} 字之间（硬上限 ${WL_WORD_HARD_MAX} 字，超出会被截断）。严禁敷衍缩写，也严禁超出上限导致响应超时。必须包含环境镜头、人物微表情与肢体暗号、技术参数支撑、心理潜台词与电影分镜式的动作交互。
+2. 【叙事人称铁律】${narrativePersonRule()}
+3. 叙事：刻画空气里的焦糊味、机油冷却声、托尼握紧又松开的手指、全息光晕在眼角的反射；对话留毛边与停顿。
+4. 【对白语言铁律 · 本模式强制覆盖全局中文规则】所有角色的每一句出声台词都必须写成：
   **"English original line"**（中文翻译）
    即：英文原句用粗体并加英文双引号，紧跟中文括号译文，不留空格。示例：
   **"Don't make it a thing."**（别搞得跟什么大事似的。）
-   旁白、环境描写、心理描写一律用纯中文，不得加英文。禁止只写中文台词，禁止只写英文不给译文。
-4. 【符号铁律】除了台词格式里成对的 ** ** 之外，正文中严禁出现任何单独的星号 *。不要用 *斜体* 或 *动作* 包裹内容；动作与心理一律用普通中文直接写。
-5. 末尾规范：正文后另起一行输出【好感度变动：+N】（仅限 +0、+1、+2，无实质破冰必须 +0），再换行输出【选项】A. … B. … C. … D. …（四个选项代表截然不同的行动哲学，严禁同质化）。`,
+   旁白、环境描写、心理描写一律用纯中文，不得加英文。
+5. 【符号铁律】除了台词格式里成对的 ** ** 之外，正文中严禁出现任何单独的星号 *。动作与心理一律用普通中文直接写。
+6. 末尾规范：正文后另起一行输出【好感度变动：+N】（仅限 +0、+1、+2，无实质破冰必须 +0），再换行输出【选项】A. … B. … C. … D. …（四个选项代表截然不同的行动哲学，严禁同质化）。`;
+})(),
 
     chat:`【手机即时通讯模式 · 短信】
 严禁任何动作/神态/旁白/括号心理描写！每条消息控制在 10~45 字内，像真人在移动端打字。根据联系人设定回复对应的条数（多条使用 || 隔开）。若是纯中文模式严禁出现任何英文字母；若是英文模式，英文原句在前，译文通过换行规整呈现。`,
@@ -1542,12 +1690,16 @@ if(s && s.compactSummary){
 function apiCfg(kind){
   kind=kind||'story';
   const c=store.cfg();
-  // story 是主栏；social/image/summary 未配时回落到 story
   const primary=c.story||{};
   const t={baseUrl:primary.baseUrl||'',apiKey:primary.apiKey||'',model:primary.model||'',temperature:primary.temperature};
   if(kind==='story')return t;
   const s=c[kind]||{};
   let r={baseUrl:s.baseUrl||'',apiKey:s.apiKey||'',model:s.model||''};
+  // vector 优先回落到 summary
+  if(!r.apiKey && kind==='vector'){
+    const sm=c.summary||{};
+    if(sm.apiKey)r={baseUrl:r.baseUrl||sm.baseUrl,apiKey:sm.apiKey,model:r.model||sm.model};
+  }
   if(!r.apiKey)r={baseUrl:r.baseUrl||t.baseUrl,apiKey:t.apiKey,model:r.model};
   if(!r.model)r.model=t.model;
   return r;
@@ -1558,7 +1710,7 @@ async function callAI(messages,system,kind){
  const url=(c.baseUrl||'').replace(/\/+$/,'')+'/chat/completions';
 
 // 长篇场景：按用户设定的字数动态给 token 余量（中文约 1 字≈1.6 token，再留 1.8 倍冗余）
-const wlWords=+store.get('wlWords',3500)||3500;
+const _wlR=wlWordRange();const wlWords=_wlR.max;  // 按上限估算 token，防截断
 const isLong=/世界线深度文学模式|对白语言铁律|字左右/.test(system||'');
 const longTokens=Math.min(16000,Math.max(4096,Math.round(wlWords*1.6*1.8)));
 const body={
@@ -1652,12 +1804,93 @@ async function fetchModels(kind){
   const r=await fetch((c.baseUrl||'').replace(/\/+$/,'')+'/models',{headers:{'Authorization':'Bearer '+c.apiKey}});
   if(!r.ok)throw new Error('拉取失败 '+r.status);const d=await r.json();return (d.data||[]).map(m=>m.id).sort();
 }
-async function genImage(prompt){
-  const c=apiCfg('image');const url=(c.baseUrl||'').replace(/\/+$/,'')+'/images/generations';
-  const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+c.apiKey},body:JSON.stringify({model:c.model||'dall-e-3',prompt,n:1,size:'1024x1024'})});
-  if(!r.ok)throw new Error('生图 '+r.status);const d=await r.json();const it=d.data[0];
-  if(it.url)return it.url;if(it.b64_json)return 'data:image/png;base64,'+it.b64_json;
-  throw new Error('图片解析失败');
+/* ============================================================
+   增强版生图调度核心：支持 纯文本生图 与 锁脸图(IP-Adapter/图生图)
+   ============================================================ */
+async function genImage(prompt, faceBase64, negativePrompt) {
+  const c = apiCfg('image');
+  if (!c.apiKey && !c.baseUrl) throw new Error('未配置生图 API，请先在「设置」中检查');
+
+  const baseUrl = (c.baseUrl || '').replace(/\/+$/, '');
+  const model = c.model || 'dall-e-3';
+
+  // 1. 如果配置的是 Stable Diffusion WebUI 官方 API (/sdapi/v1/txt2img 或 /sdapi/v1/img2img)
+  if (baseUrl.includes('/sdapi/v1')) {
+    const payload = {
+      prompt: prompt,
+      negative_prompt: negativePrompt || 'blurry, low quality, distorted, deformed',
+      steps: 25,
+      width: 768,
+      height: 768,
+      sampler_name: 'Euler a'
+    };
+
+    // 如果该联系人上传了锁脸图，自动挂载 ControlNet / IP-Adapter 扩展参数
+    if (faceBase64) {
+      const pureBase64 = faceBase64.replace(/^data:image\/\w+;base64,/, '');
+      payload.alwayson_scripts = {
+        controlnet: {
+          args: [{
+            input_image: pureBase64,
+            module: 'ip-adapter_clip_sd15', // 或 ip-adapter_faceid
+            model: 'ip-adapter-plus-face_sd15 [built-in]',
+            weight: 0.85
+          }]
+        }
+      };
+    }
+
+    const r = await fetch(baseUrl + (baseUrl.endsWith('/txt2img') ? '' : '/txt2img'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(c.apiKey ? { 'Authorization': 'Bearer ' + c.apiKey } : {})
+      },
+      body: JSON.stringify(payload)
+    });
+    if (!r.ok) throw new Error(`SD WebUI 报错 ${r.status}`);
+    const d = await r.json();
+    if (d.images && d.images[0]) {
+      return 'data:image/png;base64,' + d.images[0];
+    }
+    throw new Error('SD WebUI 未返回有效图片数据');
+  }
+
+  // 2. 如果是支持传入 face_image / image 的通用中转接口或云端聚合服务
+  // 许多中转站支持类似 /v1/images/generations 并在 body 里接收 image/extra_args
+  const bodyPayload = {
+    model: model,
+    prompt: prompt,
+    n: 1,
+    size: '1024x1024'
+  };
+
+  if (faceBase64) {
+    // 自动兼容接收 base64 垫图/锁脸图的接口协议
+    bodyPayload.image = faceBase64;
+    bodyPayload.reference_image = faceBase64;
+  }
+
+  const url = baseUrl.includes('/images/') ? baseUrl : baseUrl + '/images/generations';
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + c.apiKey
+    },
+    body: JSON.stringify(bodyPayload)
+  });
+
+  if (!r.ok) {
+    const tx = await r.text().catch(() => '');
+    throw new Error(`生图接口报错 ${r.status}: ${tx.slice(0, 160)}`);
+  }
+  const d = await r.json();
+  const it = d.data?.[0];
+  if (!it) throw new Error('生图返回格式无效');
+  if (it.url) return it.url;
+  if (it.b64_json) return 'data:image/png;base64,' + it.b64_json;
+  throw new Error('解析图片 URL / Base64 失败');
 }
 
 /* ============================================================
@@ -2451,6 +2684,8 @@ function openApp(id) {
 
   // 渲染新 App
   apps[id].render(body);
+// 【插入这里】：页面渲染完成后延迟 60 毫秒自动扫描并刷入头像
+  setTimeout(() => paintContactAvatars(body), 60);
 }
 
 function goHome() {
@@ -2469,6 +2704,7 @@ function goHome() {
   $('#view').classList.remove('active');
   $('#home').classList.add('active');
   renderGrid();
+  applyCustomWallpaper();
 }
 $('#backBtn').onclick=()=>{if(currentApp&&apps[currentApp]&&apps[currentApp].onBack&&apps[currentApp].onBack())return;goHome();};
 $('#grid').addEventListener('click',e=>{const g=$('#grid');if(g&&g._suppressClick)return;const b=e.target.closest('.icon');if(b){FX.transit(e.clientX,e.clientY);openApp(b.dataset.app);}});
@@ -2515,16 +2751,18 @@ apps.settings={title:'设置',render(v){
   v.innerHTML=`<div class="pad">
         <div class="card"><h3>◉ AI 接入 · 分栏配置（玩家自配，费用自付）</h3>
       <div class="seg" id="s_tab">
-        <button data-k="story" class="${store.get('cfgTab','story')==='story'?'on':''}">📖 长剧情 API</button>
-        <button data-k="social" class="${store.get('cfgTab','story')==='social'?'on':''}">💬 社交软件 API</button>
-        <button data-k="image" class="${store.get('cfgTab','story')==='image'?'on':''}">🖼 生图 API</button>
-        <button data-k="summary" class="${store.get('cfgTab','story')==='summary'?'on':''}">📋 总结 API</button>
-      </div>
+  <button data-k="story" class="${store.get('cfgTab','story')==='story'?'on':''}">📖 长剧情 API</button>
+  <button data-k="social" class="${store.get('cfgTab','story')==='social'?'on':''}">💬 社交软件 API</button>
+  <button data-k="image" class="${store.get('cfgTab','story')==='image'?'on':''}">🖼 生图 API</button>
+  <button data-k="summary" class="${store.get('cfgTab','story')==='summary'?'on':''}">📋 总结 API</button>
+  <button data-k="vector" class="${store.get('cfgTab','story')==='vector'?'on':''}">🧠 向量记忆 API</button>
+</div>
       <div class="hint" style="margin:8px 0">${{
   story:'世界线 / 约饭 / 小剧场 / 邮件 / 报纸 / 终端 / HUD 等深度文本生成。',
   social:'Twitter / Instagram / 短信聊天 / 群聊等社交场景的文本生成。未配置时回落长剧情 API。',
   image:'Instagram App 的配图生成。未配置时沿用长剧情 API 的 Key。',
-  summary:'记忆摘要 / 邮件待办摘要 / 日记代笔。未配置时回落长剧情 API。'
+  summary:'记忆摘要 / 邮件待办摘要 / 日记代笔。未配置时回落长剧情 API。',
+  vector:'向量记忆：用于把相关往事检索后注入聊天 AI 的上下文（混合检索：向量10+关键字10→时间衰减+用户评分→取前8条）。未配置时回落总结 API 或长剧情 API。'
 }[store.get('cfgTab','story')]||''}</div>
       <div class="field"><label>Base URL</label><input id="s_url" value="${esc((c[store.get('cfgTab','story')]||{}).baseUrl)}" placeholder="https://api.openai.com/v1"></div>
       <div class="field"><label>API Key</label><div class="row"><input id="s_key" type="password" value="${esc((c[store.get('cfgTab','story')]||{}).apiKey)}" style="flex:1"><button class="btn ghost sm" id="s_eye" style="flex:0 0 46px">👁</button></div></div>
@@ -2573,6 +2811,23 @@ apps.settings={title:'设置',render(v){
         </select></div>
         <div class="hint" style="margin-top:6px">配置表：EventEngine.CONFIG · 连锁链「报纸 → 邮件 → Twitter → 短信」各段延迟可在其中调整。</div>
     </div>
+<div class="card"><h3>◉ 世界线叙事人称</h3>
+  <div class="hint" style="margin-bottom:8px">控制主线剧情如何指代用户。切换后从下一回合剧情开始生效。</div>
+  <div class="seg" id="s_narr" style="flex-wrap:wrap">
+    ${NARRATIVE_PERSONS.map(x=>`<button data-np="${x.k}" class="${narrativePerson()===x.k?'on':''}">${esc(x.label)}</button>`).join('')}
+  </div>
+</div>
+<div class="card"><h3>◉ 社交联动</h3>
+  <div class="hint" style="margin-bottom:8px">聊天时角色可能顺手发条相关动态（概率可调）；你发帖时，好感度够高的联系人会私信你。</div>
+  <div class="srow"><div><div class="t">启用社交联动</div><div class="d">总开关</div></div>
+    <label class="switch"><input type="checkbox" id="sl_en" ${socialLinkCfg().enabled?'checked':''}><span class="slider"></span></label></div>
+  <div class="field"><label>聊天后触发角色发动态的概率：<b id="sl_c_v">${socialLinkCfg().chatToPostChance}%</b></label>
+    <input id="sl_c" type="range" min="0" max="100" value="${socialLinkCfg().chatToPostChance}"></div>
+  <div class="field"><label>发帖后主动私信你的好感度阈值：<b id="sl_t_v">${socialLinkCfg().postToDmThreshold}</b> / 200</label>
+    <input id="sl_t" type="range" min="0" max="200" value="${socialLinkCfg().postToDmThreshold}"></div>
+  <div class="field"><label>命中阈值后的触发概率：<b id="sl_p_v">${socialLinkCfg().postToDmChance}%</b></label>
+    <input id="sl_p" type="range" min="0" max="100" value="${socialLinkCfg().postToDmChance}"></div>
+</div>
     <div class="card"><h3>◉ 外观 / 桌面</h3>
       <div class="row" style="margin-bottom:8px"><button class="btn ghost" id="s_theme">🌗 切换深浅主题</button><button class="btn ghost" id="s_appearance">🎨 外观设置</button></div>
       <div class="srow"><div><div class="t">扫描线 / 故障 / 粒子转场</div><div class="d">CRT 扫描线叠层、App 切换故障光效与点击粒子爆发。</div></div>
@@ -2605,6 +2860,17 @@ apps.settings={title:'设置',render(v){
   </div>`;
   const q=s=>v.querySelector(s);
   const kind=()=>store.get('cfgTab','story');
+v.querySelectorAll('#s_narr [data-np]').forEach(b=>b.onclick=()=>{
+  store.set('narrativePerson',b.dataset.np);
+  v.querySelectorAll('#s_narr [data-np]').forEach(x=>x.classList.toggle('on',x===b));
+  toast('叙事人称已切换 · 从下一回合剧情开始生效');
+});
+v.querySelector('#sl_en').onchange=e=>setSocialLinkCfg({enabled:e.target.checked});
+const bindSL=(sel,key,suffix)=>{const el=v.querySelector(sel);if(!el)return;
+  el.oninput=e=>{setSocialLinkCfg({[key]:+e.target.value});v.querySelector(sel+'_v').textContent=e.target.value+(suffix||'');};};
+bindSL('#sl_c','chatToPostChance','%');
+bindSL('#sl_t','postToDmThreshold','');
+bindSL('#sl_p','postToDmChance','%');
   v.querySelectorAll('#s_tab [data-k]').forEach(b=>b.onclick=()=>{store.set('cfgTab',b.dataset.k);apps.settings.render(v);});
   const label=()=>({story:'长剧情',social:'社交软件',image:'生图',summary:'总结'}[kind()]||'长剧情');
   const okBox=(msg)=>{const r=q('#s_res');if(r){r.className='so-res-ok';r.textContent=msg;}toast(msg);};
@@ -2779,6 +3045,7 @@ apps.messages={title:'信息',view:'list',cur:'',last:'',langMode:'zh',
       v.querySelector('#m_fts').onclick=()=>{ftIndexAll();openFTSearch();};
       v.querySelector('#m_heart').onclick=()=>{self.view='heart';self.render(v);};
       return;
+setTimeout(() => paintContactAvatars(v), 40);
     }
 
     const cs=store.contacts();const c=cs.find(x=>x.name===self.cur)||{name:self.cur,affinity:0};
@@ -2965,23 +3232,110 @@ if (isProactiveEnabled && apiCfg('story').apiKey) {
   async autoHello(v){
     const self=this,f=flags();let who=self.cur;
     if(self.cur==='贾维斯'&&f.ultronAfter)who='幻视';
-    const sys=buildSystem('chat',`你现在扮演【${who}】。${castText(who)}\n${isAI(who)?'严守保密铁律。':''}用 1 条短消息主动打招呼（不要解释为什么主动发消息）。`);
+    const ch0=store.chats()[self.cur]||[];
+const lastLines=ch0.slice(-4).map(m=>m.content).join(' ║ ');
+const sys=buildSystem('chat',`你现在扮演【${who}】。${castText(who)}\n${isAI(who)?'严守保密铁律。':''}
+【反重复】最近说过：${lastLines}。本次开场必须用【完全不同】的话题切入，禁止再提实验室/工作台/咖啡/焊点/参数之类已用意象。
+用 1 条短消息自然地主动起话头（不要解释为什么主动发消息）。`);
     const res=await ai([{role:'user',content:'（玩家刚打开与你的对话，请按人设主动发一条短消息）'}],sys,()=>localReply(who,''),'social');
     const ch=store.chats();(ch[self.cur]=ch[self.cur]||[]).push({role:'them',who:who==='幻视'?'幻视（代回）':'',content:res.replace(/\*/g,'').trim(),time:nowTime()});store.setChats(ch);
     if(currentApp==='messages'&&this.view==='chat')this.render($('#appBody'));
   },
-  async addFlow(v){
-    const ans=prompt('输入联系人名字，或输入「随机」让 AI 按你的人设生成一个 NPC：');
-    if(!ans)return;let name=ans.trim();
-    if(name==='随机'){
-      v.innerHTML='<div class="loader"><div class="spin"></div>贾维斯正在建档…</div>';
-      try{const res=await ai([{role:'user',content:'按世界观与玩家人设，生成一个会出现在玩家生活里的 NPC。格式严格：姓名 ||| 一句话简介(25字内)'}],buildSystem('npc'),()=>'伊莱亚斯·陈 ||| 斯塔克工业能源部夜班工程师');
-        const[n,d]=res.split('|||').map(x=>x.trim());name=n||'神秘人';const cs=store.contacts();if(!cs.find(x=>x.name===name)){cs.push({name,desc:d||'',affinity:0});store.setContacts(cs);}toast('已添加 '+name);}catch(e){toast(e.message);}
-      this.render(v);return;
-    }
-    const cs=store.contacts();if(cs.find(x=>x.name===name))return toast('已存在');
-    cs.push({name,desc:'自定义联系人',affinity:0});store.setContacts(cs);this.render(v);toast('已添加');
-  },
+  addFlow(v){
+  const self=this;
+  const d=modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:16px">＋ 添加联系人</h2>
+    <div class="seg" id="ac_tab" style="margin-bottom:10px">
+      <button data-tab="preset" class="on">🎬 MCU 备选</button>
+      <button data-tab="custom">✍ 自定义</button>
+      <button data-tab="random">🎲 随机 NPC</button>
+    </div>
+    <div id="ac_body"></div>`);
+
+  const renderPreset=()=>{
+    const list=availableCandidates();
+    d.querySelector('#ac_body').innerHTML=`
+      <div class="hint" style="margin-bottom:9px">按当前时间线（${esc(eraName())}）可添加 ${list.length} 位 MCU 角色。点卡片直接加入通讯录。</div>
+      ${list.length?list.map(c=>`<div class="rel-card" data-add="${esc(c.name)}" style="cursor:pointer">
+        <div class="rh"><div class="av">${esc(c.name[0])}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:13.5px">${esc(c.name)} <span class="hint" style="font-size:10px">${esc(c.en)}</span></div>
+            <div class="hint" style="margin:2px 0 0">${esc(c.job)} · ${esc(c.gender)}</div>
+            <div class="hint" style="margin-top:3px;color:var(--text);opacity:.8">${esc(c.desc)}</div>
+          </div>
+          <span style="color:var(--cyan);font-size:18px;flex:0 0 auto">＋</span>
+        </div></div>`).join(''):'<div class="empty">当前时间线下没有新的可添加角色。</div>'}`;
+    d.querySelectorAll('[data-add]').forEach(el=>el.onclick=()=>{
+      const c=MCU_CANDIDATES.find(x=>x.name===el.dataset.add);if(!c)return;
+      const arr=store.contacts();
+      arr.push({name:c.name,desc:c.desc,job:c.job,gender:c.gender,voice:c.voice,affinity:0});
+      store.setContacts(arr);
+      // 追加到 WORLD.cast 临时注入，让 buildSystem 认得
+      WORLD.cast[c.name]={en:c.en,role:c.job,voice:c.voice,taboo:'不 OOC；不说出当前时间线之后才会知道的事。'};
+      toast('已添加 '+c.name);d.remove();self.render(document.getElementById('appBody'));
+    });
+  };
+
+  const renderCustom=()=>{
+    const others=store.contacts().map(c=>c.name);
+    d.querySelector('#ac_body').innerHTML=`
+      <div class="field"><label>姓名 *</label><input id="cu_name" class="inp" placeholder="如：林越"></div>
+      <div class="row"><div class="field" style="flex:1"><label>性别</label><select id="cu_gender" class="inp"><option>女</option><option>男</option><option>非二元</option><option>—</option></select></div>
+        <div class="field" style="flex:1"><label>职业</label><input id="cu_job" class="inp" placeholder="战地记者 / 工程师"></div></div>
+      <div class="field"><label>与你的关系</label><input id="cu_rel" class="inp" placeholder="挚友 / 旧识 / 同事 / 竞争对手…"></div>
+      <div class="field"><label>简介（给 AI 看的人设 / 说话风格）</label><textarea id="cu_bio" rows="3" placeholder="性格、口头禅、禁忌、口气…"></textarea></div>
+      <div class="field"><label>与其他联系人的关系（选填）</label>
+        <div style="max-height:140px;overflow-y:auto;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px">
+          ${others.length?others.map(n=>`<div style="display:flex;align-items:center;gap:6px;padding:4px 0">
+            <span style="flex:0 0 72px;font-size:11.5px">${esc(n)}</span>
+            <input class="inp cu_rel_other" data-with="${esc(n)}" placeholder="如：同事 / 前恋人 / 兄妹" style="flex:1;padding:6px 8px;font-size:12px">
+          </div>`).join(''):'<div class="hint">暂无其他联系人</div>'}
+        </div></div>
+      <button class="btn" id="cu_save">保存并加入通讯录</button>`;
+    d.querySelector('#cu_save').onclick=()=>{
+      const name=d.querySelector('#cu_name').value.trim();
+      if(!name)return toast('请填写姓名');
+      if(store.contacts().find(x=>x.name===name))return toast('已存在同名联系人');
+      const gender=d.querySelector('#cu_gender').value;
+      const job=d.querySelector('#cu_job').value.trim();
+      const rel=d.querySelector('#cu_rel').value.trim();
+      const bio=d.querySelector('#cu_bio').value.trim();
+      const relOthers={};
+      d.querySelectorAll('.cu_rel_other').forEach(i=>{const v=i.value.trim();if(v)relOthers[i.dataset.with]=v;});
+      const arr=store.contacts();
+      arr.push({name,desc:bio||'自定义联系人',job,gender,userRel:rel,relOthers,affinity:0,custom:true});
+      store.setContacts(arr);
+      // 注入 cast 让 AI 生成时认得
+      WORLD.cast[name]={en:name,role:job||'自定义人物',voice:bio||'按简介设定说话',taboo:'不 OOC；不剧透未来。'};
+      if(rel)setUserRelation(name,{label:rel,closeness:100,note:bio});
+      toast('已创建自定义联系人：'+name);d.remove();self.render(document.getElementById('appBody'));
+    };
+  };
+
+  const renderRandom=()=>{
+    d.querySelector('#ac_body').innerHTML=`
+      <div class="hint" style="margin-bottom:10px">让 AI 按当前世界状态生成一位会出现在玩家生活里的 NPC。</div>
+      <button class="btn" id="rn_go">🎲 让贾维斯建档</button>
+      <div id="rn_out" style="margin-top:10px"></div>`;
+    d.querySelector('#rn_go').onclick=async()=>{
+      d.querySelector('#rn_out').innerHTML='<div class="loader"><div class="spin"></div>贾维斯建档中…</div>';
+      try{
+        const res=await ai([{role:'user',content:'按世界观与玩家人设，生成一个会出现在玩家生活里的 NPC。格式：姓名 ||| 性别 ||| 职业 ||| 一句话简介(25字内)'}],buildSystem('npc'),()=>'伊莱亚斯·陈 ||| 男 ||| 夜班工程师 ||| 斯塔克工业能源部，话少手巧');
+        const p=res.split('|||').map(x=>x.trim());
+        const name=p[0]||'神秘人',gender=p[1]||'—',job=p[2]||'',desc=p[3]||'';
+        const arr=store.contacts();
+        if(!arr.find(x=>x.name===name)){arr.push({name,desc,job,gender,affinity:0,custom:true});store.setContacts(arr);
+          WORLD.cast[name]={en:name,role:job,voice:desc,taboo:'不 OOC'};}
+        toast('已添加 '+name);d.remove();self.render(document.getElementById('appBody'));
+      }catch(e){toast(e.message);}
+    };
+  };
+
+  d.querySelectorAll('#ac_tab [data-tab]').forEach(b=>b.onclick=()=>{
+    d.querySelectorAll('#ac_tab [data-tab]').forEach(x=>x.classList.toggle('on',x===b));
+    ({preset:renderPreset,custom:renderCustom,random:renderRandom}[b.dataset.tab])();
+  });
+  renderPreset();
+},
   settings(v,c){
     const proac = c.proactive !== false; // 默认允许主动发
     const replyCount = c.replyCount || 2; // 默认一次 2 条
@@ -3093,7 +3447,25 @@ store.setContacts(cs);
       }else{
         promptExtra+=`\n【当前处于英文模式】：原句写成地道简短的英文原句，中文翻译放在后面，格式如：*"English"*（中文解释）。`;
       }
+// 反重复：把最近 6 条他说过的话扔进 prompt，禁止再提
+const recentThem = arr.filter(m=>m.role==='them'&&m.content).slice(-6).map(m=>m.content).join(' ║ ');
+const bannedTopics = [];
+if(/工作台|车库|咖啡|焊点|参数|扳手|杯沿|实验室|4\s*号台/.test(recentThem))bannedTopics.push('工作台/车库/咖啡/焊点/扳手/4号台/杯沿');
+promptExtra += `\n【严格反重复铁律】你最近已经说过：${recentThem.slice(0,300)}。
+本次回复禁止再用相同话题/物件/比喻。${bannedTopics.length?'尤其禁止再提：'+bannedTopics.join('、')+'。':''}
+话题池（任选一个尚未用过的方向展开）：天气与窗外城市、新闻头条、音乐、电影、刚看到的书、吃的、睡眠、旧回忆、童年、斯塔克工业的某个员工、某次采访、对方的衣服/发型/状态、未来的某个小计划、一个随口想到的问题、刚才的沉默、梦、某个远方的人。
+严禁回合与回合之间复读同一意象。`;
       promptExtra+=`\n当前好感度：${c.affinity||0}/200。只输出短信内容，严禁动作神态描写，2~3 条可用 || 分隔。`;
+// 向量记忆注入：检索与当前对话相关的往事，防止长对话后 AI 遗忘关键细节
+try{
+  const q=text+' '+recent.slice(-3).map(m=>m.content||'').join(' ');
+  const hits=hybridMemorySearch(q,{finalTop:8,contact:self.cur});
+  if(hits.length){
+        promptExtra+=`\n【向量+关键字混合记忆检索 · 与「${self.cur}」的相关往事】\n`
+      +hits.map((h,i)=>`${i+1}. [${h.item._type} · 评分${h.rating}/5] ${String(h.item.text).slice(0,220).replace(/\s+/g,' ')}`).join('\n')
+      +`\n【绝对隔离铁律】你只知道你和玩家之间发生过的事；严禁提及、暗示、复述玩家与其他任何联系人的聊天内容、细节或关键词。若 prompt 中出现了跨人物信息，视为系统泄漏，必须忽略。`;
+  }
+}catch(e){}
       const sys=buildSystem('chat',promptExtra);
       replyPromise=ai(recent,sys,()=>{
         if(isTonyProxy)return `｛语音转文字｝好得很，根本没睡。幸好${proxyAI}能打字，否则你话多到斯塔克工业科研部要停工了，你付得起这个吗？`;
@@ -3156,6 +3528,22 @@ store.setContacts(cs);
         if(currentApp==='messages'&&self.view==='chat')self.render(v);
       }
     }catch(e){}
+// ★ 社交联动 · 聊天后角色可能顺手发条动态
+try{
+  const slc=socialLinkCfg();
+  if(slc.enabled&&!isAI(self.cur)&&Math.random()*100<slc.chatToPostChance){
+    setTimeout(async()=>{
+      const sys2=buildSystem('social',`你扮演【${self.cur}】，刚和玩家聊过天。顺手在 Twitter 发一条与刚才聊天氛围相关但不直接复述对话的短动态（30~80字，口语化，符合 ${flags().year} 年的网络语境）。只输出推文正文，不要引号。`);
+      const tx=await ai([{role:'user',content:`刚才聊了：${text.slice(0,80)}\n对方回复氛围：${self.cur}`}],sys2,
+        ()=>'今晚的实验室比平时安静一档。没什么特别的——只是记一下。','social');
+      const ps=store.posts();ps.twitter=ps.twitter||[];
+      ps.twitter.unshift({name:self.cur,handle:'@'+self.cur.replace(/[·\s]/g,'').slice(0,10),
+        text:tx.replace(/^["'"']|["'"']$/g,'').trim(),likes:Math.floor(Math.random()*80)+10,comments:[],time:nowTime()});
+      store.setPosts(ps);
+      banner('𝕏 社交联动',self.cur+' 顺手发了一条动态',()=>openApp('twitter'));
+    },4000+Math.random()*6000);
+  }
+}catch(e){}
   },
   /* 帮忙起话题：AI 根据人物关系、时间段、具体时间生成 3 个不同方向的开场话题 */
   async suggestTopics(v){
@@ -3356,9 +3744,68 @@ function socialApp(platform,title,hasImg){
         ${(p.comments||[]).map((cm,ci)=>`<div class="cmt" data-reply="${i}:${ci}" title="双击追评" style="cursor:pointer">${cm.replyTo?`<span class="hint" style="font-size:10.5px">↳ 回复 @${esc(cm.replyTo)}</span><br>`:''}<b>${esc(cm.user)}</b> ${esc(cm.text)}</div>`).join('')}
         <div class="cmtbox"><input placeholder="评论…" data-ci="${i}"><button data-cs="${i}">发</button></div>
       </div>`).join('');
-      list.querySelectorAll('[data-gen]').forEach(el=>el.onclick=async()=>{const i=+el.dataset.gen;const ps=store.posts();const p=ps[platform][i];el.innerHTML='<div class="spin"></div>';
-        if(!apiCfg('image').apiKey){toast('未配置生图 API，已用本地占位图');p.img='data:image/svg+xml;utf8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="280"><rect width="400" height="280" fill="#0d1620"/><circle cx="200" cy="140" r="46" fill="none" stroke="#35d0ff" stroke-width="3"/><text x="200" y="240" fill="#7c8da0" font-size="14" text-anchor="middle">STARK OS · IMAGE</text></svg>');store.setPosts(ps);paint();return;}
-        try{const u=await genImage(p.imgPrompt);let src=u;if(u.startsWith('http')){const b=await(await fetch(u)).blob();src=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(b);});}p.img=src;store.setPosts(ps);paint();}catch(e){toast('生图失败：'+e.message);p.img='data:image/svg+xml;utf8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="280"><rect width="400" height="280" fill="#0d1620"/><circle cx="200" cy="140" r="46" fill="none" stroke="#35d0ff" stroke-width="3"/><text x="200" y="240" fill="#7c8da0" font-size="14" text-anchor="middle">IMAGE FAILED</text></svg>');store.setPosts(ps);paint();}});
+            list.querySelectorAll('[data-gen]').forEach(el => el.onclick = async () => {
+        const i = +el.dataset.gen;
+        const ps = store.posts();
+        const p = ps[platform][i];
+        el.innerHTML = '<div class="spin"></div><div style="font-size:11px;margin-top:6px;color:var(--cyan)">正在匹配角色与锁脸特征…</div>';
+
+        if (!apiCfg('image').apiKey && !apiCfg('image').baseUrl) {
+          toast('未配置生图 API，已用本地占位图');
+          p.img = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="280"><rect width="400" height="280" fill="#0d1620"/><circle cx="200" cy="140" r="46" fill="none" stroke="#35d0ff" stroke-width="3"/><text x="200" y="240" fill="#7c8da0" font-size="14" text-anchor="middle">STARK OS · IMAGE</text></svg>');
+          store.setPosts(ps);
+          paint();
+          return;
+        }
+
+        try {
+          // 1. 查找发帖人对应的预设提示词
+          let finalPrompt = p.imgPrompt || '';
+          let negPrompt = '';
+          let faceDataUrl = null;
+
+          try {
+            const ig = await getIgPrompt(p.name);
+            if (ig) {
+              const baseP = ig.prompt || '';
+              const styleP = ig.style ? ', ' + ig.style : '';
+              const sceneP = finalPrompt ? ', ' + finalPrompt : '';
+              finalPrompt = baseP + styleP + sceneP;
+              negPrompt = ig.negative || '';
+            }
+            // 2. 从 IndexedDB 提取该角色的专属锁脸图
+            faceDataUrl = await AssetUtil.loadAsset('igface:' + p.name);
+          } catch (err) {
+            console.warn('提取角色锁脸配置失败:', err);
+          }
+
+          if (faceDataUrl) {
+            toast(`已启用【${p.name}】的锁脸参考图进行特征匹配`);
+          }
+
+          // 3. 传入 prompt、锁脸图 base64、以及负面提示词
+          const u = await genImage(finalPrompt, faceDataUrl, negPrompt);
+
+          // 4. 将产出的图片数据持久化
+          let src = u;
+          if (u.startsWith('http')) {
+            const b = await (await fetch(u)).blob();
+            src = await new Promise(r => {
+              const fr = new FileReader();
+              fr.onload = () => r(fr.result);
+              fr.readAsDataURL(b);
+            });
+          }
+          p.img = src;
+          store.setPosts(ps);
+          paint();
+        } catch (e) {
+          toast('生图失败：' + e.message);
+          p.img = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="280"><rect width="400" height="280" fill="#0d1620"/><circle cx="200" cy="140" r="46" fill="none" stroke="#35d0ff" stroke-width="3"/><text x="200" y="240" fill="#7c8da0" font-size="14" text-anchor="middle">IMAGE FAILED</text></svg>');
+          store.setPosts(ps);
+          paint();
+        }
+      });
       list.querySelectorAll('[data-like]').forEach(el=>el.onclick=()=>{const i=+el.dataset.like;const ps=store.posts();const p=ps[platform][i];p.liked=!p.liked;p.likes=(p.likes||0)+(p.liked?1:-1);store.setPosts(ps);paint();});
       list.querySelectorAll('[data-repost]').forEach(el=>el.onclick=()=>{const i=+el.dataset.repost;const p=store.posts()[platform][i];repostToTony('Twitter动态 · '+p.name,p.text);});
       list.querySelectorAll('[data-cs]').forEach(b=>b.onclick=()=>{const i=+b.dataset.cs;const inp=list.querySelector(`[data-ci="${i}"]`);const t=inp.value.trim();if(t)addComment(i,t);});
@@ -3431,7 +3878,26 @@ v.querySelector('#p_fts').onclick=()=>{ftIndexAll();openFTSearch();};
     v.querySelector('#p_new').onclick=async()=>{const t=prompt('发布内容：');if(!t)return;const me=store.profile().name||'Me';const ps=store.posts();ps[platform]=ps[platform]||[];
   let imgP='';if(hasImg)imgP='Cinematic Stark Tower lab, holographic displays, blue-cyan lighting, photorealistic';
       ps[platform].unshift({name:me,handle:'@me',text:t,imgPrompt:imgP,likes:0,comments:[]});store.setPosts(ps);self.render(v);
-      try{const cc=getCommentCount();const contacts=visibleContacts().map(c=>c.name).filter(n=>n!==me);
+      // ★ 社交联动 · 发帖后高好感联系人私信你
+try{
+  const slc=socialLinkCfg();
+  if(slc.enabled){
+    const highAff=store.contacts().filter(c=>!isAI(c.name)&&(c.affinity||0)>=slc.postToDmThreshold);
+    highAff.forEach(c=>{
+      if(Math.random()*100>=slc.postToDmChance)return;
+      setTimeout(async()=>{
+        const sys3=buildSystem('chat',`你扮演【${c.name}】。${castText(c.name)}\n玩家刚在 ${title} 发了："${t.slice(0,100)}"。你看到了，按人设私信玩家 1 条 15~40 字的短消息，可以是吐槽、关心、追问或别有深意的回应。只输出一条消息，不要动作描写。`);
+        const dm=await ai([{role:'user',content:'请发私信。'}],sys3,()=>localReply(c.name,t),'social');
+        const ch=store.chats();(ch[c.name]=ch[c.name]||[]).push({
+          role:'them',who:c.name,content:dm.replace(/\*/g,'').trim(),time:storyMsgTime(),worldEvent:true});
+        store.setChats(ch);
+        banner('💬 社交联动 · '+c.name,'看到你的动态后给你发了私信',()=>{
+          openApp('messages');apps.messages.cur=c.name;apps.messages.view='chat';apps.messages.render($('#appBody'));});
+      },5000+Math.random()*12000);
+    });
+  }
+}catch(e){}
+try{const cc=getCommentCount();const contacts=visibleContacts().map(c=>c.name).filter(n=>n!==me);
                 const res=await ai([{role:'user',content:`玩家(${me})在${title}发帖："${t}"。生成 ${cc} 条评论，可来自具名角色（${contacts.slice(0,6).join('、')}），或用【英文网名】的路人网友（有网感、呼应 ${flags().year} 年的网络梗）。其中至少 2 条是具名角色之间的互评对话。每行：名字 ||| 内容\n【硬性要求】评论者绝不能是玩家本人「${me}」。`}],
 buildSystem('social'),()=>{
           const lines=[];
@@ -3610,12 +4076,20 @@ s.lastDelta=affDelta;store.setState(s);
   <button class="btn ghost" id="w_save_slot">💾 剧情存读档</button>
   <button class="btn ghost" id="w_mem">📜 回忆</button>
 </div>
-    <div class="row" style="margin-bottom:8px;align-items:center">
-      <span class="hint" style="flex:0 0 auto">单回合字数</span>
-      <select id="w_words" class="inp" style="flex:1">
-        ${[1500,2500,3500,5000,7000].map(n=>`<option value="${n}" ${n===store.get('wlWords',3500)?'selected':''}>${n} 字${n>=5000?'（需较快模型）':''}</option>`).join('')}
-      </select>
-    </div>
+    <div class="card" style="padding:10px;margin-bottom:8px">
+  <div class="hint" style="font-size:10.5px;margin-bottom:6px">📝 单回合字数区间（<b>${wlWordRange().min}~${wlWordRange().max}</b> 字 · 当前：${WL_WORD_PRESETS[wlWordRange().preset]?.label||'自定义'}）</div>
+  <div class="seg" style="flex-wrap:wrap;margin-bottom:8px">
+    ${Object.entries(WL_WORD_PRESETS).map(([k,p])=>`<button data-wlp="${k}" class="${wlWordRange().preset===k?'on':''}">${p.label} ${p.min}~${p.max}</button>`).join('')}
+    <button data-wlp="custom" class="${wlWordRange().preset==='custom'?'on':''}">自定义</button>
+  </div>
+  <div class="row" style="align-items:center;gap:6px">
+    <span class="hint" style="flex:0 0 32px">下限</span>
+    <input id="w_wmin" type="number" min="500" max="${WL_WORD_HARD_MAX-200}" value="${wlWordRange().min}" class="inp" style="flex:1">
+    <span class="hint" style="flex:0 0 32px">上限</span>
+    <input id="w_wmax" type="number" min="700" max="${WL_WORD_HARD_MAX}" value="${wlWordRange().max}" class="inp" style="flex:1">
+  </div>
+  <div class="hint" style="font-size:10px;margin-top:5px;color:var(--muted)">硬上限 ${WL_WORD_HARD_MAX} 字 · 超长会触发超时，不建议调高</div>
+</div>
     <div class="row" style="margin-bottom:12px"><button class="btn gold" id="w_jump" ${jumpReady()?'':'disabled'} title="完成关键事件或第 3 回合后解锁">⏩ 时间跳跃</button><button class="btn ghost" id="w_tree">🌳 分支树</button></div>
     <div class="story">${fmtStory(s.story)}</div>
     <div id="w_opts">${opts.map(o=>`<button class="opt" data-o="${esc(o).replace(/"/g,'&quot;')}">${fmt(o)}</button>`).join('')}</div>
@@ -3632,8 +4106,16 @@ s.lastDelta=affDelta;store.setState(s);
   v.querySelectorAll('[data-item]').forEach(el=>el.onclick=()=>{const cur=store.get('useItem',null);store.set('useItem',cur===el.dataset.item?null:el.dataset.item);apps.worldline.render(v);});
   v.querySelector('#w_jump').onclick=()=>{if(!jumpReady())return toast('时间跳跃将在关键事件或第 3 回合后解锁');timeJumpUI();};
   v.querySelector('#w_tree').onclick=()=>WT.modal();
-  const wwSel=v.querySelector('#w_words');
-  if(wwSel)wwSel.onchange=e=>{store.set('wlWords',+e.target.value||3500);toast('下一回合将按 '+e.target.value+' 字生成');};
+ v.querySelectorAll('[data-wlp]').forEach(b=>b.onclick=()=>{
+  const k=b.dataset.wlp;
+  if(k==='custom'){setWlWordRange({...wlWordRange(),preset:'custom'});apps.worldline.render(v);return;}
+  const p=WL_WORD_PRESETS[k];setWlWordRange({min:p.min,max:p.max,preset:k});
+  toast('已切换到「'+p.label+'」· '+p.min+'~'+p.max+' 字');apps.worldline.render(v);
+});
+const wminI=v.querySelector('#w_wmin'),wmaxI=v.querySelector('#w_wmax');
+const syncW=()=>{setWlWordRange({min:+wminI.value,max:+wmaxI.value,preset:'custom'});};
+if(wminI)wminI.onchange=syncW;
+if(wmaxI)wmaxI.onchange=syncW;
   v.querySelector('#w_send').onclick=()=>{const x=v.querySelector('#w_act').value.trim();if(x)pick(x);};
   v.querySelector('#w_act').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();v.querySelector('#w_send').click();}});
   v.querySelector('#w_back').onclick=()=>{if(!s.history.length)return;if(!confirm('回到上一回合？'))return;const h=s.history.pop();s.story=h.story;s.options=h.options;s.affinity=h._aff;s.turn=Math.max(1,s.turn-1);const cs=store.contacts();const t=cs.find(x=>x.isTony);if(t){t.affinity=s.affinity;store.setContacts(cs);}store.setState(s);apps.worldline.render(v);};
@@ -4121,15 +4603,106 @@ apps.music={title:'音乐',async render(v){
 }};
 /* IndexedDB 图片 / 音乐 */
 const db={d:null,
-  init(){return new Promise(res=>{const r=indexedDB.open('StarkDB',1);
-    r.onupgradeneeded=e=>{const d=e.target.result;if(!d.objectStoreNames.contains('img'))d.createObjectStore('img',{keyPath:'id'});if(!d.objectStoreNames.contains('music'))d.createObjectStore('music',{keyPath:'id'});};
-    r.onsuccess=e=>{this.d=e.target.result;res();};r.onerror=()=>res();});},
+  init(){return new Promise(res=>{const r=indexedDB.open('StarkDB',2);
+  r.onupgradeneeded=e=>{const d=e.target.result;
+    if(!d.objectStoreNames.contains('img'))d.createObjectStore('img',{keyPath:'id'});
+    if(!d.objectStoreNames.contains('music'))d.createObjectStore('music',{keyPath:'id'});
+    if(!d.objectStoreNames.contains('assets'))d.createObjectStore('assets',{keyPath:'id'}); // 壁纸/头像/锁脸图
+    if(!d.objectStoreNames.contains('igPrompts'))d.createObjectStore('igPrompts',{keyPath:'id'}); // 生图预设
+  };
+  r.onsuccess=e=>{this.d=e.target.result;res();};r.onerror=()=>res();});},
+async get(st,id){if(!this.d)await this.init();return new Promise(r=>{try{const t=this.d.transaction(st,'readonly');const q=t.objectStore(st).get(id);q.onsuccess=()=>r(q.result||null);q.onerror=()=>r(null);}catch(e){r(null);}});},
   async put(st,o){if(!this.d)await this.init();return new Promise(r=>{const t=this.d.transaction(st,'readwrite');t.objectStore(st).put(o);t.oncomplete=()=>r();t.onerror=()=>r();});},
   async all(st){if(!this.d)await this.init();return new Promise(r=>{const t=this.d.transaction(st,'readonly');const q=t.objectStore(st).getAll();q.onsuccess=()=>r(q.result||[]);q.onerror=()=>r([]);});},
   async del(st,id){if(!this.d)await this.init();return new Promise(r=>{const t=this.d.transaction(st,'readwrite');t.objectStore(st).delete(id);t.oncomplete=()=>r();});},
 };
 db.init();
+const AssetUtil={
+  MAX_WALL:3*1024*1024,   // 壁纸 3MB
+  MAX_AVATAR:1*1024*1024, // 头像 1MB
+  async pickImage(opts){
+    opts=opts||{};
+    return new Promise((res,rej)=>{
+      const inp=document.createElement('input');inp.type='file';inp.accept='image/*';
+      inp.onchange=async()=>{
+        const f=inp.files[0];if(!f)return rej('未选择');
+        if(f.size>opts.maxSize)return rej(`文件太大（${(f.size/1024/1024).toFixed(2)}MB），上限 ${(opts.maxSize/1024/1024).toFixed(0)}MB`);
+        const reader=new FileReader();
+        reader.onload=()=>{
+          const img=new Image();
+          img.onload=()=>{
+            if(opts.minW&&img.width<opts.minW)return rej(`宽度至少 ${opts.minW}px（当前 ${img.width}）`);
+            if(opts.minH&&img.height<opts.minH)return rej(`高度至少 ${opts.minH}px（当前 ${img.height}）`);
+            res({dataUrl:reader.result,w:img.width,h:img.height,size:f.size});
+          };
+          img.onerror=()=>rej('图片解析失败');
+          img.src=reader.result;
+        };
+        reader.onerror=()=>rej('读取失败');
+        reader.readAsDataURL(f);
+      };
+      inp.click();
+    });
+  },
+  async saveAsset(id,dataUrl){await db.put('assets',{id,data:dataUrl,t:Date.now()});},
+  async loadAsset(id){const r=await db.get('assets',id);return r?r.data:null;},
+  async delAsset(id){await db.del('assets',id);},
+};
 
+/* 应用自定义壁纸（覆盖 .wall 的 background） */
+async function applyCustomWallpaper(){
+  const data=await AssetUtil.loadAsset('wallpaper');
+  const el=document.querySelector('#home .wall');if(!el)return;
+  if(data)el.style.background=`url("${data}") center/cover no-repeat`;
+  else el.style.background='';   // 回落到主题变量
+}
+
+/* 自动识别页面中的联系人名字并挂载自定义头像 */
+async function paintContactAvatars(root){
+  const scope = root || document;
+  const list = store.contacts();
+
+  for(const c of list){
+    const data = await AssetUtil.loadAsset('avatar:' + c.name);
+    if(!data) continue;
+
+    const setAvatar = (el) => {
+      if(!el) return;
+      el.style.backgroundImage = `url("${data}")`;
+      el.style.backgroundSize = 'cover';
+      el.style.backgroundPosition = 'center';
+      el.textContent = '';
+    };
+
+    // 1. 短信联系人列表 (.chatrow[data-n="xxx"])
+    scope.querySelectorAll(`.chatrow[data-n="${CSS.escape(c.name)}"] .av`).forEach(setAvatar);
+
+    // 2. 关系网联系人卡片 (.rel-card 内包含对应的 data-chat 或 data-rel 按钮)
+    scope.querySelectorAll('.rel-card').forEach(card => {
+      if(card.querySelector(`[data-chat="${CSS.escape(c.name)}"], [data-rel="${CSS.escape(c.name)}"]`)){
+        setAvatar(card.querySelector('.av'));
+      }
+    });
+
+    // 3. 正在单聊时的顶栏小头像
+    if(apps.messages && apps.messages.view === 'chat' && apps.messages.cur === c.name){
+      scope.querySelectorAll('#view #appBody .av').forEach(setAvatar);
+    }
+
+    // 4. 复联群聊消息 (.gmsg .gav)
+    scope.querySelectorAll('.gmsg').forEach(msg => {
+      const gnm = msg.querySelector('.gnm');
+      if(gnm && gnm.textContent.includes(c.name)){
+        setAvatar(msg.querySelector('.gav'));
+      }
+    });
+
+    // 5. FaceTime 通话页面的大头像
+    if(apps.facetime && apps.facetime.peer === c.name){
+      scope.querySelectorAll('#view #appBody .av').forEach(setAvatar);
+    }
+  }
+}
 /* ============================================================
    全文检索（IndexedDB · 独立库 StarkFTX）· Twitter / 邮件 / 短信
    ============================================================ */
@@ -5212,7 +5785,50 @@ const WT={
     const c=d.querySelector('#wt_clr');if(c)c.onclick=()=>{if(!confirm('清空分支树？'))return;this.save({nodes:[],active:null});d.remove();this.modal();};
   }
 };
+/* 角色生图预设：描述职业、服装风格、气质、光影，不绑定真人肖像；用户可自行微调 */
+const IG_PROMPT_PRESETS={
+  '托尼·斯塔克':{style:'cinematic portrait, workshop lighting, confident smirk, well-groomed facial hair, dark sunglasses pushed up, charcoal suit or grease-stained henley, holographic blue reflections, Marvel comic film aesthetic, warm rim light',prompt:'A charismatic billionaire inventor in a high-tech workshop, holographic blue light on his face, oil-stained shirt rolled to elbows, cocky half-smile, cinematic depth of field'},
+  '小辣椒':{style:'elegant corporate portrait, warm soft light, auburn hair, tailored pantsuit, thoughtful expression',prompt:'A composed female CEO in a sleek office at dusk, glass skyscraper window behind her, tailored cream blazer, soft natural light, dignified yet weary'},
+  '罗迪':{style:'military official portrait, air force dress blues or flight suit, confident posture, warm skin tone',prompt:'A U.S. Air Force colonel in dress uniform, decorated ribbons, hangar background, strong jawline, pragmatic expression'},
+  '哈皮':{style:'candid driver portrait, dark suit, serious bodyguard vibe',prompt:'A stocky bodyguard in a black suit beside a sleek sports car, tired but attentive, parking garage lighting'},
+  '史蒂夫·罗杰斯':{style:'all-american soldier portrait, blonde hair side-part, square jaw, leather jacket or star-spangled tactical gear, patriotic lighting',prompt:'A tall, upright soldier with earnest blue eyes, 1940s-era leather jacket over modern tactical shirt, morning sun, principled expression'},
+  '托尔':{style:'Asgardian warrior portrait, long blonde hair, braided beard, red cape, ornate silver armor, thunderstorm backdrop',prompt:'A towering Norse-styled warrior with flowing blonde hair and braided beard, silver fantasy armor, red cloak flowing, lightning arcing behind him'},
+  '布鲁斯·班纳':{style:'rumpled scientist portrait, curly dark hair, round glasses, worn purple shirt, kind tired eyes',prompt:'A gentle disheveled physicist in a lab, curly salt-pepper hair, wrinkled purple button-up, chalkboard with equations behind him, soft worried smile'},
+  '娜塔莎·罗曼诺夫':{style:'spy portrait, red hair, black tactical catsuit, cool green eyes, backlit urban night',prompt:'A composed female operative with flame-red hair, tactical black suit with utility belt, neon city reflections, guarded sharp gaze'},
+  '克林特·巴顿':{style:'archer portrait, sandy blonde hair, purple-black tactical vest, quiver on back, rooftop perch',prompt:'A lean archer crouched on a rooftop at dusk, sandy hair, dark tactical vest with purple accents, quiver visible, focused calm expression'},
+  '彼得·帕克':{style:'high-school teenager portrait, curly brown hair, hoodie over band t-shirt, awkward smile',prompt:'A nervous Queens teenager with curly brown hair, oversized science-pun hoodie, backpack strap on one shoulder, afternoon school hallway light'},
+  '托尔_alt':{style:'fantasy demigod',prompt:''},
+  '洛基':{style:'mischief prince portrait, slicked-back raven hair, green and gold Asgardian leather, sly grin, cold palace lighting',prompt:'A tall slender prince with slicked-back black hair, emerald green cloak over black leather with gold etching, curved dagger at hip, mocking half-smile, cold marble throne room'},
+  '彼得·奎尔':{style:'80s space outlaw portrait, red leather trench coat, retro walkman headphones, roguish grin',prompt:'A roguish space outlaw with a red leather duster coat, orange-red tactical mask pushed up, Sony Walkman headphones around neck, starship cockpit behind him, cocky grin'},
+  '斯蒂芬·斯特兰奇':{style:'sorcerer portrait, graying temples, goatee, blue mystic tunic with high collar, Cloak of Levitation red fabric',prompt:'A stern sorcerer with graying temples and neat goatee, high-collared blue mystic robes, floating red cape behind him, golden mandala sparks in the air, Himalayan monastery backdrop'},
+  '卡罗尔·丹弗斯':{style:'cosmic pilot portrait, short blonde hair, blue-red-gold cosmic uniform, glowing fists',prompt:'A confident pilot-turned-hero with cropped blonde hair, blue-red-gold cosmic uniform with golden star emblem on chest, hands glowing with photon energy, cosmic nebula behind her'},
+  '山姆·威尔逊':{style:'pararescue veteran portrait, red-silver mechanical wings, white and red tactical suit',prompt:'An African-American veteran in a white-red tactical flight suit, mechanical silver-red wings extending behind him, Washington D.C. monument skyline, warrior calm'},
+  '巴基·巴恩斯':{style:'wintry soldier portrait, long dark hair, red star on black metal prosthetic arm, tactical vest, haunted gaze',prompt:'A brooding soldier with shoulder-length dark hair, black tactical vest, metallic left arm with red star emblem, Eastern European snow outside a window, haunted eyes'},
+  'T\'Challa':{style:'Wakandan king portrait, shaved head, royal purple and black tribal robes, dignified posture',prompt:'A regal African king with a shaved head and goatee, black and purple vibranium-threaded robes with tribal patterns, Wakandan throne room with panther motifs, serene authority'},
+  '斯科特·朗':{style:'everyman portrait, short dark hair, red-silver quantum suit helmet under arm, awkward dad grin',prompt:'A friendly dad-aged guy with short dark hair, red-and-silver advanced tech suit, helmet tucked under his arm, suburban living room with a little girl\'s drawings on the fridge'},
+  '霍普·范·戴恩':{style:'professional heiress portrait, sharp bob haircut, gold-black wasp tactical suit',prompt:'A composed businesswoman with a sharp dark bob, golden-black wasp-themed tactical armor with translucent wings, high-tech lab at night'},
+  '梅·帕克':{style:'warm aunt portrait, short brunette hair, casual cardigan, queens apartment kitchen',prompt:'A warm-hearted woman in her 50s with short brunette hair, cozy knitted cardigan, standing in a small Queens apartment kitchen, afternoon light through curtains'},
+  '瓦尔基里':{style:'female warrior portrait, dark hair, worn white-and-blue armor, sword slung over back, bar background',prompt:'A dark-haired warrior woman with worn silver-blue Asgardian armor, sword slung over back, sitting at a dive bar with a bottle in hand, wry smile'},
+  '古一':{style:'bald mystic portrait, cream robes, serene expression, orange mandala sparks',prompt:'A bald sage in flowing cream-and-amber mystic robes, Himalayan monastery window behind, orange mandala sparks swirling in meditation gesture'},
+  '尼布拉':{style:'cyborg daughter portrait, blue-purple skin, shaved head with cybernetic plates, black armor',prompt:'A tall cybernetic woman with blue-purple skin and chrome augmentations on her shaved head, black battle armor, cold alien ship corridor, guarded glare'},
+  '卡莫拉':{style:'green-skinned assassin portrait, red-tipped dark hair, black leather coat, double-edged sword',prompt:'A green-skinned warrior with wavy dark hair tipped in burgundy, black utility coat over leather armor, sword at hip, alien marketplace lights'},
+  '火箭':{style:'anthropomorphic raccoon portrait, cybernetic shoulder rig, pilot jumpsuit, gruff expression',prompt:'A small anthropomorphic raccoon in an orange prisoner jumpsuit with a cybernetic shoulder rig, holding a modified blaster rifle, starship cockpit'},
+  '德拉克斯':{style:'red-tattooed warrior portrait, shirtless, intricate tribal scar-tattoos, dual daggers',prompt:'A muscular grey-skinned warrior with intricate crimson tribal tattoos across bare torso, two curved daggers crossed on back, intense literal stare'},
+  '猩红女巫':{style:'witch portrait, long auburn hair, crimson red coat and headpiece, red energy curling from fingers',prompt:'A composed young woman with long auburn hair, crimson red structured coat with filigree, scarlet energy swirling from her fingertips, Sokovian ruins at dusk'},
+  '幻视':{style:'android portrait, maroon-green skin, yellow infinity stone in forehead, golden cape',prompt:'A synthetic being with smooth maroon-and-green skin, a glowing yellow crystal set in forehead, flowing golden cape, serene philosophical expression'},
+  '死侍':{style:'red-and-black merc portrait, full katana-crossed mask, breaking fourth wall grin implied',prompt:'A mercenary in a full red-and-black spandex suit with large white eye patches, twin katanas crossed on back, taco in one hand, somehow radiating sass through the mask, urban rooftop'},
+  '尼克·弗瑞':{style:'spy director portrait, bald, eyepatch, black leather trench coat',prompt:'A bald, imposing spy director with a black leather eye-patch over left eye, long black leather duster, SHIELD helicarrier bridge, impassive glare'},
+  '玛丽亚·希尔':{style:'spy officer portrait, dark hair in low ponytail, SHIELD tactical uniform',prompt:'A professional female officer with dark hair in a low ponytail, navy tactical uniform with SHIELD insignia, briefing room, no-nonsense expression'},
+};
 
+/* 读取某联系人的生图提示词（自定义覆盖预设） */
+async function getIgPrompt(name){
+  const custom=await db.get('igPrompts',name);
+  if(custom&&custom.prompt)return custom;
+  const p=IG_PROMPT_PRESETS[name];
+  return p?{prompt:p.prompt,style:p.style,negative:'',preset:true}:null;
+}
+async function saveIgPrompt(name,data){await db.put('igPrompts',{id:name,...data,t:Date.now()});}
 /* ============================================================
    连锁事件：报纸 → 邮件 → Twitter → 短信
    ============================================================ */
@@ -7275,38 +7891,71 @@ renderWL(body,arr){
 },
 /* —— 向量记忆分栏（本地 TF-IDF 语义检索） —— */
 renderVec(body){
+  const self=this;
   const docs=allMemoryDocs();
   body.innerHTML=`<div class="card" style="padding:12px">
-    <div class="eyebrow">SEMANTIC INDEX · LOCAL TF-IDF</div>
-    <div class="hint" style="margin:6px 0">对所有记忆文本（对话记忆 + 世界线记忆，共 ${docs.length} 条）建立本地语义索引。输入关键词，返回语义最相关的记忆条目。纯前端 bigram + TF-IDF 实现，无需联网，不依赖外部向量数据库。</div>
-    <div class="row" style="margin-top:10px"><input id="vec_q" class="inp" style="flex:1" placeholder="输入关键词，如：托尼 深夜 实验室 / worldline reactor"><button class="btn sm" id="vec_s" style="flex:0 0 62px">检索</button></div>
+    <div class="eyebrow">HYBRID MEMORY · VECTOR + KEYWORD</div>
+    <div class="hint" style="margin:6px 0">
+      <b>给聊天 AI 的长期记忆</b>：避免长对话后 AI 遗忘细节。每次聊天自动执行——
+      <b>向量检索 10 条 + 关键字检索 10 条 → 融合时间久远度与你的评分 → 取最终评分最高的 8 条</b>注入 AI 上下文。
+      token 更省、召回更准。
+    </div>
+    <div class="hint" style="margin:6px 0;font-size:10.5px">
+      权重：向量相似度 35% · 关键字命中 30% · 用户评分 20% · 新近度 15%
+    </div>
+    <div class="row" style="margin-top:10px"><input id="vec_q" class="inp" style="flex:1" placeholder="测试检索：输入一段话/关键词"><button class="btn sm" id="vec_s" style="flex:0 0 62px">检索</button></div>
     <div id="vec_res" style="margin-top:12px"></div>
+  </div>
+  <div class="card"><h3>◉ 记忆评分（影响检索权重）</h3>
+    <div class="hint" style="margin-bottom:9px">给重要的记忆打高分（0~5），AI 会优先调用；不重要的打低分或 0 分。评分可随时修改。</div>
+    <div id="vec_rate_list"></div>
   </div>
   <div class="card"><h3>◉ 索引概览</h3>
     <div class="hint">对话记忆 ${store.get('memories',[]).length} 条 · 世界线记忆 ${store.get('memWorldline',[]).length} 条 · 合计 ${docs.length} 条已索引</div>
-    <button class="btn ghost sm" id="vec_rebuild" style="margin-top:8px">🔄 重建索引</button>
-    <div id="vec_stats" style="margin-top:8px"></div></div>`;
+  </div>`;
+
   const doSearch=()=>{
     const q=body.querySelector('#vec_q').value.trim();
-    if(!q)return toast('请输入检索关键词');
+    if(!q)return toast('请输入检索内容');
     const res=body.querySelector('#vec_res');
-    const results=tfidfSearch(q,docs,5);
-    if(!results.length){res.innerHTML='<div class="hint">未找到相关记忆。尝试换一组关键词。</div>';return;}
-    const chatArr=store.get('memories',[]),wlArr=store.get('memWorldline',[]);
-    res.innerHTML=`<div class="hint" style="margin-bottom:8px">找到 ${results.length} 条相关记忆（按相关度排序）：</div>`+
-      results.map(r=>{
-        let item=null,type='';
-        if(r.id.startsWith('chat-')){const i=chatArr.findIndex(x=>('chat-'+x.id)===r.id);if(i>=0){item=chatArr[i];type='对话记忆';}}
-        else if(r.id.startsWith('wl-')){const i=wlArr.findIndex(x=>('wl-'+x.id)===r.id);if(i>=0){item=wlArr[i];type='世界线记忆';}}
-        if(!item)return '';
-        return `<div class="card" style="padding:10px;margin-bottom:8px;border-color:var(--cyan)">
-          <div class="hint">${type} · ${esc(item.time||'')} · 相关度 ${(r.score*100).toFixed(1)}%</div>
-          <div class="story" style="font-size:12.5px;margin-top:5px;max-height:120px;overflow-y:auto">${fmtStory((item.text||'').slice(0,400))}</div></div>`;
-      }).join('');
+    const hits=hybridMemorySearch(q,{finalTop:8});
+    if(!hits.length){res.innerHTML='<div class="hint">没有命中任何记忆。</div>';return;}
+    res.innerHTML=`<div class="hint" style="margin-bottom:8px">最终取前 ${hits.length} 条（AI 聊天时同样如此注入）：</div>`+
+      hits.map((h,i)=>`<div class="card" style="padding:10px;margin-bottom:8px;border-color:var(--cyan)">
+        <div class="hint">#${i+1} · ${esc(h.item._type)} · ${esc(h.item.time||'')} · 评分 ${h.rating}/5</div>
+        <div class="hint" style="font-size:10px;color:var(--muted);margin-top:3px">
+          final <b style="color:var(--gold)">${h.final}</b> = 向量 ${h.vecN} · 关键字 ${h.kwN} · 时间 ${h.timeScore} · 评分 ${(h.rating/5).toFixed(2)}
+        </div>
+        <div class="story" style="font-size:12.5px;margin-top:5px;max-height:120px;overflow-y:auto">${fmtStory(String(h.item.text||'').slice(0,400))}</div>
+      </div>`).join('');
   };
   body.querySelector('#vec_s').onclick=doSearch;
   body.querySelector('#vec_q').addEventListener('keydown',e=>{if(e.key==='Enter')doSearch();});
-  body.querySelector('#vec_rebuild').onclick=()=>{const d=allMemoryDocs();const idx=tfidfIndex(d);body.querySelector('#vec_stats').innerHTML=`<div class="hint">索引已重建 · ${d.length} 条文档 · ${idx.reduce((s,x)=>s+Object.keys(x.vec).length,0)} 个特征词</div>`;toast('索引已重建');};
+
+  // 评分列表（可增删改）
+  const rateBox=body.querySelector('#vec_rate_list');
+  const chatArr=store.get('memories',[]);
+  const wlArr=store.get('memWorldline',[]);
+  const renderRate=()=>{
+    rateBox.innerHTML=[...chatArr.map(m=>({...m,_t:'对话',_k:'chat'})),
+                       ...wlArr.map(m=>({...m,_t:'世界线',_k:'wl'}))].map(m=>`
+      <div class="srow">
+        <div style="flex:1;min-width:0">
+          <div class="t" style="font-size:12px">[${m._t}] ${esc(m.time||'')}</div>
+          <div class="d" style="max-height:34px;overflow:hidden">${esc(String(m.text||'').slice(0,80))}…</div>
+        </div>
+        <input type="number" min="0" max="5" step="1" value="${m.rating??3}" data-rate="${m._k}:${m.id}" class="inp" style="width:52px;text-align:center;padding:4px">
+      </div>`).join('')||'<div class="hint">还没有记忆可评分。</div>';
+    rateBox.querySelectorAll('[data-rate]').forEach(inp=>inp.onchange=()=>{
+      const [k,id]=inp.dataset.rate.split(':');
+      const v=Math.max(0,Math.min(5,+inp.value||0));
+      const key=k==='chat'?'memories':'memWorldline';
+      const arr=store.get(key,[]);
+      const t=arr.find(x=>x.id===id);if(!t)return;
+      t.rating=v;store.set(key,arr);toast('评分已更新：'+v+'/5');
+    });
+  };
+  renderRate();
 },
 /* —— 记忆设置分栏 —— */
 renderSet(body,ms){
@@ -7630,6 +8279,19 @@ apps.appearance={title:'外观',render(v){
       <div class="row" style="margin-top:6px"><button class="btn ghost sm" id="ui_reset">↺ 恢复标准密度</button></div></div>
     <div class="card"><h3>◉ 桌面图标显隐</h3><div>${ICONS.map(i=>`<span class="chip ${hidden.includes(i.id)?'':'on'}" data-h="${i.id}">${esc(i.label)}</span>`).join('')}</div>
       <div class="hint" style="margin-top:8px">只隐藏图标，功能与数据一律保留（对应「不得删减」）。</div></div>
+    <div class="card"><h3>◉ 自定义资源（壁纸 / 头像 / 生图提示词）</h3>
+      <div class="hint" style="margin-bottom:9px">所有图片存入本机 IndexedDB，不上传、不联网。</div>
+      <div class="row" style="margin-bottom:8px">
+        <button class="btn ghost sm" id="rs_wall">🖼 桌面壁纸</button>
+        <button class="btn ghost sm" id="rs_avatar">👤 联系人头像</button>
+        <button class="btn ghost sm" id="rs_prompt">🎨 生图提示词</button>
+      </div>
+      <div class="hint">
+        · <b>壁纸</b>：建议 <b>1080 × 1920 以上</b>、JPG/PNG、<b>≤ 3 MB</b><br>
+        · <b>头像</b>：建议 <b>正方形 ≥ 256 × 256</b>、JPG/PNG、<b>≤ 1 MB</b><br>
+        · <b>生图提示词</b>：角色化描述（职业/服装/气质/光影），不绑定真人肖像；可自行微调
+      </div>
+    </div>
     <div class="card"><h3>◉ 自定义 CSS（进阶）</h3>
       <div class="field"><textarea id="ap_css" rows="4" placeholder="例如：.bub.them{background:#1a2430}">${esc(a.css||'')}</textarea></div>
       <div class="row"><button class="btn" id="ap_save">保存外观</button><button class="btn ghost" id="ap_reset">↺ 恢复默认</button></div></div>
@@ -7676,8 +8338,98 @@ apps.appearance={title:'外观',render(v){
   v.querySelectorAll('[data-h]').forEach(el=>el.onclick=()=>{let h=store.get('hiddenApps',[]);const id=el.dataset.h;h=h.includes(id)?h.filter(x=>x!==id):[...h,id];store.set('hiddenApps',h);renderGrid();self.render(v);});
   v.querySelector('#ap_save').onclick=()=>{const x=store.get('appearance',{});x.css=v.querySelector('#ap_css').value;store.set('appearance',x);applyAppearance();toast('已保存');};
   v.querySelector('#ap_reset').onclick=()=>{resetAppearance();toast('已恢复默认');};
+  v.querySelector('#rs_wall').onclick=()=>openWallpaperDialog();
+  v.querySelector('#rs_avatar').onclick=()=>openAvatarDialog();
+  v.querySelector('#rs_prompt').onclick=()=>openPromptDialog();
 }};
+/* ---------- 壁纸 ---------- */
+async function openWallpaperDialog(){
+  const cur=await AssetUtil.loadAsset('wallpaper');
+  const d=modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:16px">🖼 自定义桌面壁纸</h2>
+    <div class="card">
+      <div class="hint" style="margin-bottom:9px">建议 <b>1080 × 1920 以上</b>、JPG/PNG、<b>≤ 3 MB</b>。壁纸会覆盖主题默认背景。</div>
+      <div class="up-area ${cur?'has':''}" id="wp_area">${cur?`<img src="${cur}">`:'点击此处选择图片'}</div>
+      <div class="row" style="margin-top:10px"><button class="btn" id="wp_pick">📁 选择图片</button>${cur?'<button class="btn ghost" id="wp_clear">清除壁纸</button>':''}</div>
+      <button class="btn ghost" data-close style="margin-top:8px">关闭</button>
+    </div>`);
+  const pick=async()=>{try{
+    const r=await AssetUtil.pickImage({maxSize:AssetUtil.MAX_WALL,minW:720,minH:720});
+    await AssetUtil.saveAsset('wallpaper',r.dataUrl);
+    toast(`已保存壁纸 (${r.w}×${r.h}, ${(r.size/1024).toFixed(0)}KB)`);
+    await applyCustomWallpaper();d.remove();
+  }catch(e){toast('失败：'+e);}};
+  d.querySelector('#wp_area').onclick=pick;
+  d.querySelector('#wp_pick').onclick=pick;
+  const cb=d.querySelector('#wp_clear');if(cb)cb.onclick=async()=>{
+    await AssetUtil.delAsset('wallpaper');await applyCustomWallpaper();toast('已清除壁纸');d.remove();
+  };
+}
 
+/* ---------- 联系人头像 ---------- */
+async function openAvatarDialog(){
+  const list=store.contacts();
+  const avs={};for(const c of list)avs[c.name]=await AssetUtil.loadAsset('avatar:'+c.name);
+  const d=modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:16px">👤 联系人头像</h2>
+    <div class="card">
+      <div class="hint" style="margin-bottom:9px">建议 <b>正方形 ≥ 256 × 256</b>、JPG/PNG、<b>≤ 1 MB</b>。头像会显示在短信/群聊/关系网。</div>
+      <div class="up-grid" id="av_grid">${list.map(c=>`<div class="up-cell">
+        <div class="av2">${avs[c.name]?`<img src="${avs[c.name]}">`:esc(c.name[0])}</div>
+        <div class="nm2">${esc(c.name)}</div>
+        <div class="btns"><button data-up="${esc(c.name)}">${avs[c.name]?'换':'上传'}</button>${avs[c.name]?`<button data-del="${esc(c.name)}" style="color:var(--red)">删</button>`:''}</div>
+      </div>`).join('')}</div>
+      <button class="btn ghost" data-close style="margin-top:10px">关闭</button>
+    </div>`);
+  d.querySelectorAll('[data-up]').forEach(b=>b.onclick=async()=>{
+    try{
+      const r=await AssetUtil.pickImage({maxSize:AssetUtil.MAX_AVATAR,minW:128,minH:128});
+      await AssetUtil.saveAsset('avatar:'+b.dataset.up,r.dataUrl);
+      toast('已保存 '+b.dataset.up+' 的头像');
+      d.remove();openAvatarDialog();
+    }catch(e){toast('失败：'+e);}
+  });
+  d.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
+    await AssetUtil.delAsset('avatar:'+b.dataset.del);toast('已删除');d.remove();openAvatarDialog();
+  });
+}
+
+/* ---------- 生图提示词 ---------- */
+async function openPromptDialog(){
+  const names=[...new Set([...Object.keys(IG_PROMPT_PRESETS),...store.contacts().map(c=>c.name)])];
+  const d=modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:16px">🎨 Instagram 生图提示词</h2>
+    <div class="card">
+      <div class="hint" style="margin-bottom:9px">为每位联系人设定生图正向提示词、风格、负面词、以及<b>锁脸参考图</b>（用于支持 IP-Adapter / img2img 的服务）。<br>预设基于角色<b>职业与服装风格</b>描述，不绑定具体真人肖像；可自由改写。</div>
+      <div class="field"><label>选择联系人</label><select id="pp_sel" class="inp">${names.map(n=>`<option value="${esc(n)}">${esc(n)}${IG_PROMPT_PRESETS[n]?' · 有预设':''}</option>`).join('')}</select></div>
+      <div id="pp_body"></div>
+      <button class="btn ghost" data-close style="margin-top:10px">关闭</button>
+    </div>`);
+  const sel=d.querySelector('#pp_sel');
+  const paint=async()=>{
+    const name=sel.value;
+    const cur=await getIgPrompt(name)||{prompt:'',style:'',negative:''};
+    const face=await AssetUtil.loadAsset('igface:'+name);
+    d.querySelector('#pp_body').innerHTML=`
+      <div class="field"><label>正向提示词（Prompt）</label><textarea id="pp_prompt" rows="3">${esc(cur.prompt||'')}</textarea></div>
+      <div class="field"><label>风格关键词（Style，追加在 prompt 后）</label><textarea id="pp_style" rows="2">${esc(cur.style||'')}</textarea></div>
+      <div class="field"><label>负面词（Negative Prompt，选填）</label><input id="pp_neg" class="inp" value="${esc(cur.negative||'')}" placeholder="如：blurry, deformed, low quality"></div>
+      <div class="field"><label>锁脸参考图（选填）</label>
+        <div class="up-area ${face?'has':''}" id="pp_face">${face?`<img src="${face}">`:'点击上传 · 建议正面照 ≥ 256×256 · ≤ 1 MB'}</div>
+      </div>
+      <div class="row"><button class="btn" id="pp_save">保存</button>${cur.preset?'':`<button class="btn ghost" id="pp_reset">↺ 恢复预设</button>`}${face?'<button class="btn ghost" id="pp_delface" style="color:var(--red)">删锁脸图</button>':''}</div>`;
+    d.querySelector('#pp_face').onclick=async()=>{
+      try{
+        const r=await AssetUtil.pickImage({maxSize:AssetUtil.MAX_AVATAR,minW:256,minH:256});
+        await AssetUtil.saveAsset('igface:'+name,r.dataUrl);toast('锁脸图已保存');paint();
+      }catch(e){toast('失败：'+e);}
+    };
+    d.querySelector('#pp_save').onclick=async()=>{
+      await saveIgPrompt(name,{prompt:d.querySelector('#pp_prompt').value.trim(),style:d.querySelector('#pp_style').value.trim(),negative:d.querySelector('#pp_neg').value.trim(),preset:false});
+      toast('已保存 '+name+' 的提示词');
+    };
+    const rb=d.querySelector('#pp_reset');if(rb)rb.onclick=async()=>{await db.del('igPrompts',name);toast('已恢复预设');paint();};
+    const fb=d.querySelector('#pp_delface');if(fb)fb.onclick=async()=>{await AssetUtil.delAsset('igface:'+name);toast('已删除锁脸图');paint();};
+  };
+  sel.onchange=paint;paint();
+}
 /* ============================================================
    复联群聊（评估结论：有必要，但必须复联1 后解锁）
    自动发消息 / 部分角色延迟回复 / 独立小剧场
