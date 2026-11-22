@@ -1484,7 +1484,7 @@ function hybridMemorySearch(query,opts){
    ============================================================ */
 const WORLD={
   tonyBirthYear:1970,
-  eras:[
+    eras:[
   {id:'T1',name:'2007 · 战火年代',year:2007,
    desc:'【阿富汗山洞前夕 · 巅峰军火商】冷战红利与斯塔克工业导弹销售的极盛期。此时的他尚未经历绑架，不知何为弹片穿心与钯中毒，未见识过外星虫洞。狂妄、极度挥霍、连珠炮式刻薄。你作为军工测试员/技术顾问接触他。严禁讨论创伤、家庭和解或任何未来救赎；他的精力全在派对、风洞数据与杰里科导弹（Jericho）的订单上。',flags:{}},
   {id:'T2',name:'2008 · 铁壳初啼',year:2008,
@@ -1502,7 +1502,9 @@ const WORLD={
   {id:'T8',name:'2016 · 分裂',year:2016,
    desc:'【内战协议 · 孤注一掷与背叛】索科维亚协议撕碎复联。签与不签成为不可调和的鸿沟。托尼经历了罗迪坠空瘫痪、西伯利亚冰原的父母真相与盾牌砸击。极度敏感、自责且尖锐，说话带测谎式幽默——先用刻薄话把人刺退，再一个人坐在空荡的复联基地长椅上输液。群聊阵营分立，原谅不再是一句玩笑能带过的事。',flags:{avengers1:true,ultron:true,civilWar:true}},
   {id:'T9',name:'2018 · 灰烬',year:2018,
-   desc:'【灭霸响指之后 · 伤痛沉淀】泰坦星风沙过后，孤舰漂流返地。不再制造武器，不再争论协议，只在湖边小屋过着远离喧嚣的隐居生活。眼神里满是告别与未竟的疲惫温柔。不再轻易承诺任何拯救计划，所做的一切都是为了安顿好身后重要的人。你面对的是褪去一切浮华、最安静也最沉重的钢铁侠。',flags:{avengers1:true,ultron:true,civilWar:true,snap:true}},
+   desc:'【灭霸响指与烁灭五年 · 伤痛沉淀】泰坦星风沙过后，孤舰漂流返地。宇宙半数生命化灰的漫长五年里，他在湖边木屋过着远离喧嚣的隐居生活。眼神里满是劫后余生的空洞与疲惫温柔，不再轻易承诺任何拯救计划，所做的一切都是为了守住眼前的微光。',flags:{avengers1:true,ultron:true,civilWar:true,snap:true}},
+  {id:'T10',name:'2023 · 终局之战',year:2023,
+   desc:'【时空劫持与终局决战 · 凡人弑神】烁灭五年之后，斯科特·朗从量子领域归来。托尼在深夜完成了莫比乌斯环时间导航模型，决定押上好不容易拥有的一切平静，与昔日同伴重返过去收集无限宝石。从1970年与父亲霍华德的跨时空和解，到废墟战场上迎战灭霸大军。这一次，你将与他并肩站在命运的终局，改写或见证那声响指。',flags:{avengers1:true,ultron:true,civilWar:true,snap:true,endgame:true}},
 ],
   persona:`你是本世界线的 DM，核心扮演【托尼·斯塔克／钢铁侠】以及所有 NPC。
 【基础】安东尼·爱德华·斯塔克，1970年5月29日生。4岁造电路板，17岁 MIT 毕业。天才、亿万富翁、花花公子、慈善家——这是他给世界的名片，不是他本人。
@@ -1674,17 +1676,39 @@ function userAgeNow(){
 /* ---------- 系统提示词 ---------- */
 function buildSystem(scope,extra){
   const p=store.profile()||{},s=store.state()||{},f=flags();
-  const aiNames=['贾维斯','星期五','幻视'];
-  let head=`${WORLD.persona}\n${WORLD.style}\n${WORLD.rules}`;
-  head+=`\n${WORLD.secrecy}`;
-  head+=`\n【反 OOC 总纲】所有角色严格按下列角色卡出演，不得串味、不得让角色知道未来事件、不得表现尚未建立的亲密关系：\n`;
-  head+=Object.keys(WORLD.cast).filter(k=>f.pepperExists||k!=='小辣椒').map(k=>'· '+castText(k).replace(/\n/g,' ')).join('\n');
-  head+=`\n【当前时间锚点】${f.year} 年 · ${f.era.name}。托尼·斯塔克 ${f.tonyAge} 岁。已发生：${f.avengers1?'纽约之战／复仇者集结':'尚未发生纽约之战'}；${f.ultronAfter?'奥创事件已发生（贾维斯已升格为幻视，F.R.I.D.A.Y. 已接管）':'奥创事件尚未发生（贾维斯在线，F.R.I.D.A.Y. 尚未诞生，幻视不存在）'}；${f.civilWar?'内战已发生':'内战尚未发生'}；${f.snap?'响指已发生':'响指尚未发生'}。`;
-  head+=`\n【本宇宙设定】${f.pepperExists?'小辣椒（佩珀·波茨）存在：托尼的老友兼下属，斯塔克工业 CEO／首席运营，负责把他的日程和烂摊子按优先级排好。严禁写成恋人、暧昧对象或吃醋对象。':'小辣椒（佩珀·波茨）在本宇宙不存在：所有内容、邮件、报纸、对话中一律不得出现她，也不得暗示曾有此人。'}`;
-  head+=`\n【世界边界】本作不含任何记忆抹除／身份重写类设定；任何「全世界忘了某人」的情节都是穿帮。所有记忆变动只能来自正常的时间流逝与人事变迁。`;
-  head+=`\n【玩家角色】姓名：${p.name||'访客'}／性别：${p.gender||'未填'}／身份：${p.identity||'未填'}／性格：${p.personality||'未填'}／背景：${p.background||'未填'}${p.notes?'／备注：'+p.notes:''}。`;
-  if(p.startAge)head+=`开局年龄 ${p.startAge} 岁；当前年龄 ${p.currentAge||p.startAge} 岁；与托尼年龄差 ${(f.tonyAge-(p.currentAge||p.startAge))} 岁（托尼年长为正）。`;
- head+=`\n叙事提到玩家一律用第二人称「你」。`;
+  
+  // 1. 若无佩珀，直接在最首行注入绝对不可违抗的顶层防穿帮铁律
+  let head = '';
+  if (!f.pepperExists) {
+    head += `【最高绝对禁令 · 本宇宙无佩珀·波茨】
+本世界线中绝对不存在“小辣椒”、“佩珀”、“波茨”、“Pepper Potts”或任何代号！托尼·斯塔克身边没有任何名为佩珀的女性助理或CEO。
+所有斯塔克工业的行政、法务、会议通知、日程安排均由【董事会秘书处】或【公关部】出具。严禁在旁白、对话、回忆、代称中出现任何带“佩珀/小辣椒”的字眼，违背此条将直接导致世界线逻辑崩溃！\n\n`;
+  }
+
+  head += `${WORLD.persona}\n${WORLD.style}\n${WORLD.rules}\n${WORLD.secrecy}`;
+  head += `\n【反 OOC 总纲】所有角色严格按下列角色卡出演：\n`;
+  
+  // 物理剔除小辣椒角色卡
+  head += Object.keys(WORLD.cast)
+    .filter(k => f.pepperExists || !/小辣椒|佩珀|Pepper/i.test(k))
+    .map(k => '· ' + castText(k).replace(/\n/g, ' '))
+    .join('\n');
+
+  head += `\n【当前时间锚点】${f.year} 年 · ${f.era.name}。托尼·斯塔克 ${f.tonyAge} 岁。已发生：${f.avengers1?'纽约之战／复仇者集结':'尚未发生纽约之战'}；${f.ultronAfter?'奥创事件已发生（贾维斯已升格为幻视，F.R.I.D.A.Y. 已接管）':'奥创事件尚未发生（贾维斯在线，F.R.I.D.A.Y. 尚未诞生，幻视不存在）'}；${f.civilWar?'内战已发生':'内战尚未发生'}；${f.snap?'响指已发生':'响指尚未发生'}。`;
+  head += `\n【玩家角色】姓名：${p.name||'访客'}／性别：${p.gender||'未填'}／身份：${p.identity||'未填'}／性格：${p.personality||'未填'}／背景：${p.background||'未填'}${p.notes?'／备注：'+p.notes:''}。`;
+  
+  // 注入世界线当前阶段与事件锚点要求
+  if (scope === 'worldline') {
+    const curAnchor = getCurrentAnchor();
+    if (curAnchor) {
+      head += `\n【当前世界线小事件目标锚点】：
+当前阶段：${curAnchor.phaseTitle}
+本回合推进核心事件：【${curAnchor.title}】
+事件背景与冲突点：${curAnchor.desc}
+AI必须将剧情冲突紧密围绕此事件展开推演，引导玩家通过选项解决或面对该事件！\n`;
+    }
+  }
+
   const _rules=rulesForPrompt(scope);
   if(_rules.length){
     head+=`\n【世界书 · 规则（玩家设定，最高优先级，覆盖默认套路，但不得违反时间锚点与保密铁律）】：\n`+_rules.join('\n');
@@ -2307,17 +2331,38 @@ function guideShot(id){
       if(!viewState.history)viewState.history=[];
     }
   }
-  if(viewState){
+    if(viewState){
+    if(!viewState.story){
+      const d=guideDemoState();
+      viewState.story=d.story;viewState.options=d.options;
+      if(!viewState.history)viewState.history=[];
+    }
     store.state=()=>viewState;store.profile=()=>viewProfile;
     const noop=()=>{};
     ['set','setState','setProfile','setContacts','setChats','setPosts'].forEach(k=>{store[k]=noop;});
   }
+  // 离屏预览期间确保 wl_anchors 已有同步演示数据，防止 async await 延迟后污染真机存档
+  const realGet=store.get.bind(store);
+  store.get=(k,d)=>{
+    if(k==='wl_anchors'){
+      const cur=realGet(k,null);
+      if(cur&&cur.length>=8)return cur;
+      return (MCU_DETAILED_ANCHORS[2012]||[]).map((a,i)=>({
+        id:'demo_anc_'+i,phaseTitle:`第 2 阶段 · 宿命浪潮 (${i+1}/8)`,
+        title:a.title,desc:a.desc,curTurns:1,maxTurns:a.turns||3,done:false
+      }));
+    }
+    return realGet(k,d);
+  };
   const feed=GUIDE_FEED_DEMO[id];
   if(feed){
     let real={};try{real=prev.posts.call(store)||{};}catch(e){real={};}
     if(!((real[id]||[]).length))store.posts=()=>({...real,[id]:feed});
   }
+  let restored=false;
   const restore=()=>{
+    if(restored)return;restored=true;
+    store.get=realGet;
     keys.forEach(k=>{store[k]=prev[k];});
     guards.forEach(g=>{g.el.style.display=g.display;g.el.textContent=g.text;g.el.onclick=g.onclick;});
     if(host.parentNode)host.parentNode.removeChild(host);
@@ -2330,9 +2375,12 @@ function guideShot(id){
   };
   let r=null;
   try{r=a.render(v);}catch(e){shot.err=String((e&&e.message)||e);}
-  capture();                                  // 绝大多数 App 同步渲染
-  restore();                                  // 同步还原，杜绝连续翻页时的状态交错污染
-  if(r&&typeof r.then==='function')r.then(()=>{capture();},()=>{});  // 异步 render 落地后再抓一次
+  capture();
+  if(r&&typeof r.then==='function'){
+    r.then(()=>{capture();restore();},()=>restore());
+  }else{
+    restore();
+  }
   return shot;
 }
 /* 临时打开真实 App 对照说明，看完一键回到当前引导页 */
@@ -4533,300 +4581,801 @@ function repostToTony(source,text){
     }, 9000);
   };
 }
-
 /* ============================================================
-   世界线（主线剧情）
+   MCU 原著电影级阶段与小事件锚点系统 (Cinematic Anchor System V3)
+   · 所有锚点采用 3~4 回合深度推进制，标题后实时标注 (已完成/总回合)
+   · 推进至烁灭 (2018→2023) 自动留出 3 回合专项描写「烁灭五年」的情绪与铺垫
+   · 新增 2023《复联4 · 终局之战》完整阶段与 8 大史诗锚点
    ============================================================ */
-apps.worldline={title:'世界线',async render(v){
-  let s=store.state();
-  if(!s.story){
-    v.innerHTML='<div class="loader"><div class="spin"></div>贾维斯正在校准时间线…</div>';
-    try{
-      const era=WORLD.eras.find(e=>e.id===s.era)||WORLD.eras[2];
-      const last=s.history.length?s.history[s.history.length-1]:null;
-      const ctx=last?`\n【上一轮剧情】\n${last.story}\n【玩家选择】${last.choice}\n请紧接上述继续发展。`:`\n这是开局第一回合。请写托尼·斯塔克与玩家的「初遇」，自然、不刻意、符合双方身份与${era.name}的处境。`;
-      const res=await ai([{role:'user',content:'请生成接下来的剧情'+ctx}],buildSystem('worldline'),()=>LOCAL.story(era));
-      // 容错匹配：支持 【选项】、[选项]、或者 选项： 
-let storyPart = res;
-let optPart = '';
 
-const splitRegex = /(?:【选项】|\[选项\]|选项[:：])/;
-if (splitRegex.test(res)) {
-  const parts = res.split(splitRegex);
-  storyPart = parts[0];
-  optPart = parts[1] || '';
+// 电影经典细节锚点库（每个时期严格不少于 8 个，每个锚点配置 turns: 3 或 4 回合）
+const MCU_DETAILED_ANCHORS = {
+  // 2007: 阿富汗山洞前夕 · 巅峰军火商与狂妄日常
+  2007: [
+    { title: '格米拉荒漠的杰里科测试', turns: 3, desc: '在库纳尔省的碎石荒漠上，托尼背对爆炸气浪，端着加冰威士忌讲解散射弹头威力。' },
+    { title: '凯撒宫赌场未领取的最高荣誉奖杯', turns: 3, desc: '罗迪在台上宣读颁奖词，托尼却在赌桌前掷骰子，顺手把奖杯递给穿罗马战袍的礼仪小姐。' },
+    { title: '马里布车库的 1932 福特改装', turns: 3, desc: '全息屏还没成型，托尼用扳手敲打老式发动机化油器，挑剔你递过去的机油标号不对。' },
+    { title: '私人商务机上的奢华吧台醉谈', turns: 3, desc: '巡航万米高空，空乘送上鱼子酱，他漫不经心地跟你讨论五角大楼合同里的利润漏洞。' },
+    { title: '风洞实验室的流体微小误差争端', turns: 4, desc: '因导弹尾翼仿真气动阻力相差 0.02%，托尼把你关在观测室，逼你陪他熬通宵重跑数据。' },
+    { title: '大厦顶层慈善酒会的提前离席', turns: 3, desc: '闪光灯围堵在红毯外，他把歪掉的领带塞进口袋，从消防通道溜回地下室调试伺服电机。' },
+    { title: '伯格曼音响里的重金属黑胶狂响', turns: 3, desc: '震耳欲聋的 AC/DC 摇滚乐回荡在整栋别墅，他一边咬着冷披萨，一边在图纸边缘随手画草图。' },
+    { title: '出发前往巴格拉姆空军基地的清晨', turns: 4, desc: '悍马车队在晨光中集结，他戴着茶色墨镜上车前朝你挥了挥手，完全不知道此行是大难降临。' }
+  ],
+
+  // 2008: 钢铁侠 1 · 劫后余生、铁壳初啼与车库日常
+  2008: [
+    { title: '汉堡王芝士汉堡与发布会席地而坐', turns: 3, desc: '刚下直升机，满身沙尘与伤痕的他坐在新闻发布会讲台前，咬着汉堡宣布关闭武器部。' },
+    { title: '地下车库 Mark II 悬停与呆呆乱喷', turns: 3, desc: '双脚推进器首次 10% 试喷，尾焰烧黑地面天花板，机械臂呆呆举着灭火器惊慌喷了他一脸泡沫。' },
+    { title: '四万英尺高空结冰与仰望黑鸟', turns: 4, desc: '为了打破 SR-71 侦察机的升限记录，外壳在高空结冰失速骤降，在撞地前两秒手动排冰重启。' },
+    { title: '4号工作台上的旧反应堆玻璃盒', turns: 3, desc: '那枚换下来的初代山洞磁铁被封装在玻璃框里，底座刻着字迹：“托尼·斯塔克有一颗心”。' },
+    { title: '试飞后在劳斯莱斯车顶砸穿三个楼层', turns: 3, desc: '首次带装甲着陆失控，直挺挺砸穿客厅和古董琴，托尼趴在废墟里疼得龇牙咧嘴还不忘嘴硬。' },
+    { title: '格米拉小镇音速突袭与声波解围', turns: 4, desc: '金红装甲划破音障突入战区，单手击毙恐怖分子，肩部微型导弹瞬间摧毁杰里科库存。' },
+    { title: '两架 F-22 猛禽战机的近距缠斗', turns: 3, desc: '在加州海岸上空被军方雷达锁定拦截，险些切断僚机机翼，托尼在通话中拼命向罗迪隐瞒真相。' },
+    { title: '“I am Iron Man” 扔下演讲稿的自白', turns: 4, desc: '无视官方准备的“保镖事故”掩盖说辞，托尼看着台下记者，平静而狂妄地公开了自己的身份。' }
+  ],
+
+  // 2010: 钢铁侠 2 · 钯毒倒计时、颓废放纵与新元素诞生
+  2010: [
+    { title: '摩纳哥赛道电光鞭撕裂赛车', turns: 4, desc: '柏油路面被抽得火花四溅，劳斯莱斯撞开防护栏，便携手提箱装甲在数秒内贴身展开变形。' },
+    { title: '血液二氧化钯毒性达到 89%', turns: 3, desc: '脖颈处的毛细血管呈现蛛网般的青黑色坏死，托尼喝着难以下咽的叶绿素汁，默默记录倒计时。' },
+    { title: '豪宅生日派对上的醉酒装甲狂欢', turns: 3, desc: '穿着装甲在重低音舞池里用掌心炮轰西瓜，在众人起哄中掩饰绝望，直到罗迪穿上 Mark II 制止。' },
+    { title: '巨型甜甜圈招牌上的避世早餐', turns: 3, desc: '清晨坐在 Randy’s Donuts 屋顶的巨大招牌圆环里吃甜点吹风，弗瑞局长在树荫下抬头看着他。' },
+    { title: '砸穿地下室砖墙架设粒子加速器', turns: 4, desc: '用大锤砸开承重墙，把重型钢管激光器对准核心棱镜，亲手扳下开关烧出全新三角形元素。' },
+    { title: '换上新核心时胸口焦糊与深吸一口气', turns: 3, desc: '滚烫的新反应堆塞入胸腔插槽，白光骤亮，空气里充满皮肉被烙烫的焦味，他第一次摆脱剧痛。' },
+    { title: '汉默工业展台无人机失控全城空战', turns: 4, desc: '数十架暴走的军用无人机在法拉盛上空扫射，红金装甲与战争机器背靠背在日式庭院迎击。' },
+    { title: '日式长桥废墟上的残骸并肩坐立', turns: 3, desc: '自爆烟尘散去，战甲能量耗尽冒着青烟，两人瘫坐在断桥边喘息，看着警车红蓝闪烁。' }
+  ],
+
+  // 2012: 纽约之战 · 虫洞创伤与废墟生活
+  2012: [
+    { title: '顶层酒廊给洛基倒酒与手环定位', turns: 3, desc: '托尼摘下损坏的装甲，从容走到吧台给神倒了一杯酒，借着嘴炮拖延时间完成感应手环校准。' },
+    { title: '从大厦百层落地窗被扔出的极速穿甲', turns: 3, desc: '被洛基摔碎玻璃扔出窗外，Mark VII 从发射井呼啸而出，在距离地面仅数米处完成空中锁死。' },
+    { title: '扛着战术核弹穿入深空未知虫洞', turns: 4, desc: '耗尽最后推进燃料将核弹推入空间门，仰望庞大冰冷的母舰残骸，通讯器彻底失去地面声音。' },
+    { title: '坠落柏油路面被浩克吼醒的冷笑话', turns: 3, desc: '从天空直挺挺坠地，被浩克一声咆哮惊醒，睁眼第一句话是虚弱地问：“明天别上班了，吃过烤肉吗？”' },
+    { title: '废墟烤肉店里一言不发的咀嚼', turns: 3, desc: '满身灰尘与血迹的六个人围坐在满地瓦砾的沙威玛店里，空气死寂，只有机械关节冷却的咔嗒声。' },
+    { title: '大厦地下室连夜搭建战甲生产流水线', turns: 3, desc: '失眠症彻底爆发，从 Mark VIII 疯狂编号建造到 Mark XLI，战甲像铁棺材一样挤满每一个机位。' },
+    { title: '惊厥发作时贾维斯调暗的全部照明', turns: 3, desc: '在车库突发急性换气过度，手指痉挛按住胸口，系统默默把环境色温调为极暗暖光播放白噪音。' },
+    { title: '把备用工位的椅子换成防滑液压杆', turns: 3, desc: '他嫌弃你之前坐的塑料椅在红外监控里反光，嘴上骂骂咧咧，手上却帮你装好阻燃皮革扶手。' }
+  ],
+
+  // 2013: 钢铁侠 3 · 豪宅沉海、田纳西雪夜与彻底卸甲
+  2013: [
+    { title: '马里布悬崖豪宅遭导弹轰塌坠海', turns: 4, desc: '直升机火箭弹轰塌落地玻璃，家具连同战甲残骸沉入太平洋，装甲在最后一刻将幸存者推上海面。' },
+    { title: '田纳西雪夜拖着报废装甲在雪地独行', turns: 3, desc: '零下十几度的暴风雪中，他用旧报纸裹住冻伤的脚踝，拉着电量耗尽的 Mark XLII 走向电话亭。' },
+    { title: '小镇五金店射钉枪与自制电击手套', turns: 3, desc: '失去全套贾维斯自动化支持，靠花露水、射钉枪和圣诞彩灯在雪夜突袭敌方据点。' },
+    { title: '在小孩哈雷的车库里借修战甲', turns: 3, desc: '坐在漏风的木板棚里，用廉价烙铁修补微型回路，看着挂在墙上的限量版手表被抵押。' },
+    { title: '码头吊车顶端的“浪子协议”大集结', turns: 4, desc: '夜空中三十余套战甲如同流星雨穿透云层到达，在巨型龙门吊间进行极速空中换装作战。' },
+    { title: '“Clean Slate” 烟花般的战甲自毁协议', turns: 3, desc: '一切平息后，他下令将所有战甲在夜空中依次引爆，金红碎片化作漫天烟火，向执念告别。' },
+    { title: '手术室取出陪伴数年的胸口电磁铁', turns: 3, desc: '在外科医生的镊子下取出了最后一枚弹片，胸口留下一块苍白的凹陷伤疤，不再发光。' },
+    { title: '将残旧核心扔向太平洋海湾的晨光', turns: 3, desc: '站在马里布断壁残垣上，挥手将生锈的反应堆抛入翻滚的海浪，凡人托尼深吸了一口气。' }
+  ],
+
+  // 2015: 奥创纪元 · 终极维和妄想与分裂前夕
+  2015: [
+    { title: '索科维亚古堡深处的心灵宝石幻象', turns: 3, desc: '在齐塔瑞利维坦尸骸前，他看到了复联全员战死、盾牌断裂的噩梦，瞳孔剧烈收缩。' },
+    { title: '大厦顶层复联全员试举雷神之锤', turns: 3, desc: '大家喝着啤酒轮流较劲，托尼套上战甲手套拉动锤柄纹丝不动，笑称要改用指纹锁判定。' },
+    { title: '奥创残躯拖着电线在门厅冷酷现身', turns: 3, desc: '门缝里传来刺耳金属摩擦声，破烂的测试机用扭曲的声线宣布人类是灭绝的根源。' },
+    { title: '约翰内斯堡空投“维罗妮卡”配件', turns: 4, desc: '轨道卫星将重型装甲配件垂直轰入闹市地面，托尼在钢铁笼子里拼死压制暴走浩克。' },
+    { title: '克林特乡间农场劈柴与价值观碰撞', turns: 3, desc: '穿着破旧夹克在木柴堆旁和史蒂夫对峙，两人徒手撕裂原木，分歧在阳光下不可调和。' },
+    { title: '全新战甲系统 F.R.I.D.A.Y. 接入大厦', turns: 3, desc: '从抽屉里选出标着爱尔兰女声的芯片插入卡槽，面对没有管家贾维斯的新系统沉默片刻。' },
+    { title: '索科维亚反重力地核升空决战', turns: 4, desc: '整座城市被推进器推入万米高空，在碎石崩解坠落灭世前，全力超频反应堆炸毁地核。' },
+    { title: '新建北部基地的告别与奥迪驶离', turns: 3, desc: '玻璃幕墙映照着绿茵草坪，托尼将基地留给美队和寡妇，转动车钥匙独自驶入林荫道。' }
+  ],
+
+  // 2016: 美队 3 内战 · 协议撕裂与西伯利亚冰原
+  2016: [
+    { title: '麻省理工演讲台后被悲痛母亲堵截', turns: 3, desc: '刚发布了助学基金，在电梯口被索科维亚遇难大学生的母亲塞来一张沾着泥土的照片。' },
+    { title: '索科维亚协议法案被重重拍在长桌上', turns: 3, desc: '厚达数百页的联合国监管法案摆在复联众人面前，托尼捂着头痛欲裂的额角要求妥协。' },
+    { title: '罗迪坠空瘫痪在草地上的急救轰鸣', turns: 4, desc: '幻视的光束误击反应堆，战争机器从千米高空垂直砸入泥土，托尼切开面罩双手发颤。' },
+    { title: '莱比锡机场跑道红蓝阵营正面对峙', turns: 4, desc: '空旷的水泥跑道上，装甲面罩落下，曾经托付性命的同伴在冲锋中撞碎机库玻璃。' },
+    { title: '西伯利亚地下防空洞老式显像管录像', turns: 3, desc: '昏暗的控制室里，雪花屏幕播放着 1991 年霍华德与玛利亚惨死在冬兵拳下的绝密影像。' },
+    { title: '“你早就知道吗？” 冰原深处暴怒质问', turns: 4, desc: '转头看向身旁的史蒂夫，声音发哑，推进器在狂暴的复仇怒火中将地面岩石轰成熔岩。' },
+    { title: '振金盾牌狠狠砸入胸口弧光核心', turns: 4, desc: '盾牌边缘砸碎胸甲，电弧火花四溅熄灭，史蒂夫捡起巴基离开，托尼喊道：“那面盾牌是我父亲造的！”' },
+    { title: '空荡基地长椅上抚摸骨折手腕与旧手机', turns: 3, desc: '托尼一个人在空旷昏暗的机库输液，包裹里是一部十美元翻盖老手机，夹着美队的道歉信。' }
+  ],
+
+  // 2018: 无限战争 · 泰坦星风沙与烁灭五年过渡
+  2018: [
+    { title: '中央公园晨跑时拍掉外套上的纳米盒', turns: 3, desc: '在阳光下拉伸筋骨，随手抚平胸口的纳米发生器，微风吹乱头发，直到奇异博士传送门开启。' },
+    { title: '甜甜圈飞船攀爬与地面遗落信号', turns: 3, desc: '垂直爬升冲破地球对流层，装甲在缺氧边缘推进，目送地面通讯基站一个个陷入死寂。' },
+    { title: '泰坦星废墟上的飞船残骸战术推演', turns: 3, desc: '在失重的红色星球残骸里，跟银河护卫队嘴炮争论，用全息沙盘推演伏击灭霸的唯一机会。' },
+    { title: '陨石雨中纳米盾化为齑粉的徒劳肉搏', turns: 4, desc: '整颗卫星被撕裂砸落，托尼将所有纳米粒子汇聚在右拳，拼尽全力只换来灭霸脸上微小的擦痕。' },
+    { title: '纳米利刃反刺入腹部的冰冷剧痛', turns: 4, desc: '战刃被折断刺入自己腹部，背靠巨石滑落，金红面罩散尽，满脸血污看着灭霸握起拳套。' },
+    { title: '时间宝石交出时的难以置信对视', turns: 3, desc: '奇异博士在微光中交出绿色宝石换他一命，托尼捂着腹部伤口发颤问：“为什么这么做？”' },
+    { title: '泰坦星红色风沙中同伴化灰的绝望', turns: 4, desc: '彼得在怀里虚弱说出“我不想走”后化作飞灰，托尼看着空荡荡的机械手掌，呆立在荒漠里。' },
+    { title: '烁灭五年 · 灰烬与湖畔的漫长守望', turns: 3, isBlip: true, desc: '【烁灭五年专属 3 回合】从 2018 到 2023 失去半数生命的五年：第1回合写孤舰返地后的崩溃、拔掉输液管与空荡世界；第2回合写退隐湖畔木屋的平静日常与深夜噩梦；第3回合写五年尘埃落定前夕的莫比乌斯环草图与暗涌。' }
+  ],
+
+  // 2023: 复联4 · 终局之战 (Endgame)
+  2023: [
+    { title: '本纳塔号深空漂流与受损头盔绝境录音', turns: 3, desc: '氧气即将耗尽的冰冷船舱里，消瘦苍白的托尼对着残破的 Mark L 头盔录下遗言，直到金色光芒刺破舷窗将飞船带回地球。' },
+    { title: '烁灭五年 · 灰烬与湖畔的漫长守望', turns: 3, isBlip: true, desc: '【烁灭五年专属 3 回合】第1回合写归来后在基地拔掉针头崩溃质问、世界停摆的空旷；第2回合写退隐湖边小屋劈柴修补的五年静谧与克制；第3回合写斯科特归来后深夜全息台前逆转莫比乌斯环建模成功。' },
+    { title: '湖畔门廊的洗碗水声与时光劫持邀约', turns: 3, desc: '史蒂夫等人驱车来到湖边木屋求援。托尼起初拒绝赌上现有的平静生活，却在洗碗擦干水渍时看着旧照片陷入挣扎。' },
+    { title: '重返基地送上振金盾牌与量子手环集结', turns: 3, desc: '奥迪停在复联基地门前，他从后备箱取出修好的盾牌递回给史蒂夫，全员穿戴红白量子战衣站在时空平台之上。' },
+    { title: '重返 2012 纽约大厦与意外失落的魔方', turns: 3, desc: '潜入 2012 年的斯塔克大厦，托尼在微型心脏除颤与浩克砸门导致的混乱中痛失空间宝石，决定与美队临时改道跳往 1970 年。' },
+    { title: '1970 年利海兵营地库与父亲霍华德的拥抱', turns: 4, desc: '在地下金库偶遇年轻的父亲霍华德。笨拙地替父亲捡起掉在地上的花束，在临别拥抱时轻声说出那句迟到半生的“谢谢你所做的一切”。' },
+    { title: '纳米无限手套的锻造与跨时空灭霸轰炸', turns: 3, desc: '六颗宝石终于集齐在斯塔克制造的红金纳米护手之上。浩克打响指挽回半数生命，下一秒 2014 年的圣殿二号主舰轰塌整座基地。' },
+    { title: '废墟三巨头并肩、传送门大集结与终局响指', turns: 4, desc: '瓦砾废墟上，Mark LXXXV 与美队、雷神直面灭霸，直到身后亮起无数金色传送门。在最终的宝石争夺中，你将与他共同面对那声“I am Iron Man”的宿命或改写结局。' }
+  ]
+};
+
+// 规范化锚点结构：确保每个锚点都具备 curTurns / maxTurns (3~4回合)
+function normalizeAnchorList(list) {
+  if (!Array.isArray(list)) return [];
+  let changed = false;
+  list.forEach((a, idx) => {
+    if (typeof a.maxTurns !== 'number' || a.maxTurns < 3) {
+      a.maxTurns = a.turns || (idx % 3 === 1 ? 4 : 3);
+      changed = true;
+    }
+    if (typeof a.curTurns !== 'number') {
+      a.curTurns = a.done ? a.maxTurns : 0;
+      changed = true;
+    }
+  });
+  if (changed) store.set('wl_anchors', list);
+  return list;
 }
 
-let affDelta = 0;
-const m = res.match(/(?:【好感度变动[:：]|好感度[:：])\s*([+-]?\d+)】?/);
-if (m) {
-  let raw = parseInt(m[1]) || 0;
-  const lastGainTurn = s.lastGainTurn || 0;
-  if (raw > 0 && (s.turn - lastGainTurn < 3) && raw < 4) {
-    raw = 0;
+// 格式化带回合进度的锚点标题，如："格米拉荒漠的杰里科测试 (1/3 回合)"
+function formatAnchorTitle(a) {
+  if (!a) return '';
+  const cur = a.curTurns || 0;
+  const max = a.maxTurns || 3;
+  return `${a.title} (${cur}/${max} 回合)`;
+}
+
+// 获取或初始化当前世界线的锚点链条（保证每个阶段不少于 8 个，且每个锚点 3~4 回合）
+async function initOrGetAnchors() {
+  let anchors = store.get('wl_anchors', null);
+  if (anchors && anchors.length >= 8) {
+    return normalizeAnchorList(anchors);
   }
-  if (raw > 0) s.lastGainTurn = s.turn;
-  affDelta = Math.max(-20, Math.min(5, raw));
+
+  const p = store.profile() || {};
+  const f = flags();
+
+  // 1. 开局前 2 个小事件锚点：AI 抓取玩家真实人设深度生成
+  let dynAnchors = [];
+  try {
+    const sys = buildSystem('terminal', `你是漫威剧情导演。根据玩家人设，在【${f.year}年 · ${f.era.name}】设计开局前【2个】极具生活质感与技术磨合的小事件锚点。
+玩家信息：姓名【${p.name}】，职业【${p.identity}】，性格【${p.personality}】，背景【${p.background}】。
+要求：
+1. 严禁只写战斗冲突！必须包含实验室细节、生活习惯碰撞或默契试探。
+2. 每行输出 1 个，格式严格为：事件标题 ||| 40字以内具体情境描述。严禁多余文字！`);
+
+    const r = await callAI([{ role: 'user', content: '请生成开局前两个专属小事件锚点。' }], sys, 'story');
+    const lines = r.split('\n').filter(l => l.includes('|||')).slice(0, 2);
+    lines.forEach((l, idx) => {
+      const [t, d] = l.split('|||').map(x => x.trim());
+      dynAnchors.push({ id: `anc_init_${idx}`, phaseTitle: `第 1 阶段 · 序幕交错 (${idx + 1}/8)`, title: t, desc: d, curTurns: 0, maxTurns: 3, done: false });
+    });
+  } catch (e) {
+    dynAnchors = [
+      { id: 'anc_init_0', phaseTitle: '第 1 阶段 · 序幕交错 (1/8)', title: '4号台保密审查与冷调初遇', desc: `托尼在装甲分析屏前审阅你作为【${p.identity||'顾问'}】的调令，顺手扔过一个烧坏的逆变器测试你的反应。`, curTurns: 0, maxTurns: 3, done: false },
+      { id: 'anc_init_1', phaseTitle: '第 1 阶段 · 序幕交错 (2/8)', title: '高压线圈谐振过载排查', desc: '一次地下车库并网调试中地线接触不良引发大面积电弧，你必须在浓烟中协助托尼稳住主控回路。', curTurns: 0, maxTurns: 3, done: false }
+    ];
+  }
+
+  // 为第 1 阶段自动补齐后 6 个充满生活细节与磨合的锚点（使第 1 阶段严格满 8 个）
+  const stage1Daily = [
+    { title: '备用工位上那把调低两指的工学椅', turns: 3, desc: '他借口反光把椅子换成了阻燃皮面，高度调到了刚好够得着4号台的位置，却坚称这只是后勤采购失误。' },
+    { title: '凌晨三点换掉带倒计时蜂鸣的咖啡机', turns: 3, desc: '你随口抱怨过倒计时吵人，第二天地下室多了一台静音萃取机，杯沿依然带他咬出的缺口。' },
+    { title: '呆呆机械臂递错规格的合金螺母', turns: 3, desc: '气动扳手卡在螺纹上，托尼头也不抬地向你伸手要配件，这是他第一次不经确认直接接过你的工具。' },
+    { title: '全息发生器上未签收的保密协议', turns: 4, desc: '一份涉及底层代码豁免权的文件在屏幕上亮着，他假装去吧台倒酒，留出足够的时间让你看清条款。' },
+    { title: '大厦外部风雨夜的停机坪远眺', turns: 3, desc: '避开所有监控与繁琐事务，两人坐在湿润的金属护栏旁喝一杯常温苏打水，任凭狂风吹翻图纸。' },
+    { title: '抽屉里多出的手写标记备用保险丝', turns: 4, desc: '拉开第二个抽屉，里面整齐摆着备件，标签用记号笔写着：“别让我知道是谁拿的——算了随你”。' }
+  ];
+  stage1Daily.forEach((a, idx) => {
+    dynAnchors.push({ id: `anc_init_daily_${idx}`, phaseTitle: `第 1 阶段 · 序幕交错 (${idx + 3}/8)`, title: a.title, desc: a.desc, curTurns: 0, maxTurns: a.turns || 3, done: false });
+  });
+
+  // 2. 匹配该年份及后续的经典原著电影锚点（全部不少于 8 个，每个 3~4 回合）
+  const eraList = MCU_DETAILED_ANCHORS[f.year] || MCU_DETAILED_ANCHORS[2008];
+  const fixedAnchors = eraList.map((a, idx) => ({
+    id: `anc_mcu_${f.year}_${idx}`,
+    phaseTitle: `第 2 阶段 · 宿命浪潮 (${idx + 1}/${eraList.length})`,
+    title: a.title,
+    desc: a.desc,
+    isBlip: !!a.isBlip,
+    curTurns: 0,
+    maxTurns: a.turns || 3,
+    done: false
+  }));
+
+  // 3. 若当前在 2018 年（响指/烁灭），自动在末尾衔接 2023《复联4 · 终局之战》阶段（中间已包含 3 回合烁灭五年铺垫）
+  let endgameAnchors = [];
+  if (f.year === 2018) {
+    const egList = MCU_DETAILED_ANCHORS[2023].filter(x => !x.isBlip);
+    endgameAnchors = egList.map((a, idx) => ({
+      id: `anc_mcu_2023_${idx}`,
+      phaseTitle: `第 3 阶段 · 终局之战 (${idx + 1}/${egList.length})`,
+      title: a.title,
+      desc: a.desc,
+      curTurns: 0,
+      maxTurns: a.turns || 3,
+      done: false
+    }));
+  }
+
+  anchors = normalizeAnchorList([...dynAnchors, ...fixedAnchors, ...endgameAnchors]);
+  store.set('wl_anchors', anchors);
+  return anchors;
 }
 
-s.story = storyPart.replace(/【剧情】/g, '').replace(/【好感度变动[:：][^】]*】/g, '').trim();
-s.options = optPart.trim();
+// 获取当前正在执行的未完成锚点
+function getCurrentAnchor() {
+  const anchors = normalizeAnchorList(store.get('wl_anchors', []));
+  return anchors.find(a => !a.done) || anchors[anchors.length - 1] || null;
+}
 
-// 如果模型未能输出格式化选项，从正文最后尝试提取形如 A. / B. 的行，而非直接降级模板
-if (!s.options) {
-  const optLines = s.story.split('\n').filter(line => /^[A-DＡ-Ｄ][\.、\s]/.test(line.trim()));
-  if (optLines.length >= 2) {
-    s.options = optLines.join('\n');
-    // 将提取出的选项从故事主干中剥离
-    optLines.forEach(l => { s.story = s.story.replace(l, ''); });
-    s.story = s.story.trim();
+// 推进当前锚点 1 回合；满 3~4 回合后自动达成并切入下一锚点
+function advanceCurrentAnchorTurn() {
+  const anchors = normalizeAnchorList(store.get('wl_anchors', []));
+  const cur = anchors.find(a => !a.done);
+  if (!cur) return;
+  cur.curTurns = (cur.curTurns || 0) + 1;
+  const max = cur.maxTurns || 3;
+  if (cur.curTurns >= max) {
+    cur.curTurns = max;
+    cur.done = true;
+    store.set('wl_anchors', anchors);
+    toast(`🎯 已完成事件锚点：【${cur.title} (${cur.curTurns}/${max} 回合)】！下回合进入新锚点`);
   } else {
-    s.options = 'A. 就刚才的技术推论提出尖锐质疑\nB. 顺着他未说完的半句话递出扳手\nC. 保持沉默，把冷却的咖啡杯换掉\nD. 转移话题，询问下一步装甲部署';
+    store.set('wl_anchors', anchors);
+    toast(`⏳ 锚点推进中：【${cur.title} (${cur.curTurns}/${max} 回合)】`);
   }
 }
-if(affDelta!==0){
-  applyAffinity((s.affinity||0)+affDelta);
-  s=store.state();
-}
-s.lastDelta=affDelta;store.setState(s);
-    }catch(e){v.innerHTML=`<div class="pad"><div class="card"><div class="hint">失败：${esc(e.message)}</div><button class="btn" style="margin-top:10px" onclick="apps.worldline.render(document.getElementById('appBody'))">重试</button></div></div>`;return;}
-  }
-  const f=flags();
-  const opts=(s.options||'').split('\n').filter(l=>/^[A-DＡ-Ｄ]\s*[\.\、]/.test(l.trim()));
-  const lv=s.affinity;const icon=lv>=86?'❤️':lv>=61?'💛':lv>=31?'🧡':'🤍';
-  const st=TonyStatus.get();
-  const useItem=store.get('useItem',null);
-  const items=labItems();
-  v.innerHTML=`<div class="pad">
-    <div class="statbar"><div><div style="font-size:11px;color:var(--muted)">${esc(f.era.name)}<span class="tag">第 ${s.turn} 回合</span><span class="tag gold">托尼 ${f.tonyAge} 岁</span><span class="tag">${st.emoji} ${esc(st.label)}</span></div>
-      <div style="margin-top:4px"><span class="affval">好感度 ${s.affinity}/200</span></div>
-      <div class="hint" style="margin-top:2px">上回合变动：${s.lastDelta>0?'+':''}${s.lastDelta||0} · ${f.ultronAfter?'奥创事件后（幻视代回）':'奥创事件前'} · 你 ${userAgeNow()} 岁</div>
-      ${relHTML()}</div><div style="font-size:26px">${icon}</div></div>
-   <div class="row" style="margin-bottom:8px">
-  <button class="btn ghost" id="w_back" ${s.history.length?'':'disabled'}>↩ 上一回合</button>
-  <button class="btn ghost" id="w_reset_turn" ${s.history.length?'':'disabled'}>↺ 重置本回合</button>
-  <button class="btn ghost" id="w_save_slot">💾 剧情存读档</button>
-  <button class="btn ghost" id="w_mem">📜 回忆</button>
-</div>
-    <div class="card" style="padding:10px;margin-bottom:8px">
-  <div class="hint" style="font-size:10.5px;margin-bottom:6px">📝 单回合字数区间（<b>${wlWordRange().min}~${wlWordRange().max}</b> 字 · 当前：${WL_WORD_PRESETS[wlWordRange().preset]?.label||'自定义'}）</div>
-  <div class="seg" style="flex-wrap:wrap;margin-bottom:8px">
-    ${Object.entries(WL_WORD_PRESETS).map(([k,p])=>`<button data-wlp="${k}" class="${wlWordRange().preset===k?'on':''}">${p.label} ${p.min}~${p.max}</button>`).join('')}
-    <button data-wlp="custom" class="${wlWordRange().preset==='custom'?'on':''}">自定义</button>
-  </div>
-  <div class="row" style="align-items:center;gap:6px">
-    <span class="hint" style="flex:0 0 32px">下限</span>
-    <input id="w_wmin" type="number" min="500" max="${WL_WORD_HARD_MAX-200}" value="${wlWordRange().min}" class="inp" style="flex:1">
-    <span class="hint" style="flex:0 0 32px">上限</span>
-    <input id="w_wmax" type="number" min="700" max="${WL_WORD_HARD_MAX}" value="${wlWordRange().max}" class="inp" style="flex:1">
-  </div>
-  <div class="hint" style="font-size:10px;margin-top:5px;color:var(--muted)">硬上限 ${WL_WORD_HARD_MAX} 字 · 超长会触发超时，不建议调高</div>
-</div>
-    <div class="row" style="margin-bottom:12px"><button class="btn gold" id="w_jump" ${jumpReady()?'':'disabled'} title="完成关键事件或第 3 回合后解锁">⏩ 时间跳跃</button><button class="btn ghost" id="w_tree">🌳 分支树</button></div>
-    <div class="story">${fmtStory(s.story)}</div>
-    <div id="w_opts">${opts.map(o=>`<button class="opt" data-o="${esc(o).replace(/"/g,'&quot;')}">${fmt(o)}</button>`).join('')}</div>
-    ${items.length?`<div style="margin-bottom:10px"><span class="hint">携带物品：</span>${items.map(it=>`<span class="chip mini ${useItem===it.id?'on':''}" data-item="${it.id}" title="${esc(it.desc)}">${esc(it.name.slice(0,9))}</span>`).join('')}</div>`:''}
-   <div class="card" style="padding:10px">
-  <div class="hint" style="font-size:10.5px;margin-bottom:5px;color:var(--gold)">
-    💡 提示：<b>（括号内）</b>输入剧情纠偏/规则指引，<b>括号外</b>输入行动与台词
-  </div>
-  <input id="w_act" class="inp" value="（）" placeholder="（纠正或规则）具体行动内容…" style="margin-bottom:8px;font-family:var(--font-body)">
-  <button class="btn" id="w_send">执行行动与纠偏</button>
-</div>
-  </div>`;
-  v.querySelectorAll('.opt').forEach(b=>b.onclick=()=>pick(b.dataset.o));
-  v.querySelectorAll('[data-item]').forEach(el=>el.onclick=()=>{const cur=store.get('useItem',null);store.set('useItem',cur===el.dataset.item?null:el.dataset.item);apps.worldline.render(v);});
-  v.querySelector('#w_jump').onclick=()=>{if(!jumpReady())return toast('时间跳跃将在关键事件或第 3 回合后解锁');timeJumpUI();};
-  v.querySelector('#w_tree').onclick=()=>WT.modal();
- v.querySelectorAll('[data-wlp]').forEach(b=>b.onclick=()=>{
-  const k=b.dataset.wlp;
-  if(k==='custom'){setWlWordRange({...wlWordRange(),preset:'custom'});apps.worldline.render(v);return;}
-  const p=WL_WORD_PRESETS[k];setWlWordRange({min:p.min,max:p.max,preset:k});
-  toast('已切换到「'+p.label+'」· '+p.min+'~'+p.max+' 字');apps.worldline.render(v);
-});
-const wminI=v.querySelector('#w_wmin'),wmaxI=v.querySelector('#w_wmax');
-const syncW=()=>{setWlWordRange({min:+wminI.value,max:+wmaxI.value,preset:'custom'});};
-if(wminI)wminI.onchange=syncW;
-if(wmaxI)wmaxI.onchange=syncW;
-  v.querySelector('#w_send').onclick=()=>{const x=v.querySelector('#w_act').value.trim();if(x)pick(x);};
-  v.querySelector('#w_act').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();v.querySelector('#w_send').click();}});
-  v.querySelector('#w_back').onclick=()=>{if(!s.history.length)return;if(!confirm('回到上一回合？'))return;const h=s.history.pop();s.story=h.story;s.options=h.options;s.affinity=h._aff;s.turn=Math.max(1,s.turn-1);const cs=store.contacts();const t=cs.find(x=>x.isTony);if(t){t.affinity=s.affinity;store.setContacts(cs);}store.setState(s);apps.worldline.render(v);};
-v.querySelector('#w_save_slot').onclick = () => {
-  const slots = store.get('wl_slots', Array(5).fill(null));
-  const renderSlots = () => {
-    return slots.map((sl, idx) => `
-      <div class="card" style="padding:10px;margin-bottom:8px;background:var(--panel2)">
+
+// 弹出玩家自由修改、新增、标记锚点的管理弹窗
+function openAnchorManagerModal(onRefresh) {
+  const anchors = normalizeAnchorList(store.get('wl_anchors', []));
+  const renderList = () => {
+    return anchors.map((a, idx) => `
+      <div class="card" style="padding:10px;margin-bottom:8px;background:var(--panel2);border-left:3px solid ${a.done ? 'var(--green)' : 'var(--gold)'}">
         <div style="display:flex;justify-content:space-between;align-items:center">
-          <b>槽位 ${idx + 1}</b>
-          <span class="hint" style="font-size:10px">${sl ? esc(sl.saveTime) : '空存档'}</span>
+          <span class="eyebrow" style="font-size:10px">${esc(a.phaseTitle)}</span>
+          <span class="tag ${a.done ? 'green' : 'gold'}" style="font-size:9px">${a.done ? `✓ 已达成 (${a.curTurns}/${a.maxTurns})` : `进行中 (${a.curTurns || 0}/${a.maxTurns || 3} 回合)`}</span>
         </div>
-        ${sl ? `<div class="hint" style="margin:5px 0;font-size:11px">
-          时间点：<b>${esc(sl.eraName)}</b> · 第 ${sl.state.turn} 回合 · 好感度 ${sl.state.affinity}
-          <div style="max-height:36px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px">${esc(sl.state.story.slice(0, 40))}...</div>
-        </div>` : '<div class="hint" style="margin:5px 0">尚未保存任何剧情</div>'}
-        <div class="row" style="margin-top:6px">
-          <button class="btn sm" data-wlsave="${idx}">覆盖保存</button>
-          <button class="btn ghost sm" data-wlload="${idx}" ${sl ? '' : 'disabled'}>读取覆盖</button>
-          ${sl ? `<button class="btn ghost sm" data-wldel="${idx}" style="color:var(--red);flex:0 0 46px">删</button>` : ''}
+        <div class="row" style="margin:5px 0 4px;align-items:center">
+          <input class="inp anc_t_in" data-idx="${idx}" value="${esc(a.title)}" style="flex:1;font-weight:700;font-size:13px;padding:6px 8px">
+          <span class="hint" style="flex:0 0 auto;font-size:11px">进度</span>
+          <input type="number" min="0" max="10" class="inp anc_cur_in" data-idx="${idx}" value="${a.curTurns || 0}" style="flex:0 0 46px;padding:5px;text-align:center" title="已完成回合">
+          <span class="hint" style="flex:0 0 auto">/</span>
+          <input type="number" min="3" max="4" class="inp anc_max_in" data-idx="${idx}" value="${a.maxTurns || 3}" style="flex:0 0 46px;padding:5px;text-align:center" title="总回合数(3~4)">
+        </div>
+        <div class="field" style="margin:0 0 6px">
+          <textarea class="inp anc_d_in" data-idx="${idx}" rows="2" style="font-size:11.5px;padding:6px 8px;line-height:1.5">${esc(a.desc)}</textarea>
+        </div>
+        <div class="row" style="gap:6px">
+          <button class="btn sm ghost" data-anc-toggle="${idx}">${a.done ? '重置为未完成 (0/' + (a.maxTurns || 3) + ')' : '立即标为达成'}</button>
+          <button class="btn sm red ghost" data-anc-del="${idx}" style="flex:0 0 46px">删</button>
         </div>
       </div>
     `).join('');
   };
 
-const handleCustomSend = () => {
-  if (apps.worldline._busy) return;
-  let raw = v.querySelector('#w_act').value.trim();
-  if (!raw || raw === '（）' || raw === '()') return toast('请输入行动内容');
-  
-  // 提取括号内的纠偏指令与括号外的实际行动
-  let correction = '';
-  let action = raw;
-  const match = raw.match(/[（\(](.*?)[）\)](.*)/s);
-  if (match) {
-    correction = match[1].trim();
-    action = match[2].trim();
-  }
-  
-  let combinedChoice = action;
-  if (correction) {
-    combinedChoice = `【系统纠偏指令：${correction}】\n玩家实际行动：${action || '（遵循上述纠偏推进）'}`;
-  }
-  pick(combinedChoice);
-};
-
-v.querySelector('#w_send').onclick = handleCustomSend;
-v.querySelector('#w_act').addEventListener('keydown', e => {
-  if (e.key === 'Enter') { e.preventDefault(); handleCustomSend(); }
-});
-
-// 输入框获得焦点时光标自动落在括号内部
-const wInp = v.querySelector('#w_act');
-if (wInp && wInp.value === '（）') {
-  wInp.addEventListener('focus', () => {
-    setTimeout(() => wInp.setSelectionRange(1, 1), 10);
-  }, { once: true });
-}
-
   const d = modal(`
-    <h2 class="title-en" style="color:var(--cyan);margin-top:0;font-size:16px">💾 世界线剧情存读档 (5 槽位)</h2>
-    <div class="hint" style="margin-bottom:10px">读取存档将直接覆盖当前剧情回合、好感数值、时间节点与历史记录。</div>
-    <div id="wl_slot_container" style="max-height:65vh;overflow-y:auto">${renderSlots()}</div>
-    <button class="btn ghost" data-close style="margin-top:10px">关闭</button>
+    <h2 style="color:var(--gold);margin-top:0;font-size:16px">🎯 阶段与事件锚点管理器</h2>
+    <div class="hint" style="margin-bottom:10px">每个锚点用 3~4 回合深度描写，标题后实时显示 (已完成/总回合)。每推进一回合自动 +1，满回合后自动打钩进入下一锚点。</div>
+    <div id="anc_container" style="max-height:55vh;overflow-y:auto;padding-right:2px">${renderList()}</div>
+    
+    <div class="card" style="padding:10px;margin-top:10px">
+      <h3 style="margin:0 0 6px;font-size:12px;color:var(--cyan)">＋ 自定义添加新锚点</h3>
+      <div class="row" style="margin-bottom:6px">
+        <input id="new_anc_t" class="inp" style="flex:1" placeholder="事件标题，如：湖畔木屋的深夜量子建模">
+        <select id="new_anc_turns" class="inp" style="flex:0 0 92px">
+          <option value="3">3 回合</option>
+          <option value="4">4 回合</option>
+        </select>
+      </div>
+      <div class="field"><textarea id="new_anc_d" class="inp" rows="2" placeholder="细节与生活情境描述，引导AI剧情走向…"></textarea></div>
+      <button class="btn sm gold" id="new_anc_btn">添加至锚点链</button>
+    </div>
+
+    <div class="row" style="margin-top:10px">
+      <button class="btn sm" id="anc_save_all">💾 保存所有修改</button>
+      <button class="btn ghost sm" id="anc_reset_mcu" style="color:var(--red)">↺ 恢复默认MCU锚点</button>
+      <button class="btn ghost sm" data-close>关闭</button>
+    </div>
   `);
 
-  const bindSlotEvents = () => {
-    d.querySelectorAll('[data-wlsave]').forEach(b => {
+  const syncInputs = () => {
+    d.querySelectorAll('.anc_t_in').forEach(i => { anchors[+i.dataset.idx].title = i.value.trim(); });
+    d.querySelectorAll('.anc_d_in').forEach(i => { anchors[+i.dataset.idx].desc = i.value.trim(); });
+    d.querySelectorAll('.anc_max_in').forEach(i => {
+      const m = Math.max(3, Math.min(4, parseInt(i.value) || 3));
+      anchors[+i.dataset.idx].maxTurns = m;
+    });
+    d.querySelectorAll('.anc_cur_in').forEach(i => {
+      const idx = +i.dataset.idx;
+      const c = Math.max(0, Math.min(anchors[idx].maxTurns, parseInt(i.value) || 0));
+      anchors[idx].curTurns = c;
+      anchors[idx].done = c >= anchors[idx].maxTurns;
+    });
+  };
+
+  const bindEvents = () => {
+    d.querySelectorAll('[data-anc-toggle]').forEach(b => {
       b.onclick = () => {
-        const idx = +b.dataset.wlsave;
-        const curState = store.state() || {};
-        const curProf = store.profile() || {};
-        const fNow = flags();
-        slots[idx] = {
-          saveTime: nowTime(),
-          eraName: eraName(),
-          flags: fNow,
-          profile: JSON.parse(JSON.stringify(curProf)),
-          state: JSON.parse(JSON.stringify(curState))
-        };
-        store.set('wl_slots', slots);
-        toast(`已存入槽位 ${idx + 1}`);
-        d.querySelector('#wl_slot_container').innerHTML = renderSlots();
-        bindSlotEvents();
+        syncInputs();
+        const idx = +b.dataset.ancToggle;
+        anchors[idx].done = !anchors[idx].done;
+        anchors[idx].curTurns = anchors[idx].done ? (anchors[idx].maxTurns || 3) : 0;
+        store.set('wl_anchors', anchors);
+        d.querySelector('#anc_container').innerHTML = renderList();
+        bindEvents();
       };
     });
-
-    d.querySelectorAll('[data-wlload]').forEach(b => {
+    d.querySelectorAll('[data-anc-del]').forEach(b => {
       b.onclick = () => {
-        const idx = +b.dataset.wlload;
-        const target = slots[idx];
-        if (!target) return;
-        if (!confirm(`确定读取槽位 ${idx + 1}？当前未保存的剧情将被完全覆盖为【${target.eraName} 第 ${target.state.turn} 回合】！`)) return;
-        
-        // 彻底覆盖 state 与 profile
-        store.setState(target.state);
-        if (target.profile) store.setProfile(target.profile);
-        
-        // 同步通讯录核心好感
-        const cs = store.contacts();
-        const t = cs.find(x => x.isTony);
-        if (t) { t.affinity = target.state.affinity || 0; store.setContacts(cs); }
-        
-        d.remove();
-        toast(`已载入槽位 ${idx + 1} · 世界线已回溯`);
-        apps.worldline.render(v);
-      };
-    });
-
-    d.querySelectorAll('[data-wldel]').forEach(b => {
-      b.onclick = () => {
-        const idx = +b.dataset.wldel;
-        if (!confirm(`清空槽位 ${idx + 1}？`)) return;
-        slots[idx] = null;
-        store.set('wl_slots', slots);
-        d.querySelector('#wl_slot_container').innerHTML = renderSlots();
-        bindSlotEvents();
+        syncInputs();
+        const idx = +b.dataset.ancDel;
+        anchors.splice(idx, 1);
+        store.set('wl_anchors', anchors);
+        d.querySelector('#anc_container').innerHTML = renderList();
+        bindEvents();
       };
     });
   };
 
-  bindSlotEvents();
-};
-v.querySelector('#w_reset_turn').onclick=()=>{
-  if(!s.history.length) return toast('当前已是第一回合，无法重置');
-  if(!confirm('确定重置当前回合？将抹除本回合剧情并重新生成上一阶段的选择分支。')) return;
-  const last = s.history[s.history.length - 1];
-  s.story = last.story;
-  s.options = last.options;
-  s.affinity = last._aff;
-  s.history.pop();
-  s.turn = Math.max(1, s.turn - 1);
-  const cs = store.contacts();
-  const t = cs.find(x => x.isTony);
-  if(t){ t.affinity = s.affinity; store.setContacts(cs); }
-  store.setState(s);
-  toast('当前回合已重置');
-  apps.worldline._busy=false;
-apps.worldline.render(v);
-};
-  v.querySelector('#w_mem').onclick=()=>showMemory();
-  function pick(choice0){
-  apps.worldline._busy=true;
-  let choice=choice0;
-    const uid=store.get('useItem',null);
-    if(uid){const it=labItems().find(x=>x.id===uid);if(it)choice='（使用了：'+it.name+'）'+choice;}
-    s=store.state();s.history.push({story:s.story,options:s.options,choice,_aff:s.affinity,_year:flags().year,_eraName:eraName()});
-    const tags=WT.keyTag(choice,s.story);
-    relApply(choice);
-    WT.addNode(choice,tags);
-    s.story='';s.options='';s.turn+=1;store.setState(s);
+  bindEvents();
 
-// 阶段记忆自动压缩：每 N 回合自动压缩一次前期历史，浓缩为长期记忆（N 由 memSettings.freqTurns 控制，默认 5）
-if (s.turn % (memSettings().freqTurns||5) === 0) {
-  (async () => {
-    try {
-      const rawHist = (s.history || []).map((h, idx) => `第${idx+1}阶段剧情：${h.story.slice(0, 150)}... 玩家选择：${h.choice}`).join('\n');
-      const prevSummary = s.compactSummary || '无';
-      const ms = memSettings();
-      const styleGuide = SUMMARY_STYLE_PRESETS[ms.style]||SUMMARY_STYLE_PRESETS.calm;
-      const sys = `你是斯塔克工业的记忆整理系统 J.A.R.V.I.S.。请将以往所有剧情和核心进展无损压缩为一段 ${styleGuide.wordRange} 字的【长期阶段摘要】。必须保留：发生的重大危机、玩家与托尼确立的关系界限、已解决的技术与关键承诺。\n文风要求：${styleGuide.desc}`;
-      const compact = await ai([{ role: 'user', content: `【已有阶段摘要】：\n${prevSummary}\n\n【最新 ${(s.history||[]).slice(-5).length} 阶段经历】：\n${rawHist}\n\n请输出最新的整体剧情压缩记忆：` }], sys, () => prevSummary==='无'?'前几回合的剧情已被压缩归档。玩家与托尼的关系尚在建立中，没有重大冲突。':'已压缩的世界线记忆。', 'summary');
-      if (compact && compact.trim()) {
-        const curState = store.state();
-        curState.compactSummary = compact.trim();
-        store.setState(curState);
-        /* 同步写入记忆应用 · 世界线记忆分栏 */
-        const wl = store.get('memWorldline',[]);
-        wl.unshift({id:'wl'+Date.now(),text:compact.trim(),time:nowTime(),turn:s.turn,era:eraName(),editable:true,auto:true});
-        store.set('memWorldline',wl.slice(0,60));
-        toast('J.A.R.V.I.S. 已完成本阶段记忆压缩归档 · 已写入「记忆 · 世界线记忆」');
-      }
-    } catch (e) {}
-  })();
+  d.querySelector('#new_anc_btn').onclick = () => {
+    const t = d.querySelector('#new_anc_t').value.trim();
+    const dc = d.querySelector('#new_anc_d').value.trim();
+    const turns = Math.max(3, Math.min(4, parseInt(d.querySelector('#new_anc_turns').value) || 3));
+    if (!t) return toast('请输入标题');
+    syncInputs();
+    anchors.push({
+      id: 'anc_user_' + Date.now(),
+      phaseTitle: `自定义专属阶段 (${anchors.length + 1})`,
+      title: t,
+      desc: dc || '遵循此剧情指引展开深层推演。',
+      curTurns: 0,
+      maxTurns: turns,
+      done: false
+    });
+    store.set('wl_anchors', anchors);
+    d.querySelector('#new_anc_t').value = '';
+    d.querySelector('#new_anc_d').value = '';
+    d.querySelector('#anc_container').innerHTML = renderList();
+    bindEvents();
+    toast('已添加新锚点');
+  };
+
+  d.querySelector('#anc_save_all').onclick = () => {
+    syncInputs();
+    store.set('wl_anchors', anchors);
+    toast('所有锚点修改已生效');
+    d.remove();
+    if (onRefresh) onRefresh();
+  };
+
+  d.querySelector('#anc_reset_mcu').onclick = () => {
+    if (!confirm('重置所有锚点？将重新匹配原著电影与日常细节预设。')) return;
+    store.set('wl_anchors', null);
+    d.remove();
+    initOrGetAnchors().then(() => {
+      if (onRefresh) onRefresh();
+      toast('锚点已恢复为电影全阶段编年史');
+    });
+  };
 }
 
-apps.worldline.render(v);
+/* ============================================================
+   世界线（主线剧情）
+   ============================================================ */
+apps.worldline = {
+  title: '世界线',
+  async render(v) {
+    let s = store.state() || {};
+    const self = this;
+    const f = flags();
+
+    // 确保锚点链条就绪
+    await initOrGetAnchors();
+    const curAnchor = getCurrentAnchor();
+
+    // 若当前没有剧情，发起 AI 深度推演
+    if (!s.story) {
+      const ancStep = curAnchor ? (curAnchor.curTurns || 0) + 1 : 1;
+      const ancMax = curAnchor ? (curAnchor.maxTurns || 3) : 3;
+      v.innerHTML = `<div class="loader"><div class="spin"></div>贾维斯正在结合事件锚点校准剧情（本锚点第 ${ancStep}/${ancMax} 回合）…</div>`;
+      try {
+        const era = WORLD.eras.find(e => e.id === s.era) || WORLD.eras[2];
+        const last = s.history.length ? s.history[s.history.length - 1] : null;
+
+        // 构造 3~4 回合制锚点节奏指引（含烁灭五年的 3 回合专项情绪铺垫）
+        let pacingGuide = '';
+        if (curAnchor) {
+          if (curAnchor.isBlip) {
+            const blipStages = {
+              1: '【烁灭五年 · 第 1/3 回合（第一年：归来的失重与灰烬清点）】重点描写泰坦星惨败归来后的创伤与空旷感——消瘦、失眠、空荡的基地或街道、无处不在的失踪者名单，托尼在崩溃边缘拔掉针头或独自面对死寂的实验室，渲染劫后余生的窒息与相互扶持。',
+              2: '【烁灭五年 · 第 2/3 回合（第三年：湖畔木屋的退隐与漫长守望）】时间跨入烁灭第三年。重点描写远离喧嚣的湖边木屋日常：松林晨雾、修补旧物、不再碰战甲的平静表象，以及他在深夜望着湖面或旧物时藏不住的未竟执念与温柔。',
+              3: '【烁灭五年 · 第 3/3 回合（第五年：平静之下的暗涌与莫比乌斯环微光）】烁灭第五年，漫长的五年即将迎来转折。描写五年沉淀后的情感羁绊，以及他在深夜全息台前偷偷推演逆转莫比乌斯环时间模型的挣扎——在守住眼前的安稳与孤注一掷救回所有人之间铺垫情绪高潮。'
+            };
+            pacingGuide = '\n' + (blipStages[ancStep] || blipStages[3]);
+          } else {
+            if (ancStep === 1) {
+              pacingGuide = `\n【本锚点进度：第 1/${ancMax} 回合 · 起势与切入】请展开【${curAnchor.title}】的开端场景、环境氛围与初步冲突，切勿在一回合内把整个事件草草结束，要留出后续回合的悬念与互动空间。`;
+            } else if (ancStep < ancMax) {
+              pacingGuide = `\n【本锚点进度：第 ${ancStep}/${ancMax} 回合 · 深化与交锋】请承接上一回合继续深入推演【${curAnchor.title}】的核心矛盾、技术/行动博弈与人物心理拉扯，将张力推向顶点。`;
+            } else {
+              pacingGuide = `\n【本锚点进度：第 ${ancStep}/${ancMax} 回合 · 收束与余韵】这是本事件锚点【${curAnchor.title}】的最后一回合。请为该事件写出极具电影感的高潮解决与情感落点，并为进入下一阶段留下自然过渡。`;
+            }
+          }
+        }
+        
+        let ctx = last 
+          ? `\n【上一轮剧情回顾】：\n${last.story.slice(-450)}\n【玩家上一轮行动与纠偏】：${last.choice}\n请紧密承接上文，围绕当前小事件锚点【${curAnchor ? formatAnchorTitle(curAnchor) : ''}】展开本回合。${pacingGuide}` 
+          : `\n这是开局第一回合。请写托尼·斯塔克与玩家的初会与磨合，围绕首个小事件锚点【${curAnchor ? formatAnchorTitle(curAnchor) : '初识'}】展开，包含环境细节与生活质感。${pacingGuide}`;
+
+        const sys = buildSystem('worldline');
+        let res = await ai([{ role: 'user', content: '请生成接下来的剧情：' + ctx }], sys, () => LOCAL.story(era), 'story');
+
+        // 强力前端清洗：若禁佩珀模式下模型偶尔带出，彻底抹去防穿帮
+        if (!f.pepperExists) {
+          res = res.replace(/小辣椒/g, '公关部主管')
+                   .replace(/佩珀·波茨/g, '法务部代表')
+                   .replace(/佩珀/g, '秘书处')
+                   .replace(/Pepper/gi, 'Assistant');
+        }
+
+        let storyPart = res;
+        let optPart = '';
+        const splitRegex = /(?:【选项】|\[选项\]|选项[:：])/;
+        if (splitRegex.test(res)) {
+          const parts = res.split(splitRegex);
+          storyPart = parts[0];
+          optPart = parts[1] || '';
+        }
+
+        let affDelta = 0;
+        const m = res.match(/(?:【好感度变动[:：]|好感度[:：])\s*([+-]?\d+)】?/);
+        if (m) {
+          let raw = parseInt(m[1]) || 0;
+          const lastGainTurn = s.lastGainTurn || 0;
+          if (raw > 0 && (s.turn - lastGainTurn < 3) && raw < 4) {
+            raw = 0;
+          }
+          if (raw > 0) s.lastGainTurn = s.turn;
+          affDelta = Math.max(-20, Math.min(5, raw));
+        }
+
+        s.story = storyPart.replace(/【剧情】/g, '').replace(/【好感度变动[:：][^】]*】/g, '').trim();
+        s.options = optPart.trim();
+
+        if (!s.options) {
+          const optLines = s.story.split('\n').filter(line => /^[A-DＡ-Ｄ][\.、\s]/.test(line.trim()));
+          if (optLines.length >= 2) {
+            s.options = optLines.join('\n');
+            optLines.forEach(l => { s.story = s.story.replace(l, ''); });
+            s.story = s.story.trim();
+          } else {
+            s.options = 'A. 提出完全相反的逆向工程论点\nB. 顺着他刚才没说完的半句话递出扳手\nC. 保持沉默，把冷却的咖啡杯换掉\nD. 转移话题，核实传感器参数';
+          }
+        }
+
+        if (affDelta !== 0) {
+          applyAffinity((s.affinity || 0) + affDelta);
+          s = store.state();
+        }
+        s.lastDelta = affDelta;
+        store.setState(s);
+      } catch (e) {
+        v.innerHTML = `<div class="pad"><div class="card"><div class="hint">推演受阻：${esc(e.message)}</div><button class="btn" style="margin-top:10px" onclick="apps.worldline.render(document.getElementById('appBody'))">重新尝试</button></div></div>`;
+        return;
+      }
+    }
+
+    const opts = (s.options || '').split('\n').filter(l => /^[A-DＡ-Ｄ]\s*[\.\、]/.test(l.trim()));
+    const lv = s.affinity;
+    const icon = lv >= 86 ? '❤️' : lv >= 61 ? '💛' : lv >= 31 ? '🧡' : '🤍';
+    const st = TonyStatus.get();
+    const useItem = store.get('useItem', null);
+    const items = labItems();
+
+    v.innerHTML = `<div class="pad">
+      <!-- 顶栏状态 -->
+      <div class="statbar">
+        <div>
+          <div style="font-size:11px;color:var(--muted)">
+            ${esc(f.era.name)}<span class="tag">第 ${s.turn} 回合</span><span class="tag gold">托尼 ${f.tonyAge} 岁</span><span class="tag">${st.emoji} ${esc(st.label)}</span>
+          </div>
+          <div style="margin-top:4px"><span class="affval">好感度 ${s.affinity}/200</span></div>
+          <div class="hint" style="margin-top:2px">上回合变动：${s.lastDelta > 0 ? '+' : ''}${s.lastDelta || 0} · 你 ${userAgeNow()} 岁</div>
+          ${relHTML()}
+        </div>
+        <div style="font-size:26px">${icon}</div>
+      </div>
+
+      <!-- 顶端常驻显示：当前阶段与正在推进的事件锚点（标注已完成/总回合） -->
+      ${curAnchor ? `
+        <div class="card" style="padding:10px 12px;margin-bottom:8px;border-left:3px solid var(--gold);background:var(--panel2)">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span class="eyebrow" style="color:var(--gold);font-size:10px">${esc(curAnchor.phaseTitle)}</span>
+            <span class="chip mini" id="wl_open_anc_mgr" style="cursor:pointer;margin:0;color:var(--cyan)">⚙ 锚点管理 / 更改</span>
+          </div>
+          <div style="font-family:var(--font-serif);font-size:13.5px;font-weight:700;margin:3px 0;color:var(--text)">
+            📌 当前推进：${esc(formatAnchorTitle(curAnchor))}
+          </div>
+          <div class="hint" style="font-size:11.5px;line-height:1.6;color:var(--muted)">
+            ${esc(curAnchor.desc)}
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- 控制按钮行 -->
+      <div class="row" style="margin-bottom:8px">
+        <button class="btn ghost" id="w_back" ${s.history.length ? '' : 'disabled'} title="彻底废弃当前回合，回退到前一回合的历史状态">↩ 回到上一回合</button>
+        <button class="btn ghost" id="w_reset_turn" title="保留当前回合计数，重新生成当前回合的叙事与选项">↺ 重置本回合</button>
+        <button class="btn ghost" id="w_save_slot">💾 剧情存读档</button>
+        <button class="btn ghost" id="w_mem">📜 回忆</button>
+      </div>
+
+      <div class="card" style="padding:10px;margin-bottom:8px">
+        <div class="hint" style="font-size:10.5px;margin-bottom:6px">📝 单回合字数区间（<b>${wlWordRange().min}~${wlWordRange().max}</b> 字）</div>
+        <div class="seg" style="flex-wrap:wrap;margin-bottom:8px">
+          ${Object.entries(WL_WORD_PRESETS).map(([k, p]) => `<button data-wlp="${k}" class="${wlWordRange().preset === k ? 'on' : ''}">${p.label} ${p.min}~${p.max}</button>`).join('')}
+          <button data-wlp="custom" class="${wlWordRange().preset === 'custom' ? 'on' : ''}">自定义</button>
+        </div>
+      </div>
+
+      <div class="row" style="margin-bottom:12px">
+        <button class="btn gold" id="w_jump" ${jumpReady() ? '' : 'disabled'} title="完成关键事件或第 3 回合后解锁">⏩ 时间跳跃</button>
+        <button class="btn ghost" id="w_tree">🌳 分支树</button>
+      </div>
+
+      <!-- 核心小说式剧情正文 -->
+      <div class="story">${fmtStory(s.story)}</div>
+      <div id="w_opts">${opts.map(o => `<button class="opt" data-o="${esc(o).replace(/"/g, '&quot;')}">${fmt(o)}</button>`).join('')}</div>
+
+      ${items.length ? `<div style="margin-bottom:10px"><span class="hint">携带物品：</span>${items.map(it => `<span class="chip mini ${useItem === it.id ? 'on' : ''}" data-item="${it.id}" title="${esc(it.desc)}">${esc(it.name.slice(0, 9))}</span>`).join('')}</div>` : ''}
+
+      <!-- 自定义行动与纠偏 -->
+      <div class="card" style="padding:10px">
+        <div class="hint" style="font-size:10.5px;margin-bottom:5px;color:var(--gold)">
+          💡 提示：<b>（括号内）</b>输入剧情纠偏/规则指引，<b>括号外</b>输入行动与台词
+        </div>
+        <input id="w_act" class="inp" value="（）" placeholder="（纠正或规则）具体行动内容…" style="margin-bottom:8px;font-family:var(--font-body)">
+        <button class="btn" id="w_send">执行行动与纠偏</button>
+      </div>
+    </div>`;
+
+    // 打开锚点管理器
+    const mgrBtn = v.querySelector('#wl_open_anc_mgr');
+    if (mgrBtn) {
+      mgrBtn.onclick = () => openAnchorManagerModal(() => self.render(v));
+    }
+
+    // 绑定字数区间切换
+    v.querySelectorAll('[data-wlp]').forEach(b => {
+      b.onclick = () => {
+        const k = b.dataset.wlp;
+        if (k === 'custom') {
+          const cur = wlWordRange();
+          const d = modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:16px">📝 自定义单回合字数区间</h2>
+            <div class="card">
+              <div class="row">
+                <div class="field"><label>最少字数 (≥500)</label><input id="wlp_min" type="number" class="inp" value="${cur.min}"></div>
+                <div class="field"><label>最多字数 (≤${WL_WORD_HARD_MAX})</label><input id="wlp_max" type="number" class="inp" value="${cur.max}"></div>
+              </div>
+              <button class="btn" id="wlp_sv">保存区间</button>
+              <button class="btn ghost" data-close style="margin-top:8px">取消</button>
+            </div>`);
+          d.querySelector('#wlp_sv').onclick = () => {
+            setWlWordRange({ min: +d.querySelector('#wlp_min').value, max: +d.querySelector('#wlp_max').value, preset: 'custom' });
+            d.remove();
+            self.render(v);
+            toast('字数区间已更新');
+          };
+        } else if (WL_WORD_PRESETS[k]) {
+          setWlWordRange({ ...WL_WORD_PRESETS[k], preset: k });
+          self.render(v);
+          toast('已切换为：' + WL_WORD_PRESETS[k].label);
+        }
+      };
+    });
+
+    // 绑定世界线 5 槽位剧情存读档
+    const saveSlotBtn = v.querySelector('#w_save_slot');
+    if (saveSlotBtn) {
+      saveSlotBtn.onclick = () => {
+        const slots = store.get('wl_slots', Array(5).fill(null));
+        const renderSlots = () => slots.map((sl, idx) => `
+          <div class="card" style="padding:10px;margin-bottom:8px;background:var(--panel2)">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <b style="color:var(--cyan)">剧情槽位 ${idx + 1}</b>
+              <span class="hint" style="font-size:10px">${sl ? esc(sl.saveTime) : '空槽位'}</span>
+            </div>
+            ${sl ? `<div class="hint" style="margin:5px 0;font-size:11px;line-height:1.6">
+              节点：<b>${esc(sl.eraName)}</b> · 第 ${sl.state.turn || 1} 回合 · 好感 ${sl.state.affinity || 0}/200
+              <div style="max-height:36px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px;color:var(--text);opacity:.85">${esc((sl.state.story || '').slice(0, 48))}...</div>
+            </div>` : '<div class="hint" style="margin:5px 0">暂无存档记录</div>'}
+            <div class="row" style="margin-top:6px">
+              <button class="btn sm" data-wlsave="${idx}">覆盖保存</button>
+              <button class="btn ghost sm" data-wlload="${idx}" ${sl ? '' : 'disabled'}>读取本槽</button>
+              ${sl ? `<button class="btn ghost sm" data-wldel="${idx}" style="color:var(--red);flex:0 0 46px">删</button>` : ''}
+            </div>
+          </div>`).join('');
+        const d = modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:16px">💾 世界线剧情存读档 (5 槽位)</h2>
+          <div id="wl_slot_box" style="max-height:65vh;overflow-y:auto">${renderSlots()}</div>
+          <button class="btn ghost" data-close style="margin-top:10px">关闭</button>`);
+        const bind = () => {
+          d.querySelectorAll('[data-wlsave]').forEach(b => b.onclick = () => {
+            const idx = +b.dataset.wlsave;
+            slots[idx] = {
+              saveTime: nowTime(),
+              eraName: eraName(),
+              state: JSON.parse(JSON.stringify(store.state())),
+              profile: JSON.parse(JSON.stringify(store.profile())),
+              anchors: JSON.parse(JSON.stringify(store.get('wl_anchors', [])))
+            };
+            store.set('wl_slots', slots);
+            toast(`已存入剧情槽位 ${idx + 1}`);
+            d.querySelector('#wl_slot_box').innerHTML = renderSlots();
+            bind();
+          });
+          d.querySelectorAll('[data-wlload]').forEach(b => b.onclick = () => {
+            const idx = +b.dataset.wlload;
+            const target = slots[idx];
+            if (!target) return;
+            if (!confirm(`确定读取剧情槽位 ${idx + 1}？当前未保存的世界线进度将被覆盖。`)) return;
+            store.setState(JSON.parse(JSON.stringify(target.state)));
+            if (target.profile) store.setProfile(JSON.parse(JSON.stringify(target.profile)));
+            if (target.anchors) store.set('wl_anchors', JSON.parse(JSON.stringify(target.anchors)));
+            d.remove();
+            toast(`已读取剧情槽位 ${idx + 1}`);
+            self.render(v);
+          });
+          d.querySelectorAll('[data-wldel]').forEach(b => b.onclick = () => {
+            const idx = +b.dataset.wldel;
+            slots[idx] = null;
+            store.set('wl_slots', slots);
+            d.querySelector('#wl_slot_box').innerHTML = renderSlots();
+            bind();
+          });
+        };
+        bind();
+      };
+    }
+
+    // 绑定选项点击
+    v.querySelectorAll('.opt').forEach(b => b.onclick = () => pick(b.dataset.o));
+
+    // 绑定装备物品
+    v.querySelectorAll('[data-item]').forEach(el => el.onclick = () => {
+      const cur = store.get('useItem', null);
+      store.set('useItem', cur === el.dataset.item ? null : el.dataset.item);
+      self.render(v);
+    });
+
+    v.querySelector('#w_jump').onclick = () => { if (!jumpReady()) return toast('时间跳跃将在关键事件或第 3 回合后解锁'); timeJumpUI(); };
+    v.querySelector('#w_tree').onclick = () => WT.modal();
+
+    // 回到上一回合（同步回退锚点回合计数）
+    v.querySelector('#w_back').onclick = () => {
+      if (!s.history.length) return;
+      if (!confirm('确定回到上一回合？当前回合所有内容将被丢弃并回退。')) return;
+      const h = s.history.pop();
+      s.story = h.story;
+      s.options = h.options;
+      s.affinity = h._aff;
+      s.turn = Math.max(1, s.turn - 1);
+      if (h._anchorsSnap) {
+        store.set('wl_anchors', h._anchorsSnap);
+      }
+      const cs = store.contacts();
+      const t = cs.find(x => x.isTony);
+      if (t) { t.affinity = s.affinity; store.setContacts(cs); }
+      store.setState(s);
+      toast(`已回退到第 ${s.turn} 回合`);
+      self.render(v);
+    };
+
+    // 重置本回合
+    v.querySelector('#w_reset_turn').onclick = () => {
+      if (!confirm('确定重置本回合？将保留当前回合进度与数值，让 AI 重新推演当前场景与选项。')) return;
+      s.story = '';
+      s.options = '';
+      store.setState(s);
+      toast('正在重新推演本回合剧情…');
+      self.render(v);
+    };
+
+    // 推进回合核心动作（每回合为当前锚点 +1 进度，满 3~4 回合自动完成该锚点）
+    function pick(choice0) {
+      apps.worldline._busy = true;
+      let choice = choice0;
+      const uid = store.get('useItem', null);
+      if (uid) {
+        const it = labItems().find(x => x.id === uid);
+        if (it) choice = '（使用了：' + it.name + '）' + choice;
+      }
+      s = store.state();
+      const anchorsSnap = JSON.parse(JSON.stringify(store.get('wl_anchors', [])));
+      s.history.push({
+        story: s.story,
+        options: s.options,
+        choice,
+        _aff: s.affinity,
+        _year: flags().year,
+        _eraName: eraName(),
+        _anchorsSnap: anchorsSnap
+      });
+
+      const tags = WT.keyTag(choice, s.story);
+      relApply(choice);
+      WT.addNode(choice, tags);
+
+      // 【核心机制】：每推进一回合，当前锚点已完成回合数 +1（3~4 回合写透该锚点后自动进入下一锚点）
+      advanceCurrentAnchorTurn();
+
+      s.story = '';
+      s.options = '';
+      s.turn += 1;
+      store.setState(s);
+
+      // 阶段记忆自动压缩
+      if (s.turn % (memSettings().freqTurns || 5) === 0) {
+        (async () => {
+          try {
+            const rawHist = (s.history || []).map((h, idx) => `第${idx + 1}阶段：${h.story.slice(0, 150)}... 玩家选择：${h.choice}`).join('\n');
+            const prevSummary = s.compactSummary || '无';
+            const ms = memSettings();
+            const styleGuide = SUMMARY_STYLE_PRESETS[ms.style] || SUMMARY_STYLE_PRESETS.calm;
+            const sys = `你是斯塔克工业的记忆整理系统 J.A.R.V.I.S.。请将以往所有剧情和核心进展无损压缩为一段 ${styleGuide.wordRange} 字的【长期阶段摘要】。必须保留：发生的重大危机、玩家与托尼确立的关系界限、已解决的技术与关键承诺。\n文风要求：${styleGuide.desc}`;
+            const compact = await ai([{ role: 'user', content: `【已有阶段摘要】：\n${prevSummary}\n\n【最新经历】：\n${rawHist}\n\n请输出最新的整体剧情压缩记忆：` }], sys, () => '剧情已压缩归档。', 'summary');
+            if (compact && compact.trim()) {
+              const curState = store.state();
+              curState.compactSummary = compact.trim();
+              store.setState(curState);
+              const wl = store.get('memWorldline', []);
+              wl.unshift({ id: 'wl' + Date.now(), text: compact.trim(), time: nowTime(), turn: s.turn, era: eraName(), editable: true, auto: true });
+              store.set('memWorldline', wl.slice(0, 60));
+              toast('J.A.R.V.I.S. 已完成本阶段记忆压缩归档');
+            }
+          } catch (e) {}
+        })();
+      }
+
+      self.render(v);
+    }
+
+    // 自定义行动与纠偏
+    const handleCustomSend = () => {
+      let raw = v.querySelector('#w_act').value.trim();
+      if (!raw || raw === '（）' || raw === '()') return toast('请输入行动内容');
+      let correction = '';
+      let action = raw;
+      const match = raw.match(/[（\(](.*?)[）\)](.*)/s);
+      if (match) {
+        correction = match[1].trim();
+        action = match[2].trim();
+      }
+      let combinedChoice = action;
+      if (correction) {
+        combinedChoice = `【系统纠偏指令：${correction}】\n玩家实际行动：${action || '（遵循上述纠偏推进）'}`;
+      }
+      pick(combinedChoice);
+    };
+
+    v.querySelector('#w_send').onclick = handleCustomSend;
+    v.querySelector('#w_act').addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); handleCustomSend(); }
+    });
+
+    const wInp = v.querySelector('#w_act');
+    if (wInp && wInp.value === '（）') {
+      wInp.addEventListener('focus', () => {
+        setTimeout(() => wInp.setSelectionRange(1, 1), 10);
+      }, { once: true });
+    }
+
+    v.querySelector('#w_mem').onclick = () => showMemory();
   }
-}};
+};
 function showMemory(){
   const s=store.state()||{};
   const f=flags();
@@ -6461,19 +7010,20 @@ const HIST_EVENTS=[
   {year:2013,title:'满大人事件',desc:'威胁来自很近的地方。病毒、假恐怖分子，以及 Clean Slate 协议。'},
   {year:2015,title:'奥创与索科维亚',desc:'托尼与班纳造出的 AI 失控。贾维斯升格为幻视，F.R.I.D.A.Y. 诞生。'},
   {year:2016,title:'内战 · 西伯利亚',desc:'索科维亚协议撕裂了复仇者。机场、冬兵，以及一块盾牌落下的地方。'},
-  {year:2018,title:'响指',desc:'泰坦星的风。之后的一切，都被归档为「灰烬年代」。'},
+  {year:2018,title:'响指与烁灭五年',desc:'泰坦星的风与宇宙半数生灵化灰。随后是长达五年的灰烬与湖畔守望（含 3 回合烁灭五年专属铺垫）。'},
+  {year:2023,title:'终局之战 · Endgame',desc:'五年之后，逆转莫比乌斯环与时空劫持。重返过去集齐宝石，在废墟战场上迎战命运的终局。'},
 ];
 function jumpReady(){const s=store.state();if(!s)return false;return (s.turn||1)>=3||((s.keyChoices||[]).length>0);}
 function timeJumpUI(){
   const f=flags();
   const targets=HIST_EVENTS.filter(e=>e.year>f.year).map(e=>({y:e.year,label:e.title,desc:e.desc}));
   const nextY=f.year+1;
-  const plus=targets.some(t=>t.y===nextY)?[]:[{y:nextY,label:'小幅推进 +1 年',desc:'世界安静地往前走了一年。'}];
+  const plus=targets.some(t=>t.y===nextY)||f.year>=2023?[]:[{y:nextY,label:'小幅推进 +1 年',desc:'世界安静地往前走了一年。'}];
   const all=[...plus,...targets];
   const d=modal(`<h2 class="title-en" style="color:var(--cyan);margin-top:0">⏩ Time Jump · 时间跳跃</h2>
-    <div class="card"><div class="hint" style="margin-bottom:9px">当前 ${f.year} 年 · 托尼 ${f.tonyAge} 岁 · 你 ${store.profile()?.currentAge||'—'} 岁。<br>跳跃后年龄与世界状态自动重算，跨越的历史节点会生成<b>阶段性世界大事简报</b>（归档报纸 + 邮件 + 突发横幅），时间胶囊按设定年份解封。</div>
+    <div class="card"><div class="hint" style="margin-bottom:9px">当前 ${f.year} 年 · 托尼 ${f.tonyAge} 岁 · 你 ${store.profile()?.currentAge||'—'} 岁。<br>跳跃后年龄与世界状态自动重算，跨越的历史节点会生成<b>阶段性世界大事简报</b>（归档报纸 + 邮件 + 突发横幅），并自动切换至新时期的 3~4 回合制事件锚点（跨越 2018→2023 时自动留出 3 回合描写烁灭五年）。</div>
     ${all.map(t=>`<div class="era-card" data-y="${t.y}"><div class="t">${t.y} 年 · ${esc(t.label)} <span class="tag">托尼 ${tonyAgeAt(t.y)} 岁</span></div><div class="d">${esc(t.desc)}</div></div>`).join('')}
-    ${!all.length?'<div class="empty">已是本世界线尽头（2018 响指之后）。</div>':''}
+    ${!all.length?'<div class="empty">已是本世界线尽头（2023 终局之战）。</div>':''}
     <button class="btn ghost" data-close style="margin-top:8px">取消</button></div>`);
   d.querySelectorAll('[data-y]').forEach(el=>el.onclick=()=>{const y=+el.dataset.y;d.remove();doTimeJump(y);});
 }
@@ -6484,13 +7034,32 @@ function doTimeJump(y){
   s.era=era.id;s.customYear=(y===era.year)?null:y;
   if(y>=2012)s.forceAvengers1=true;
   if(y>=2015)s.ultronPhase='after';
-  s.gameYear=y;store.setState(s);
+  s.gameYear=y;
+  s.story='';s.options=''; // 清空旧回合文本以便按新时期锚点重新推演
+  store.setState(s);
   if(p.currentAge){p.currentAge=Math.max(+(p.startAge||1),+p.currentAge+delta);store.setProfile(p);}
+
+  // 切换至目标年份的电影锚点链；若跨越了 2018→2023 烁灭期，强制在首位保留 3 回合「烁灭五年」铺垫锚点
+  const eraList=MCU_DETAILED_ANCHORS[y]||MCU_DETAILED_ANCHORS[era.year]||[];
+  if(eraList.length){
+    const newAnchors=eraList.map((a,idx)=>({
+      id:`anc_jump_${y}_${idx}`,
+      phaseTitle:`${y} 阶段 · ${era.name.split('·')[1]?.trim()||'宿命浪潮'} (${idx+1}/${eraList.length})`,
+      title:a.title,
+      desc:a.desc,
+      isBlip:!!a.isBlip,
+      curTurns:0,
+      maxTurns:a.turns||3,
+      done:false
+    }));
+    store.set('wl_anchors',newAnchors);
+  }
+
   // 战甲解锁新机型的完整度
   const ar=store.get('armor',{});(ar.integrity=ar.integrity||{});
   MARKS.forEach(m=>{if(m.year<=y&&ar.integrity[m.no]==null)ar.integrity[m.no]=55+Math.floor(Math.random()*40);});
   store.set('armor',ar);
-  // 跨越的历史事件 → 突发简报（EventEngine 可配置链：归档报纸 + 邮件 + 事件日志）
+  // 跨越的历史事件 → 突发简报
   const crossed=HIST_EVENTS.filter(e=>e.year>f.year&&e.year<=y);
   crossed.forEach(e=>EventEngine.flashBrief(e,{fromYear:f.year,toYear:y,crossed}));
   // 时间胶囊解封
@@ -8363,83 +8932,90 @@ apps.dating={title:'约饭',_view:'setup',city:0,spot:null,people:[],
     v.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{self.city=+b.dataset.c;self.spot=null;self.render(v);});
     v.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{self.spot=+b.dataset.s;self.render(v);});
     v.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{const n=b.dataset.p;self.people=self.people.includes(n)?self.people.filter(x=>x!==n):[...self.people,n];self.render(v);});
-    /* 进行中约会的续接 / 放弃 */
+        /* 进行中约会的续接 / 放弃 */
     const resumeBtn=v.querySelector('#dt_resume');
     if(resumeBtn)resumeBtn.onclick=()=>{self._view='date';self.render(v);};
     const abandonBtn=v.querySelector('#dt_abandon');
     if(abandonBtn)abandonBtn.onclick=()=>{if(!confirm('放弃当前进行中的约会？已进行的剧情不会写入历史记录。'))return;store.set('dateSession',null);self.spot=null;self.people=[];self.render(v);toast('已放弃当前约会');};
+
+    /* 修复：绑定「▶ 开始这场约会」按钮 */
+    const startBtn=v.querySelector('#dt_start');
+    if(startBtn)startBtn.onclick=()=>{
+      if(self.spot===null)return toast('请先选择一个具体点位');
+      if(!self.people.length)return toast('请至少选择一位同行的人');
+      const sp=city.spots[self.spot]||city.spots[0];
+      const newSession={
+        id:'dt'+Date.now(),
+        place:city.name,
+        spot:sp.name,
+        emoji:sp.emoji||city.emoji||'🍷',
+        people:self.people.slice(),
+        turn:1,
+        story:'',
+        options:'',
+        _turnStories:[],
+        time:nowTime()
+      };
+      store.set('dateSession',newSession);
+      self._view='date';
+      self.render(v);
+    };
+
     v.querySelector('#dt_hist').onclick=()=>{
-  const allHistory=store.get('dateHistory',[]); // 完整读取全部历史，不设上限
-  let filterPerson='全部';
+      const allHistory=store.get('dateHistory',[]);
+      let filterPerson='全部';
+      const personSet=new Set();
+      allHistory.forEach(item=>(item.people||[]).forEach(p=>personSet.add(p)));
+      const personTags=['全部',...Array.from(personSet)];
+      let currentModal=null;
 
-  // 提取历史中所有出现过的同行人作为分类标签
-  const personSet=new Set();
-  allHistory.forEach(item=>(item.people||[]).forEach(p=>personSet.add(p)));
-  const personTags=['全部',...Array.from(personSet)];
-
-  let currentModal=null;
-
-  const renderHistoryModal=(hostEl)=>{
-    const filtered=filterPerson==='全部'?allHistory:allHistory.filter(x=>(x.people||[]).includes(filterPerson));
-    hostEl.innerHTML=`
-      <h2 style="color:var(--cyan);margin-top:0;font-size:16px">📜 约饭完整记录 · 共 ${allHistory.length} 次</h2>
-      <div class="hint" style="margin-bottom:8px">已完整记录所有约饭历史（无数量上限）。点击下方标签按同行人即时检索。</div>
-      
-      <div class="seg" style="flex-wrap:wrap;margin-bottom:10px" id="dh_tags">
-        ${personTags.map(p=>`<button class="${filterPerson===p?'on':''}" data-dh-tag="${esc(p)}">${esc(p)}${p==='全部'?` (${allHistory.length})`:''}</button>`).join('')}
-      </div>
-
-      <div style="max-height:58vh;overflow-y:auto;padding-right:2px" id="dh_list">
-        ${filtered.length?filtered.map((x)=>`
-          <div class="card" style="margin-bottom:8px;padding:11px">
-            <div style="display:flex;justify-content:space-between;align-items:center">
-              <span class="hint" style="font-size:11px">${esc(x.time||'—')}</span>
-              <span class="tag gold" style="font-size:10px">第 ${allHistory.length - (allHistory.indexOf(x))} 次</span>
-            </div>
-            <div style="font-family:var(--font-serif);font-size:13.5px;font-weight:700;margin:4px 0">
-              ${esc(x.emoji||'🍷')} ${esc(x.place)} · ${esc(x.spot)}
-            </div>
-            <div class="hint" style="margin:2px 0 5px">
-              同行伙伴：<b>${esc((x.people||[]).join('、')||'独处')}</b>
-            </div>
-            <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px dashed var(--line);padding-top:5px;font-size:12px">
-              <span style="color:var(--gold)">体验状态：${esc(x.mood||'—')}</span>
-              <span style="color:var(--cyan);font-family:var(--font-mono);font-weight:700">好感变动 ${x.aff>0?'+':''}${x.aff||0}</span>
-            </div>
-            ${(x.fullStory||x.story)?`<details style="margin-top:6px;font-size:12px;color:var(--muted)">
-  <summary style="cursor:pointer;color:var(--cyan)">展开完整约会剧情（${x.turnStories?x.turnStories.length+' 回合':'全文'}）</summary>
-  <div class="story" style="margin-top:6px;font-size:12px;line-height:1.75;max-height:400px;overflow-y:auto;background:var(--panel2);padding:10px;border-radius:8px">${fmtStory(x.fullStory||x.story)}</div>
-  ${x.comment?`<div class="hint" style="margin-top:6px;padding:8px;background:rgba(53,208,255,.08);border-radius:6px;border-left:2px solid var(--cyan)"><b>AI 评语：</b>${fmtStory(x.comment)}</div>`:''}
-</details>`:''}
+      const renderHistoryModal=(hostEl)=>{
+        const filtered=filterPerson==='全部'?allHistory:allHistory.filter(x=>(x.people||[]).includes(filterPerson));
+        hostEl.innerHTML=`
+          <h2 style="color:var(--cyan);margin-top:0;font-size:16px">📜 约饭完整记录 · 共 ${allHistory.length} 次</h2>
+          <div class="hint" style="margin-bottom:8px">已完整记录所有约饭历史（无数量上限）。点击下方标签按同行人即时检索。</div>
+          <div class="seg" style="flex-wrap:wrap;margin-bottom:10px" id="dh_tags">
+            ${personTags.map(p=>`<button class="${filterPerson===p?'on':''}" data-dh-tag="${esc(p)}">${esc(p)}${p==='全部'?` (${allHistory.length})`:''}</button>`).join('')}
           </div>
-        `).join(''):`<div class="empty">${filterPerson==='全部'?'还没有约饭记录。':'没有与 '+esc(filterPerson)+' 的约饭记录。'}</div>`}
-      </div>
-
-      <button class="btn ghost" id="dh_close_btn" style="margin-top:10px">关闭</button>
-    `;
-
-    // 重新绑定标签切换
-    hostEl.querySelectorAll('[data-dh-tag]').forEach(btn=>{
-      btn.onclick=()=>{
-        filterPerson=btn.dataset.dhTag;
-        renderHistoryModal(hostEl);
+          <div style="max-height:58vh;overflow-y:auto;padding-right:2px" id="dh_list">
+            ${filtered.length?filtered.map((x)=>`
+              <div class="card" style="margin-bottom:8px;padding:11px">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <span class="hint" style="font-size:11px">${esc(x.time||'—')}</span>
+                  <span class="tag gold" style="font-size:10px">第 ${allHistory.length - (allHistory.indexOf(x))} 次</span>
+                </div>
+                <div style="font-family:var(--font-serif);font-size:13.5px;font-weight:700;margin:4px 0">
+                  ${esc(x.emoji||'🍷')} ${esc(x.place)} · ${esc(x.spot)}
+                </div>
+                <div class="hint" style="margin:2px 0 5px">
+                  同行伙伴：<b>${esc((x.people||[]).join('、')||'独处')}</b>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px dashed var(--line);padding-top:5px;font-size:12px">
+                  <span style="color:var(--gold)">体验状态：${esc(x.mood||'—')}</span>
+                  <span style="color:var(--cyan);font-family:var(--font-mono);font-weight:700">好感变动 ${x.aff>0?'+':''}${x.aff||0}</span>
+                </div>
+                ${(x.fullStory||x.story)?`<details style="margin-top:6px;font-size:12px;color:var(--muted)">
+                  <summary style="cursor:pointer;color:var(--cyan)">展开完整约会剧情（${x.turnStories?x.turnStories.length+' 回合':'全文'}）</summary>
+                  <div class="story" style="margin-top:6px;font-size:12px;line-height:1.75;max-height:400px;overflow-y:auto;background:var(--panel2);padding:10px;border-radius:8px">${fmtStory(x.fullStory||x.story)}</div>
+                  ${x.comment?`<div class="hint" style="margin-top:6px;padding:8px;background:rgba(53,208,255,.08);border-radius:6px;border-left:2px solid var(--cyan)"><b>AI 评语：</b>${fmtStory(x.comment)}</div>`:''}
+                </details>`:''}
+              </div>
+            `).join(''):`<div class="empty">${filterPerson==='全部'?'还没有约饭记录。':'没有与 '+esc(filterPerson)+' 的约饭记录。'}</div>`}
+          </div>
+          <button class="btn ghost" id="dh_close_btn" style="margin-top:10px">关闭</button>
+        `;
+        hostEl.querySelectorAll('[data-dh-tag]').forEach(btn=>{
+          btn.onclick=()=>{filterPerson=btn.dataset.dhTag;renderHistoryModal(hostEl);};
+        });
+        const closeBtn=hostEl.querySelector('#dh_close_btn');
+        if(closeBtn)closeBtn.onclick=()=>{if(currentModal)currentModal.remove();};
       };
-    });
 
-    // 显式绑定关闭事件，确保随时能退出弹窗
-    const closeBtn=hostEl.querySelector('#dh_close_btn');
-    if(closeBtn){
-      closeBtn.onclick=()=>{
-        if(currentModal) currentModal.remove();
-      };
-    }
-  };
-
-  currentModal=modal(`<div id="dh_modal_root"></div>`);
-  const root=currentModal.querySelector('#dh_modal_root');
-  renderHistoryModal(root);
-};
-},
+      currentModal=modal(`<div id="dh_modal_root"></div>`);
+      const root=currentModal.querySelector('#dh_modal_root');
+      renderHistoryModal(root);
+    };
+  },
   async renderDate(v,session){
     const self=this,f=flags();
     if(!session.story){
@@ -10332,27 +10908,38 @@ apps.vault={title:'私藏',render(v){
 function bootReactorIntro(done){
   const intro=$('#bootIntro');
   if(!intro){done();return;}
-  const started=Date.now(),MIN_MS=3600,MAX_MS=9000;
+  let finished=false;
+  const finish=()=>{
+    if(finished)return;
+    finished=true;
+    try{syncClock();}catch(e){}
+    intro.classList.add('out');
+    setTimeout(()=>{
+      document.body.classList.remove('booting');
+      if(intro.parentNode)intro.remove();
+      try{done();}catch(e){console.error('boot done error:',e);}
+    },600);
+  };
+  // 允许用户点击屏幕任意位置直接跳过开屏动画，绝不卡死
+  intro.style.cursor='pointer';
+  intro.onclick=finish;
+
+  const started=Date.now(),MIN_MS=2400,MAX_MS=4200;
   const status=$('#biStatus');
-  document.body.classList.add('booting');   // 淡出期间手机外围也保持晨光
-  /* 校时阶段：把状态栏由占位 10:00 写成现实时间，核心随之加强脉冲 */
+  document.body.classList.add('booting');
   setTimeout(()=>{
-    syncClock();
-    intro.classList.add('synced');
-    if(status)status.textContent='TIME SYNCED · '+realClockText()+' · '+eraName();
-  },1250);
+    try{
+      syncClock();
+      intro.classList.add('synced');
+      if(status)status.textContent='TIME SYNCED · '+realClockText()+' · '+eraName();
+    }catch(e){}
+  },900);
   const poll=()=>{
+    if(finished)return;
     const elapsed=Date.now()-started;
     const synced=clockMatchesReality()&&intro.classList.contains('synced');
     if((synced&&elapsed>=MIN_MS)||elapsed>=MAX_MS){
-      if(!synced){syncClock();intro.classList.add('synced');
-        if(status)status.textContent='TIME SYNCED · '+realClockText();}
-      intro.classList.add('out');
-      setTimeout(()=>{
-        document.body.classList.remove('booting');
-        if(intro.parentNode)intro.remove();
-        done();
-      },820);
+      finish();
       return;
     }
     setTimeout(poll,90);
