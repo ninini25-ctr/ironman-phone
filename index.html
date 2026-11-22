@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
 <meta name="theme-color" content="#faf5ec"/>
 <title>STARK OS </title>
+<!-- PWA 应用清单：支持离线全屏运行与桌面图标 -->
+<link rel="manifest" href="data:application/manifest+json;utf-8,%7B%22name%22%3A%22STARK%20OS%22%2C%22short_name%22%3A%22STARK%20OS%22%2C%22description%22%3A%22Iron%20Man%20World%20Simulator%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%2307090d%22%2C%22theme_color%22%3A%22%2307090d%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2064%2064%27%253E%253Crect%20width%3D%2764%27%20height%3D%2764%27%20rx%3D%2714%27%20fill%3D%27%252307090d%27%2F%253E%253Ccircle%20cx%3D%2732%27%20cy%3D%2732%27%20r%3D%2719%27%20fill%3D%27none%27%20stroke%3D%27%252335d0ff%27%20stroke-width%3D%274%27%2F%253E%253Ccircle%20cx%3D%2732%27%20cy%3D%2732%27%20r%3D%278%27%20fill%3D%27%2523eafcff%27%2F%253E%253C%2Fsvg%253E%22%2C%22sizes%22%3A%22192x192%20512x512%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%7D" />
+
+<!-- 针对 iOS 苹果设备的专门适配 -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="STARK OS" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2307090d'/%3E%3Ccircle cx='32' cy='32' r='19' fill='none' stroke='%2335d0ff' stroke-width='4'/%3E%3Ccircle cx='32' cy='32' r='8' fill='%23eafcff'/%3E%3C/svg%3E"/>
 <style>
 :root{
@@ -975,6 +982,38 @@ body.guide-open{background:
 .em-asset-row .v{font-family:var(--font-en);color:var(--gold);font-weight:700;font-size:13px;}
 .em-gift-list{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
 .em-gift-list .chip{cursor:pointer;}
+/* ---- 礼物卡片（两种样式：我方送出 vs 对方寄来） ---- */
+.gift-card{width:240px;border-radius:14px;overflow:hidden;border:1px solid var(--line);box-shadow:0 4px 14px rgba(0,0,0,.18);font-family:var(--font-body);}
+.gift-card.me{background:linear-gradient(135deg,#133654,#0c2238);border-color:rgba(53,208,255,.45);color:#eaf4ff;}
+.gift-card.them{background:linear-gradient(135deg,var(--panel2),var(--panel));border-color:rgba(245,185,66,.5);color:var(--text);}
+.gift-card .gc-top{display:flex;align-items:center;gap:10px;padding:11px 12px;}
+.gift-card .gc-ico{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;background:rgba(255,255,255,.08);}
+.gift-card.them .gc-ico{background:rgba(245,185,66,.12);}
+.gift-card .gc-info{flex:1;min-width:0;}
+.gift-card .gc-nm{font-size:13px;font-weight:700;font-family:var(--font-serif);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.gift-card .gc-pr{font-size:12px;color:var(--gold);font-weight:700;font-family:var(--font-en);margin-top:2px;}
+.gift-card .gc-msg{padding:0 12px 9px;font-size:11.5px;opacity:.85;line-height:1.5;border-top:1px dashed rgba(255,255,255,.1);padding-top:7px;}
+.gift-card .gc-ft{padding:6px 12px;font-size:10px;letter-spacing:.5px;display:flex;justify-content:space-between;background:rgba(0,0,0,.18);color:var(--muted);}
+.gift-card.me .gc-ft{color:#8fe3ff;}
+.gift-card.them .gc-ft{color:var(--gold);}
+
+/* ---- 转账卡片 ---- */
+.pay-card{width:236px;border-radius:14px;overflow:hidden;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.2);transition:.15s;border:1px solid rgba(245,185,66,.45);background:linear-gradient(135deg,#d98a1e,#b86b11);color:#fff;}
+.pay-card.claimed{opacity:.72;filter:saturate(.65);}
+.pay-card .pc-bd{display:flex;align-items:center;gap:10px;padding:12px;}
+.pay-card .pc-ico{width:38px;height:38px;border-radius:50%;border:2px solid rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;flex-shrink:0;}
+.pay-card .pc-amt{font-size:17px;font-weight:800;font-family:var(--font-en);}
+.pay-card .pc-st{font-size:11px;opacity:.9;margin-top:2px;}
+.pay-card .pc-ft{padding:5px 12px;font-size:10px;background:rgba(0,0,0,.16);display:flex;justify-content:space-between;opacity:.9;}
+
+/* ---- 红包卡片 ---- */
+.hb-card{width:236px;border-radius:14px;overflow:hidden;cursor:pointer;box-shadow:0 4px 16px rgba(226,54,54,.25);transition:.15s;border:1px solid rgba(255,110,90,.5);background:linear-gradient(145deg,#d93838,#a81c1c);color:#fff3d6;}
+.hb-card.claimed{opacity:.72;filter:saturate(.6);}
+.hb-card .hb-bd{display:flex;align-items:center;gap:10px;padding:13px 12px;}
+.hb-card .hb-ico{width:36px;height:44px;border-radius:6px;background:linear-gradient(180deg,#f5b942,#d9921e);color:#8a1818;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;flex-shrink:0;box-shadow:0 2px 6px rgba(0,0,0,.25);}
+.hb-card .hb-tx{font-size:13.5px;font-weight:700;font-family:var(--font-serif);}
+.hb-card .hb-sub{font-size:11px;opacity:.85;margin-top:3px;}
+.hb-card .hb-ft{padding:5px 12px;font-size:10px;background:rgba(0,0,0,.18);display:flex;justify-content:space-between;color:#ffdca8;}
 </style>
 </head>
 <body>
@@ -3000,22 +3039,131 @@ bindSL('#sl_p','postToDmChance','%');
   q('#s_bladd').onclick=()=>{const x=q('#s_bl').value.trim();if(!x)return;const b=store.get('blacklist',[]);if(!b.includes(x))b.push(x);store.set('blacklist',b);apps.settings.render(v);};
   v.querySelectorAll('[data-bl]').forEach(el=>el.onclick=()=>{store.set('blacklist',store.get('blacklist',[]).filter(x=>x!==el.dataset.bl));apps.settings.render(v);});
   q('#s_blclr').onclick=()=>{store.set('blacklist',[]);apps.settings.render(v);};
-  /* 自定义指令 */
-  const ci=store.get('customInstructions',{global:'',apps:{}});
-  const ciAppSel=q('#s_ci_app');
-  const ciText=q('#s_ci_text');
-  const ciInfo=q('#s_ci_info');
-  const refreshCiApp=()=>{const k=ciAppSel.value;ciText.value=(ci.apps&&ci.apps[k])||'';ciInfo.textContent=ci.apps&&ci.apps[k]?'当前「'+ciAppSel.selectedOptions[0].textContent+'」已有专属指令':'当前「'+ciAppSel.selectedOptions[0].textContent+'」无专属指令';};
-  if(ciAppSel){ciAppSel.onchange=refreshCiApp;refreshCiApp();}
-  q('#s_ci_save').onclick=()=>{const g=q('#s_ci_global').value;const k=ciAppSel.value;const t=ciText.value;const obj=store.get('customInstructions',{global:'',apps:{}});obj.global=g;if(!obj.apps)obj.apps={};if(t.trim())obj.apps[k]=t;else delete obj.apps[k];store.set('customInstructions',obj);toast('自定义指令已保存');refreshCiApp();};
-  q('#s_ci_clear').onclick=()=>{const k=ciAppSel.value;const obj=store.get('customInstructions',{global:'',apps:{}});if(obj.apps)delete obj.apps[k];store.set('customInstructions',obj);ciText.value='';toast('已清空'+ciAppSel.selectedOptions[0].textContent+'指令');refreshCiApp();};
   q('#s_export').onclick=()=>{const d={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('so_'))d[k]=localStorage.getItem(k);}const b=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='stark_save_'+Date.now()+'.json';a.click();};
   q('#s_import').onclick=()=>q('#s_file').click();
   q('#s_file').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const d=JSON.parse(rd.result);if(!confirm('导入会覆盖当前数据，继续？'))return;Object.keys(d).forEach(k=>{if(k.startsWith('so_'))localStorage.setItem(k,d[k]);});toast('导入成功，即将刷新');setTimeout(()=>location.reload(),600);}catch(err){toast('导入失败：'+err.message);}};rd.readAsText(f);};
-  q('#s_persist').onclick=async()=>{if(navigator.storage&&navigator.storage.persist){const ok=await navigator.storage.persist();q('#s_persist_hint').textContent=ok?'✅ 已获得持久化存储权限':'当前浏览器未授予持久化权限';}else q('#s_persist_hint').textContent='浏览器不支持持久化存储 API';};
+    // 检查当前持久化状态与存储配额
+  const checkStorageStatus = async () => {
+    const hint = q('#s_persist_hint');
+    if (!hint) return;
+    if (navigator.storage && navigator.storage.persisted) {
+      const isPersisted = await navigator.storage.persisted();
+      let quotaText = '';
+      if (navigator.storage.estimate) {
+        try {
+          const est = await navigator.storage.estimate();
+          const usedMB = ((est.usage || 0) / 1024 / 1024).toFixed(1);
+          const totalMB = ((est.quota || 0) / 1024 / 1024).toFixed(0);
+          quotaText = ` · 已用 ${usedMB} MB / 配额约 ${totalMB} MB`;
+        } catch (e) {}
+      }
+      if (isPersisted) {
+        hint.innerHTML = `<span style="color:var(--green)">✅ 已处于持久化存储状态（浏览器不会自动清理此站数据）${quotaText}</span>`;
+      } else {
+        hint.innerHTML = `<span style="color:var(--gold)">⚠️ 当前为普通存储模式（磁盘吃紧时可能被浏览器清理）${quotaText}</span>`;
+      }
+    }
+  };
+  checkStorageStatus();
+
+  // 点击申请持久化，若失败则弹出针对性操作指引
+  q('#s_persist').onclick = async () => {
+    const hint = q('#s_persist_hint');
+    if (!navigator.storage || !navigator.storage.persist) {
+      if (hint) hint.textContent = '当前浏览器内核不支持 StorageManager API';
+      return toast('浏览器不支持此功能');
+    }
+
+    try {
+      // 1. 若已经是持久化状态，直接提示
+      if (await navigator.storage.persisted()) {
+        toast('当前已经是持久化存储状态');
+        checkStorageStatus();
+        return;
+      }
+
+      // 2. 尝试向浏览器申请
+      const ok = await navigator.storage.persist();
+      if (ok) {
+        toast('✅ 持久化存储权限申请成功！');
+        checkStorageStatus();
+      } else {
+        // 3. 申请失败（浏览器判定信任度不足），弹出详细教学弹窗
+        showPersistGuideModal();
+      }
+    } catch (err) {
+      showPersistGuideModal(err.message);
+    }
+  };
   q('#s_clear').onclick=()=>{if(!confirm('确定清空全部数据？不可恢复'))return;for(let i=localStorage.length-1;i>=0;i--){const k=localStorage.key(i);if(k.startsWith('so_'))localStorage.removeItem(k);}toast('已清空');setTimeout(()=>location.reload(),600);};
 }};
+/* ============================================================
+   持久化存储授予指引弹窗
+   ============================================================ */
+function showPersistGuideModal(errMsg) {
+  const isFileProtocol = window.location.protocol === 'file:';
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  
+  modal(`
+    <h2 style="color:var(--gold);margin-top:0;font-size:16px">💾 持久化存储授权指引</h2>
+    <div class="card" style="line-height:1.75;font-size:12.5px">
+      <div style="color:var(--text);margin-bottom:8px">
+        浏览器拒绝了直接持久化申请。现代浏览器（Chrome / Safari / Edge）为了防止滥用，<b>不会弹窗询问用户，而是根据站点行为静默判定</b>。
+      </div>
+      
+      ${isFileProtocol ? `
+        <div style="background:rgba(226,54,54,.12);border:1px solid var(--red);border-radius:8px;padding:8px 10px;margin-bottom:10px;color:var(--text)">
+          <b>检测到当前处于本地文件访问模式 (file://)：</b><br>
+          直接双击打开的 HTML 文件无法获取浏览器的持久化授权。建议使用本地简易服务器（如 VSCode Live Server、python -m http.server）通过 <b>http://localhost</b> 访问，或部署在网络服务器上。
+        </div>
+      ` : ''}
 
+      <div style="font-weight:700;color:var(--cyan);margin:8px 0 4px">快速获得授权的有效方法（满足其一即可）：</div>
+      <ol style="margin:0;padding-left:18px;color:var(--muted)">
+        <li><b>将本网页添加到收藏夹 / 书签</b>：大多数浏览器会将书签站点视为受信任站点，随后再次点击申请即可通过。</li>
+        <li><b>添加到主屏幕 (PWA / WebApp)</b>：
+          ${isIOS ? '在 Safari 底部点击「分享」按钮，选择「添加到主屏幕」。' : '在浏览器菜单点击「安装应用」或「添加到主屏幕」。'}
+        </li>
+        <li><b>允许站点的通知权限</b>：浏览器通常会将已允许通知的站点自动转为持久化存储。</li>
+      </ol>
+
+      <div style="margin-top:12px;padding-top:8px;border-top:1px dashed var(--line);font-size:11.5px;color:var(--muted)">
+        💡 <b>数据安全提示</b>：STARK OS 的数据已完整储存在您本机的 LocalStorage 与 IndexedDB 中。只要不主动清理浏览器缓存，数据就不会丢失。建议定期使用上方的<b>「导出存档 (JSON)」</b>作为双重保险。
+      </div>
+
+      <div class="row" style="margin-top:14px">
+        <button class="btn gold" id="pg_retry">重新检测并申请</button>
+        <button class="btn ghost" data-close>我知道了</button>
+      </div>
+    </div>
+  `);
+
+  const retryBtn = document.querySelector('#pg_retry');
+  if (retryBtn) {
+    retryBtn.onclick = async () => {
+      retryBtn.disabled = true;
+      retryBtn.textContent = '检测中…';
+      try {
+        const ok = await navigator.storage.persist();
+        if (ok) {
+          toast('✅ 已成功获得持久化存储授权！');
+          closeModals();
+          if (currentApp === 'settings') {
+            apps.settings.render($('#appBody'));
+          }
+        } else {
+          toast('仍然未被授予，请尝试先添加到书签/桌面');
+          retryBtn.disabled = false;
+          retryBtn.textContent = '重新检测并申请';
+        }
+      } catch (e) {
+        toast('检测失败');
+        retryBtn.disabled = false;
+        retryBtn.textContent = '重新检测并申请';
+      }
+    };
+  }
+}
 /* ============================================================
    本地台词库（聊天降级用，严格按人设）
    ============================================================ */
@@ -3061,7 +3209,7 @@ apps.messages={title:'信息',view:'list',cur:'',last:'',langMode:'zh',
   render(v){
     const self=this,f=flags();
     if(this.view==='heart'){this.heartView(v);return;}
-    if(this.view==='list'){
+     if(this.view==='list'){
       $('#actBtn').style.display='none';
       const cs=store.contacts().filter(c=>{
         if(c.cond==='pepper'&&!f.pepperExists)return false;
@@ -3073,16 +3221,18 @@ apps.messages={title:'信息',view:'list',cur:'',last:'',langMode:'zh',
       v.innerHTML=`<div class="pad"><div class="card" style="padding:12px"><div class="row"><button class="btn" id="m_add">＋ 添加联系人</button><button class="btn ghost" id="m_group">👥 群聊</button></div>
         <div class="row" style="margin-top:8px"><button class="btn ghost" id="m_fts">🔍 全文检索（IndexedDB）</button><button class="btn ghost" id="m_heart">💭 心声记录</button></div>
         <div class="hint" style="margin-top:8px">当前宇宙：${esc(eraName())} · 托尼 ${f.tonyAge} 岁 · 好感上限 200</div></div></div>
-        ${cs.map(c=>{const last=(chats[c.name]||[]).slice(-1)[0];return `<div class="chatrow" data-n="${esc(c.name)}"><div class="av">${esc(c.name[0])}</div>
+        ${cs.map(c=>{const last=(chats[c.name]||[]).slice(-1)[0];
+          const previewText = last ? (last.content || (last.isGift ? '［礼物］' + (last.giftName||'') : (last.isPay ? '［转账］' : (last.isRedPacket ? '［红包］' : '')))) : (c.desc || '');
+          return `<div class="chatrow" data-n="${esc(c.name)}"><div class="av">${esc(c.name[0])}</div>
           <div style="flex:1;min-width:0"><div class="nm">${esc(c.name)}${c.isTony?' <span class="tag">核心</span>':''}${isAI(c.name)?' <span class="tag gold">保密权限</span>':''}${c.cond==='jarvis'&&f.ultronAfter?' <span class="tag red">幻视代回</span>':''}</div>
-          <div class="ds">${esc(last?last.content.slice(0,42):(c.desc||''))}</div></div><span style="color:var(--muted)">好感 ${c.affinity||0} ›</span></div>`;}).join('')}`;
+          <div class="ds">${esc(String(previewText).slice(0,42))}</div></div><span style="color:var(--muted)">好感 ${c.affinity||0} ›</span></div>`;}).join('')}`;
       v.querySelectorAll('.chatrow').forEach(r=>r.onclick=()=>{self.cur=r.dataset.n;self.view='chat';self.render(v);});
       v.querySelector('#m_add').onclick=()=>self.addFlow(v);
       v.querySelector('#m_group').onclick=()=>openApp('avengers');
       v.querySelector('#m_fts').onclick=()=>{ftIndexAll();openFTSearch();};
       v.querySelector('#m_heart').onclick=()=>{self.view='heart';self.render(v);};
-     setTimeout(() => paintContactAvatars(v), 40);
- return;
+      setTimeout(() => paintContactAvatars(v), 40);
+      return;
     }
 
     const cs=store.contacts();const c=cs.find(x=>x.name===self.cur)||{name:self.cur,affinity:0};
@@ -3103,30 +3253,109 @@ apps.messages={title:'信息',view:'list',cur:'',last:'',langMode:'zh',
       </div>
       ${notice?`<div class="notice">🔒 ${esc(notice)}</div>`:''}
       <div id="thread" style="flex:1"></div>
-      <div style="display:flex;gap:6px;padding:6px 12px;background:var(--panel2);border-top:1px solid var(--line);overflow-x:auto">
+            <div style="display:flex;gap:6px;padding:6px 12px;background:var(--panel2);border-top:1px solid var(--line);overflow-x:auto">
         <button class="btn ghost sm" id="m_topics" style="flex:0 0 auto;padding:6px 10px;font-size:11.5px">💡 帮忙起话题</button>
         <button class="btn ghost sm" id="m_truth" style="flex:0 0 auto;padding:6px 10px;font-size:11.5px">🎭 真心话</button>
+        <button class="btn ghost sm" id="m_pay" style="flex:0 0 auto;padding:6px 10px;font-size:11.5px">💸 转账</button>
+        <button class="btn ghost sm" id="m_hb" style="flex:0 0 auto;padding:6px 10px;font-size:11.5px">🧧 红包</button>
       </div>
       <div class="composer"><input id="m_in" placeholder="发送给 ${esc(self.cur)}…"><button class="mic" id="m_mic" type="button" title="语音输入">🎤</button><button id="m_snd">发送</button></div>
       ${VoiceInput.supported()?'':'<div class="voice-fallback" style="padding:5px 13px">🎤 当前浏览器不支持语音输入（Safari 等）· <b>已自动降级为手动输入</b>，直接在上方输入框打字即可</div>'}</div>`;
 
     const th=v.querySelector('#thread');
     th.innerHTML=arr.map((m,i)=>{
-      if(m.recalled) return `<div class="bubwrap" style="align-self:${m.role==='me'?'flex-end':'flex-start'}"><div class="bub recalled" data-restr="${i}" title="点击查看撤回原文"><i>${esc(m.recalledBy||'')}撤回了一条消息</i></div></div>`;
+            if (m.recalled) return `<div class="bubwrap" style="align-self:${m.role==='me'?'flex-end':'flex-start'}"><div class="bub recalled" data-restr="${i}" title="点击查看撤回原文"><i>${esc(m.recalledBy||'')}撤回了一条消息</i></div></div>`;
       
-      // 双语模式渲染：若处于英文模式，且消息内包含英文或中英文混合，则进行上下分层排版
+      // 1. 礼物卡片
+      if (m.isGift) {
+        const gObj = m.giftName ? m : (emAllGoods().find(x => x.id === m.giftId) || {});
+        const gName = m.giftName || gObj.name || '神秘礼物';
+        const gIco = m.giftIco || gObj.ico || '🎁';
+        const gPrice = m.giftPrice != null ? emFmtPrice(m.giftPrice) : (gObj.price ? emFmtPrice(gObj.price) : '');
+        const gMsg = m.giftMsg || '';
+        const isMe = m.role === 'me';
+        return `<div class="bubwrap ${isMe?'me':'them'}">
+          ${(!isMe && (m.who || self.cur)) ? `<div class="who">${esc(m.who || self.cur)}</div>` : ''}
+          <div class="gift-card ${isMe?'me':'them'}">
+            <div class="gc-top">
+              <div class="gc-ico">${gIco}</div>
+              <div class="gc-info">
+                <div class="gc-nm">${esc(gName)}</div>
+                <div class="gc-pr">${esc(gPrice)}</div>
+              </div>
+            </div>
+            ${gMsg ? `<div class="gc-msg">“${esc(gMsg)}”</div>` : ''}
+            <div class="gc-ft"><span>${isMe ? '🎁 已送出礼物' : '🎁 收到礼物 · 已入库'}</span><span>方舟臻选</span></div>
+          </div>
+          <div class="action-bar">
+            <span class="tm">${esc(m.time||'')}</span>
+            ${isMe?`<span class="read-tick ${m.read?'':'pending'}">${m.read?'已读':'已送达'}</span>`:''}
+            <span data-delmsg="${i}">删除</span>
+          </div>
+        </div>`;
+      }
+
+      // 2. 转账卡片
+      if (m.isPay) {
+        const isMe = m.role === 'me';
+        const claimed = !!m.claimed;
+        return `<div class="bubwrap ${isMe?'me':'them'}">
+          ${(!isMe && (m.who || self.cur)) ? `<div class="who">${esc(m.who || self.cur)}</div>` : ''}
+          <div class="pay-card ${claimed?'claimed':''}" data-claim-pay="${i}">
+            <div class="pc-bd">
+              <div class="pc-ico">${claimed ? '✓' : '$'}</div>
+              <div>
+                <div class="pc-amt">${emFmtPrice(m.amount || 0)}</div>
+                <div class="pc-st">${claimed ? '已收款' : (isMe ? '待对方收款' : '点击收款')}${m.note ? ' · ' + esc(m.note) : ''}</div>
+              </div>
+            </div>
+            <div class="pc-ft"><span>STARK PAY · 转账</span><span>${claimed ? '已完成' : '待领取'}</span></div>
+          </div>
+          <div class="action-bar">
+            <span class="tm">${esc(m.time||'')}</span>
+            ${isMe?`<span class="read-tick ${m.read?'':'pending'}">${m.read?'已读':'已送达'}</span>`:''}
+            <span data-delmsg="${i}">删除</span>
+          </div>
+        </div>`;
+      }
+
+      // 3. 红包卡片
+      if (m.isRedPacket) {
+        const isMe = m.role === 'me';
+        const claimed = !!m.claimed;
+        return `<div class="bubwrap ${isMe?'me':'them'}">
+          ${(!isMe && (m.who || self.cur)) ? `<div class="who">${esc(m.who || self.cur)}</div>` : ''}
+          <div class="hb-card ${claimed?'claimed':''}" data-claim-hb="${i}">
+            <div class="hb-bd">
+              <div class="hb-ico">${claimed ? '已拆开' : '福'}</div>
+              <div>
+                <div class="hb-tx">${esc(m.note || '恭喜发财，大吉大利')}</div>
+                <div class="hb-sub">${claimed ? `已领取 ${emFmtPrice(m.amount || 0)}` : (isMe ? '等待对方拆开' : '点击拆开红包')}</div>
+              </div>
+            </div>
+            <div class="hb-ft"><span>STARK 红包</span><span>${claimed ? '已拆开' : '未领取'}</span></div>
+          </div>
+          <div class="action-bar">
+            <span class="tm">${esc(m.time||'')}</span>
+            ${isMe?`<span class="read-tick ${m.read?'':'pending'}">${m.read?'已读':'已送达'}</span>`:''}
+            <span data-delmsg="${i}">删除</span>
+          </div>
+        </div>`;
+      }
+
+      // 常规文本气泡（加 String 保护）
+      const safeContent = String(m.content || '');
       let contentHtml = '';
       if(self.langMode==='en' && m.role==='them'){
-        // 尝试提取其中的英文原句与中文翻译
-        const match = m.content.match(/\*"([^"]+)"\*[（(]([^）)]+)[）)]/) || m.content.match(/"([^"]+)"\s*[（(]([^）)]+)[）)]/);
+        const match = safeContent.match(/\*"([^"]+)"\*[（(]([^）)]+)[）)]/) || safeContent.match(/"([^"]+)"\s*[（(]([^）)]+)[）)]/);
         if(match){
           contentHtml = `<div style="font-family:var(--font-en);font-style:italic;color:var(--gold);font-size:13.5px;letter-spacing:0.5px;margin-bottom:6px">${esc(match[1])}</div>
                          <div style="border-top:1px dashed var(--line);padding-top:5px;font-size:12.5px;color:var(--text);opacity:0.85">${esc(match[2])}</div>`;
         } else {
-          contentHtml = fmt(m.content);
+          contentHtml = fmt(safeContent);
         }
       } else {
-        contentHtml = fmt(m.content);
+        contentHtml = fmt(safeContent);
       }
 
       // 中文模式下，万一后台依然返回了双语括号，前端做最后一道纯中文提取防护
@@ -3197,8 +3426,44 @@ apps.messages={title:'信息',view:'list',cur:'',last:'',langMode:'zh',
     v.querySelector('#m_in').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();send();}});
     /* 帮忙起话题：AI 根据人物关系、时间段、具体时间生成 3 个不同方向的开场话题 */
     v.querySelector('#m_topics').onclick=()=>self.suggestTopics(v);
+// 在聊天窗口顶部添加检测：
+const todayMD = (new Date().getMonth() + 1) + '-' + new Date().getDate();
+const isPeerBirthdayToday = getContactBirthday(self.cur) === todayMD;
+
+// 若是对方生日，在快捷栏增加一个专属醒目按钮：
+if (isPeerBirthdayToday) {
+  const bdayBtn = document.createElement('button');
+  bdayBtn.className = 'btn gold sm';
+  bdayBtn.style.cssText = 'flex:0 0 auto;padding:4px 8px;font-size:11px;margin-right:4px';
+  bdayBtn.textContent = '🎂 祝TA生日快乐';
+  bdayBtn.onclick = () => {
+    self.send(v, `生日快乐！今天可是你的专属日子，想要什么礼物？`);
+  };
+  const box = v.querySelector('#m_topics')?.parentNode;
+  if (box) box.insertBefore(bdayBtn, box.firstChild);
+}
     /* 真心话：选择回答者后，从内置题库随机出题，对方按人设作答 */
     v.querySelector('#m_truth').onclick=()=>self.truthGame(v);
+    v.querySelector('#m_pay').onclick = () => self.openTransferModal(v, 'pay');
+    v.querySelector('#m_hb').onclick = () => self.openTransferModal(v, 'hb');
+
+    // 点击领取对方发来的转账 / 红包
+    th.querySelectorAll('[data-claim-pay], [data-claim-hb]').forEach(el => {
+      el.onclick = () => {
+        const isPay = el.hasAttribute('data-claim-pay');
+        const idx = +(isPay ? el.dataset.claimPay : el.dataset.claimHb);
+        const cc = store.chats();
+        const m = (cc[self.cur] || [])[idx];
+        if (!m || m.role === 'me') return;
+        if (m.claimed) return toast('已经领取过了');
+        m.claimed = true;
+        store.setChats(cc);
+        const w = emUserWallet();
+        emSetUserWallet({ total: (w.total || 0) + (m.amount || 0) });
+        toast(`✅ 已领取 ${emFmtPrice(m.amount || 0)}，已存入钱包`);
+        self.render(v);
+      };
+    });
     th.querySelectorAll('[data-recall]').forEach(el=>{
       el.onclick=()=>{
         const i=+el.dataset.recall;const cc=store.chats();const m=(cc[self.cur]||[])[i];if(!m)return;
@@ -3504,7 +3769,7 @@ store.setContacts(cs);
     let replyPromise;
     try{
       const cs=store.contacts();const c=cs.find(x=>x.name===self.cur)||{affinity:0};
-      const recent=arr.slice(-14).map(m=>({role:m.role==='me'?'user':'assistant',content:m.content}));
+      const recent=arr.slice(-14).map(m=>({role:m.role==='me'?'user':'assistant',content:String(m.content||'')}));
       let promptExtra=`你现在扮演【${responder}】。${castText(responder)}`;
       const targetCount=c.replyCount||2;
       promptExtra+=`\n【回复条数要求】：请务必输出刚好 ${targetCount} 条简短消息，每条之间必须严格用 || 隔开！`;
@@ -3518,7 +3783,7 @@ store.setContacts(cs);
         promptExtra+=`\n【当前处于英文模式】：原句写成地道简短的英文原句，中文翻译放在后面，格式如：*"English"*（中文解释）。`;
       }
 // 反重复：把最近 6 条他说过的话扔进 prompt，禁止再提
-const recentThem = arr.filter(m=>m.role==='them'&&m.content).slice(-6).map(m=>m.content).join(' ║ ');
+const recentThem = arr.filter(m=>m.role==='them' && typeof m.content === 'string' && m.content.trim()).slice(-6).map(m=>m.content).join(' ║ ');
 const bannedTopics = [];
 if(/工作台|车库|咖啡|焊点|参数|扳手|杯沿|实验室|4\s*号台/.test(recentThem))bannedTopics.push('工作台/车库/咖啡/焊点/扳手/4号台/杯沿');
 promptExtra += `\n【严格反重复铁律】你最近已经说过：${recentThem.slice(0,300)}。
@@ -3601,26 +3866,144 @@ try{
           // 话题触发：消息含「想要 / 喜欢 / 好看 / 买不起 / 生日 / 纪念」等
           const kw=/想要|喜欢|好看|心动|买不起|有点贵|生日|纪念|送我|对我好/.test(text);
           if(hit||kw){
-            const pool=emAllGoods().filter(g=>g.price<=wealth.total*0.3);
-            if(pool.length){
-              const pick=pool[Math.floor(Math.random()*pool.length)];
-              // 预算校验
-              if(pick.price<=wealth.total){
-                emSetWealth(self.cur,{total:wealth.total-pick.price});
-                emAddInventory({id:'inv'+Date.now(),goodId:pick.id,from:self.cur,to:'me',time:nowTime(),msg:text.slice(0,40)});
-                const ch2=store.chats(),a4=ch2[self.cur]||[];
-                a4.push({role:'them',who:self.cur,
-                  content:`（${self.cur}给你寄来了一份：${pick.ico} ${pick.name} · ${emFmtPrice(pick.price)}）`,
-                  time:storyMsgTime(),isGift:true,giftId:pick.id});
-                ch2[self.cur]=a4;store.setChats(ch2);
+                        const minP = wealth.minGift || 0;
+            const pool = emAllGoods().filter(g => g.price >= minP && g.price <= wealth.total * 0.3);
+            if (pool.length) {
+              const pick = pool[Math.floor(Math.random() * pool.length)];
+              if (pick.price <= wealth.total) {
+                emSetWealth(self.cur, { total: wealth.total - pick.price });
+                emAddInventory({ id: 'inv' + Date.now(), goodId: pick.id, from: self.cur, to: 'me', time: nowTime(), msg: text.slice(0, 40) });
+                const ch2 = store.chats(), a4 = ch2[self.cur] || [];
+                a4.push({
+                  role: 'them',
+                  who: self.cur,
+                  content: `（送出礼物：${pick.name}）`,
+                  time: storyMsgTime(),
+                  isGift: true,
+                  giftId: pick.id,
+                  giftName: pick.name,
+                  giftIco: pick.ico || '🎁',
+                  giftPrice: pick.price
+                });
+                ch2[self.cur] = a4; store.setChats(ch2);
                 self.render(v);
-                banner('🎁 '+self.cur+' 送来了礼物',pick.name+' · 已入库',()=>openApp('emporium'));
+                banner('🎁 ' + self.cur + ' 送来了礼物', pick.name + ' · 已入库', () => openApp('emporium'));
               }
             }
           }
         }
       }
     }catch(e){console.warn(e);}
+        // 联系人主动发转账 / 红包
+    try {
+      const contact = store.contacts().find(x => x.name === self.cur);
+      const wealth = emWealthOf(self.cur);
+      if (contact && !isAI(self.cur) && wealth.total > 500) {
+        const moneyKw = /没钱|好穷|借钱|报销|红包|转点|零花钱|资助/.test(text);
+        if (moneyKw && (contact.affinity || 0) >= 31) {
+          const isHb = /红包/.test(text);
+          const amt = self.cur === '托尼·斯塔克' 
+            ? (Math.floor(Math.random() * 5) + 1) * 10000 
+            : Math.min(Math.floor(wealth.total * 0.05), Math.max(50, (wealth.avg || 200)));
+          if (amt > 0 && amt <= wealth.total) {
+            emSetWealth(self.cur, { total: wealth.total - amt });
+
+            // 按联系人人设生成专属转账/红包附语
+            const charNotes = {
+              '托尼·斯塔克': {
+                pay: ['零钱。别用那种眼神看我。', '去买点好的，顺便把账单烧了。', '封口费。别让佩珀知道。', '记斯塔克工业研发损耗账上。'],
+                hb: ['拿去花，买什么都别向我汇报。', '小玩意。', '给你的，别声张。']
+              },
+              '小辣椒': {
+                pay: ['已走特别审批流程，注意留存发票。', '先垫上，不够再跟我说。', '应急用，别省着。'],
+                hb: ['辛苦了，犒劳一下自己。', '新年快乐，注意休息。']
+              },
+              '罗迪': {
+                pay: ['空军津贴预支，别问哪来的。', '拿去应个急，下不为例啊。', '兄弟之间不说这个，拿着用。'],
+                hb: ['请你喝一杯，算我的。', '拿着，保密条例第一条。']
+              },
+              '哈皮': {
+                pay: ['老板不知道，我私人借你的。', '先拿着，别耽误正事。', '发票收好，回头我想办法走账。'],
+                hb: ['加鸡腿的钱，收好。', '一点心意，别嫌少。']
+              },
+              '史蒂夫·罗杰斯': {
+                pay: ['如果遇到困难随时告诉我，这个你先收下。', '互相帮一把是应该的。', '不用有负担，先渡过难关。'],
+                hb: ['祝一切顺利。', '小小心意，希望能帮上忙。']
+              },
+              '娜塔莎·罗曼诺夫': {
+                pay: ['无痕账户转出，查不到来源，放心用。', '欠我一个人情，记账上了。', '紧急备用金，别买没用的。'],
+                hb: ['收下吧，红发女巫都猜不到我有这个。', '给你了就是你的。']
+              },
+              '布鲁斯·班纳': {
+                pay: ['上周的咨询费结余……希望对你有用。', '我平时用不上钱，你拿着吧。', '请收下，别让我太紧张。'],
+                hb: ['买点喜欢的东西，让自己放松一下。', '一点心意。']
+              },
+              '彼得·帕克': {
+                pay: ['我兼职刚结了工资！虽然不多……给你！', '那个、你先拿着用！不要跟我客气！', '梅姨多给了我这个月零花钱，分你一半！'],
+                hb: ['大吉大利！蜘蛛侠特供！', '虽然只有一点点，但是我的心意！']
+              },
+              '死侍': {
+                pay: ['哥刚去敲诈了个反派，见者有份拿去浪！', '快收下！趁哥还没后悔买奇米秋林！', '赃款，洗白了，随便花别客气宝贝儿～'],
+                hb: ['恭喜发财！不收就炸你家马桶！', '来自死侍大爷的爱意暴击！']
+              },
+              '斯科特·朗': {
+                pay: ['上个月安保公司分红！给你应个急！', '别跟我客气，哥们以前劫富现在济贫！'],
+                hb: ['蚂蚁虽小也是肉！大吉大利！']
+              },
+              '巴基·巴恩斯': {
+                pay: ['收下。我不擅长说客套话。', '抚恤金用不上。拿去。'],
+                hb: ['拿着。', '平安。']
+              },
+              '山姆·威尔逊': {
+                pay: ['退伍兵应急互助金，收好了兄弟。', '先顶一阵子，不够吱声。'],
+                hb: ['一点小心意，别客气。']
+              },
+              '斯蒂芬·斯特兰奇': {
+                pay: ['这笔开销在所有未来分支里都是最优解。', '不用感谢，维山帝不计较这些。'],
+                hb: ['至尊法师的世俗赠礼，收好。']
+              },
+              '彼得·奎尔': {
+                pay: ['宇宙赏金折算成地球币了，别嫌少！', '掠夺者义气，拿着！'],
+                hb: ['这钱比卡带还烫手，送你了！']
+              },
+              '梅·帕克': {
+                pay: ['孩子，拿着这个，在外面千万别委屈自己。', '阿姨的一点心意，买点好吃的。'],
+                hb: ['平平安安，多吃点好的。']
+              },
+              '洛基': {
+                pay: ['凡人的碎银罢了。赏你的，收下吧。', '别误会，只是觉得你窘迫的样子有些无趣。'],
+                hb: ['神明的施舍，你该感到荣幸。']
+              }
+            };
+
+            const pool = charNotes[self.cur] 
+              ? (isHb ? charNotes[self.cur].hb : charNotes[self.cur].pay)
+              : null;
+            const fallbackNote = isHb ? '一点心意，大吉大利' : '拿去应个急，别客气';
+            const selectedNote = pool 
+              ? pool[Math.floor(Math.random() * pool.length)] 
+              : fallbackNote;
+
+            const ch2 = store.chats(), a4 = ch2[self.cur] || [];
+            a4.push({
+              role: 'them',
+              who: self.cur,
+              content: `（${self.cur}发来了${isHb ? '红包' : '转账'}）`,
+              [isHb ? 'isRedPacket' : 'isPay']: true,
+              amount: amt,
+              note: selectedNote,
+              claimed: false,
+              time: storyMsgTime()
+            });
+            ch2[self.cur] = a4; store.setChats(ch2);
+            self.render(v);
+            banner(`${isHb ? '🧧' : '💸'} ${self.cur} 发来了${isHb ? '红包' : '转账'}`, `${emFmtPrice(amt)} · 点击领取`, () => {
+              openApp('messages'); apps.messages.cur = self.cur; apps.messages.view = 'chat'; apps.messages.render($('#appBody'));
+            });
+          }
+        }
+      }
+    } catch (e) {}
     // 心声随对话一起生成：弹窗显示并存入档案，不再单独产出
     try{
       const ctxArr=(store.chats()[self.cur]||[]).slice(-4).map(m=>m.content).filter(Boolean);
@@ -3681,6 +4064,53 @@ try{
       const inp=v.querySelector('#m_in');inp.value=txt;inp.focus();d.remove();
       toast('话题已填入输入框，可直接发送');
     });
+  },
+  openTransferModal(v, mode) {
+    const self = this;
+    const isPay = mode === 'pay';
+    const wallet = emUserWallet();
+    const d = modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:16px">${isPay ? '💸 发起转账' : '🧧 发送红包'} · ${esc(self.cur)}</h2>
+      <div class="card">
+        <div class="hint" style="margin-bottom:8px">你的钱包余额：<b style="color:var(--gold)">${emFmtWealth(wallet.total)}</b></div>
+        <div class="field"><label>金额 (USD)</label><input id="tr_amt" type="number" min="1" class="inp" placeholder="${isPay ? '例如：5000' : '例如：888'}"></div>
+        <div class="field"><label>${isPay ? '转账备注（选填）' : '红包祝福语'}</label><input id="tr_note" class="inp" value="${isPay ? '' : '一点小心意'}"></div>
+        <button class="btn ${isPay ? 'gold' : 'red'}" id="tr_go">${isPay ? '确认转账' : '塞钱进红包'}</button>
+        <button class="btn ghost" data-close style="margin-top:8px">取消</button>
+      </div>`);
+    d.querySelector('#tr_go').onclick = async () => {
+      const amt = Math.floor(+d.querySelector('#tr_amt').value || 0);
+      const note = d.querySelector('#tr_note').value.trim();
+      if (amt <= 0) return toast('请输入有效金额');
+      if (wallet.total < amt) return toast('钱包余额不足');
+      emSetUserWallet({ total: wallet.total - amt });
+      const ch = store.chats();
+      (ch[self.cur] = ch[self.cur] || []).push({
+        role: 'me',
+        [isPay ? 'isPay' : 'isRedPacket']: true,
+        amount: amt,
+        note: note || (isPay ? '' : '恭喜发财'),
+        claimed: true, // 对方默认收下或由后续对话决定
+        time: storyMsgTime(),
+        read: true
+      });
+      store.setChats(ch);
+      d.remove();
+      toast(`已发送 ${emFmtPrice(amt)}`);
+      self.render(v);
+
+      // 触发对方按人设回复
+      try {
+        const sys = buildSystem('chat', `玩家刚刚在聊天里给你发了一笔${isPay ? '转账' : '红包'}，金额：${emFmtPrice(amt)}${note ? '，备注：' + note : ''}。请以【${self.cur}】的口吻回复 1~2 条短消息（10~40 字，多条用 || 分隔），符合人设、资产水平与当前关系（比如托尼不会缺这点钱，可能会吐槽或顺手双倍转回来）。严禁动作描写。`);
+        const r = await ai([{ role: 'user', content: '请回复。' }], sys, () => localReply(self.cur, isPay ? '转账' : '红包'), 'social');
+        const msgs = String(r).split('||').map(x => x.trim()).filter(Boolean);
+        for (const m of msgs) {
+          const ch2 = store.chats();
+          (ch2[self.cur] = ch2[self.cur] || []).push({ role: 'them', who: self.cur, content: m, time: storyMsgTime() });
+          store.setChats(ch2);
+          self.render(v);
+        }
+      } catch (e) {}
+    };
   },
   /* 真心话：选择回答者后，从内置题库随机出题，对方按人设作答 */
   async truthGame(v){
@@ -5124,59 +5554,329 @@ const AFF_TIERS=[
 function tierOf(v){const n=Math.max(0,Math.min(200,+v||0));return AFF_TIERS.find(t=>n>=t.min&&n<=t.max)||AFF_TIERS[0];}
 function tierIndex(v){return AFF_TIERS.findIndex(t=>t.key===tierOf(v).key);}
 /* 每档跨入时派发的奖励：小剧场 / 托尼信件 / 实验室物品（复用 theater / mail / labItems） */
-const MILESTONE_DEFS={
-  t2:{quest:'ms_partner',items:['glove'],mail:{subject:'Re: 备用位',body:'备用位那把椅子别换。我量过高度，刚好够得着 4 号台。\n\n不是给你留的。是那把椅子本来就在那儿。\n\nT.S.'}},
-  t3:{quest:'ms_friend',items:[],mail:{subject:'（没有主题）',body:'凌晨三点。你上次说的那个参数是对的。\n\n我改了两版，第一版比你说的差，第二版还是差一点。别得意。\n\n咖啡机我让人换成不带计时器的了。计时器吵。\n\nT.S.'}},
-  t4:{quest:'ms_trust',items:['fuse'],mail:{subject:'4 号工作台',body:'保险丝在第二个抽屉，标签是我写的。\n\n「别让我知道是谁拿的」——这句现在是给你看的。\n\n其余的条目依权限未列出。\n\nT.S.'}},
-  t5:{quest:'ms_softspot',items:['blue'],bootFx:true,mail:{subject:'蓝色那个',body:'盖子上我贴了新标签：「说真的，别碰。」\n\n你大概已经碰过了。\n\n我没让人换锁。这件事不要再提。\n\nT.S.'}},
-  t6:{quest:'ms_vow',items:['core'],bootFx:true,mail:{subject:'That\'s the deal',body:'有份东西我放到你一伸手就能拿到的位置了。别现在拆。\n\n我不写那种话，你知道。所以就一句：\n\nI\'ll keep you alive. That\'s the deal.\n\nT.S.'}}
-};
-const Milestones={
-  done(){return store.get('affMilestones',[]);},
-  check(oldVal,newVal,opts){
-    opts=opts||{};
-    const a=tierIndex(oldVal),b=tierIndex(newVal);
-    if(a===b||b<=a)return;                 // 只在跨入更高档时派发，下降不派发也不清记录
-    const done=this.done();
-    for(let i=a+1;i<=b;i++){
-      const t=AFF_TIERS[i];
-      if(done.includes(t.key))continue;
-      done.push(t.key);store.set('affMilestones',done);   // 记录已触发项，防重复
-      if(opts.silent)continue;
-      this.grant(t);
-    }
+/* ============================================================
+   深度动态里程碑引擎：长信（≥900字）/ 深度小剧场（≥1000字）/ 专属物品
+   完全基于玩家前期经历上下文动态推演，杜绝简短与模板化
+   ============================================================ */
+
+// 提取触发里程碑前的真实历史与羁绊细节
+function gatherMilestoneContext() {
+  const s = store.state() || {};
+  const f = flags();
+  const p = store.profile() || {};
+  const ch = store.chats();
+  const tonyChats = (ch['托尼·斯塔克'] || []).slice(-10).map(m => `${m.role === 'me' ? (p.name || '你') : '托尼'}: ${m.content}`).join('\n');
+  const hist = (s.history || []).slice(-8).map((h, i) => `【阶段 ${i + 1}】剧情：${h.story.slice(0, 160)}... 玩家选择：${h.choice}`).join('\n');
+  const dates = (store.get('dateHistory', []) || []).slice(0, 3).map(d => `曾去过 ${d.place}（${d.spot}），氛围：${d.mood}`).join('；');
+
+  let pepperRule = f.pepperExists 
+    ? '小辣椒（佩珀·波茨）存在：作为托尼的老友兼斯塔克工业CEO，负责统筹行政事务，严禁写成恋爱暧昧对象。' 
+    : '【核心禁令】本宇宙绝对不存在小辣椒（佩珀·波茨）！信件、小剧场、物品描述中严禁出现“佩珀”、“小辣椒”、“波茨”、“CEO”或任何暗示曾有此人的字眼，所有行政事务均由董事会秘书处或公关部出具。';
+
+  return `
+【当前时间锚点】：${f.year} 年 · ${f.era.name}，托尼·斯塔克 ${f.tonyAge} 岁。
+【玩家身份与背景】：${p.name || '访客'}，${p.identity || '顾问/搭档'}，性格：${p.personality || '沉稳'}。
+【宇宙设定】：${pepperRule}
+【两人过往经历沉淀】：
+1. 世界线近期关键历程：
+${hist || '（这是你们初次深度建立纽带的时期，此前经历主要在实验室基础调试中展开）'}
+2. 近期短信/对话交锋：
+${tonyChats || '（对话充满试探、技术抬杠与深夜简短留言）'}
+3. 共同出行/约会记录：${dates || '暂无正式外出，多在车库与实验室共处'}
+`;
+}
+
+// 里程碑核心主题定义
+const MILESTONE_THEMES = {
+  t2: {
+    key: 't2',
+    name: '技术搭档',
+    en: 'Technical Partner',
+    subject: '关于 4 号工作台、冗余计算与你没删干净的代码日志',
+    promptFocus: '托尼承认你在技术上的不可替代性。信件表面上是就你之前某次提出的参数或代码进行挑刺和技术拆解，实则宣布实验室对你永久开放备用工位，并吐槽你的生活作息。小剧场以实验室深夜并肩排除重大设备过载为开端。',
+    itemDefault: { name: '带手写修正公式的偏振光纤探针', desc: '手柄末端用记号笔歪歪扭扭地写着一串修正曲率。那是你们第一次推导失误后，他没扔掉反而留作校准基准的零件。' }
   },
-  grant(t){
-    const def=MILESTONE_DEFS[t.key];if(!def)return;
-    // ① 小剧场：解锁专属剧本，由 apps.theater 直接复用 renderQuest
-    if(def.quest){const u=store.get('theaterUnlocked',[]);if(!u.includes(def.quest)){u.push(def.quest);store.set('theaterUnlocked',u);}}
-    // ② 实验室物品：复用 labItems / addLabItem
-    (def.items||[]).forEach(id=>{const it=(typeof LAB_ITEMS_DEF!=='undefined'?LAB_ITEMS_DEF:[]).find(x=>x.id===id);
-      if(it&&typeof addLabItem==='function')addLabItem({...it});});
-    // ③ 托尼信件：复用 mailAll / mailSave
-    if(def.mail){
-      const l=mailAll();l.unshift({id:'m'+Math.random().toString(36).slice(2,9),owner:'user',box:'in',
-        from:'托尼·斯塔克 <tony@starkindustries.com>',to:'you@starkmail.com',
-        subject:def.mail.subject,body:def.mail.body,tag:'私人',unread:true,star:true,
-        time:nowTime(),quote:'',milestone:t.key});
-      mailSave(l);
-    }
-    EventEngine.record({type:'milestone',icon:t.emoji,title:'好感里程碑 · '+t.name,
-      detail:'解锁专属小剧场 / 托尼来信 / 实验室物品（'+t.en+'）',target:'theater'});
-    notifyBanner('里程碑解锁 · '+t.emoji+' '+t.name,'专属小剧场、信件或实验室物品已送达',()=>openApp('briefing'));
-    toast('已跨入「'+t.name+'」· 专属内容已解锁');
-    if(def.bootFx)bootAnimation(t);
-    try{renderGrid();}catch(e){}
+  t3: {
+    key: 't3',
+    name: '破冰老友',
+    en: 'Thawed Friend',
+    subject: '（无主题）——顺便把大厦后半夜的电费清单报销了',
+    promptFocus: '托尼展示出难得的、被刺猬外壳包裹的依赖。提及之前短信里的暗号、换掉嘈杂咖啡机的原委，抱怨你总能看穿他转移话题的把戏。信中包含他对自己失眠、战甲迭代焦虑的隐晦投射。小剧场以风雨交加之夜在顶层酒廊或露台避开所有人的私密长谈为开端。',
+    itemDefault: { name: '改掉警报蜂鸣的定制电路盒', desc: '原本刺耳的过载蜂鸣被焊上了一块降噪电容，贴着一张字条：“现在它不会在凌晨三点吓醒人了。别问谁改的。”' }
   },
-  /* 开机补检：老存档升级到 V2 后按当前档位补齐记录（不打扰地静默补齐，仅补最高档动画） */
-  bootCheck(){
-    const s=store.state();if(!s)return;
-    const aff=s.affinity||0,done=this.done(),idx=tierIndex(aff);
-    let changed=false;
-    for(let i=1;i<=idx;i++){if(!done.includes(AFF_TIERS[i].key)){done.push(AFF_TIERS[i].key);changed=true;}}
-    if(changed)store.set('affMilestones',done);
+  t4: {
+    key: 't4',
+    name: '深层信任',
+    en: 'Deep Trust',
+    subject: 'SECURITY CLEARANCE OVERRIDE // 别让安保部门看见',
+    promptFocus: '托尼交出底层权限与真正的致命弱点（胸口反应堆的痛苦、西伯利亚或山洞的原罪阴影）。在信里复盘你们一起经历过的某次危机，字里行间流露出“如果我哪天失控，只有你能拔掉电源”的沉重托付。小剧场以进入陈列廊最深处的受限绝密隔间为开端。',
+    itemDefault: { name: '方舟电磁铁初版手动调谐扳手', desc: '接触面已经磨损，带着极淡的金属与机油冷味。他从不让外人触碰与胸口旧创相关的工具，现在它静静躺在你的储物格里。' }
+  },
+  t5: {
+    key: 't5',
+    name: '盔甲软肋',
+    en: 'Soft Spot',
+    subject: '【高优先级加密】关于“蓝色那个”的免责说明以及后备预案',
+    promptFocus: '极度克制的温柔与战栗的占有欲。托尼坦白自己不再戴墨镜面对你时的无所遁形，坦白战甲对他而言既是棺木又是壁垒，但他试图把你铸造进最坚固的保护壳里。严禁油腻俗套的甜言蜜语，全部化为对全球防御体系与你个人人身安危的偏执推演。小剧场以卸甲状态下的正面情感摊牌与防线崩溃为开端。',
+    itemDefault: { name: '刻有双重生物识别锁的微型反应堆核心吊坠', desc: '钛合金微雕外壳，微光在掌心以平稳的频率脉动。内侧蚀刻着一行只有在光线特定角度才能看见的纳米字符：“Alive. Both of us.”' }
+  },
+  t6: {
+    key: 't6',
+    name: '非正式生死契约',
+    en: 'Unspoken Vow',
+    subject: 'PROTOCOL 1970-FINAL // That\'s the deal.',
+    promptFocus: '终极契约。褪去所有花花公子与超级英雄伪装后的安东尼·斯塔克。信件长达千字以上，是他亲手写就的生前预案附录：所有资产信托、纳米装甲最高控制权、紧急避难所坐标与湖边小屋的备用钥匙。他平静而笃定地写下：“我不会说爱，因为机器不会说这个词。但我会让你活着，在一切灰烬落定之后。”小剧场以面对可能到来的不可逆告别前夕的深情对视与共同守护为开端。',
+    itemDefault: { name: '“Mark 0”纯手工机械打火机与加密信托密匙', desc: '机身布满纯手工挫磨的痕迹，滚轮下压时窜起的不是明火，而是一束微型纯净的方舟电弧。内轴隐藏着斯塔克全部非公开研发资产的终极解锁密匙。' }
   }
 };
+
+const Milestones = {
+  done() { return store.get('affMilestones', []); },
+
+  async check(oldVal, newVal, opts) {
+    opts = opts || {};
+    const a = tierIndex(oldVal), b = tierIndex(newVal);
+    if (a === b || b <= a) return; // 仅在跨入更高好感阶梯时触发
+
+    const done = this.done();
+    for (let i = a + 1; i <= b; i++) {
+      const t = AFF_TIERS[i];
+      if (done.includes(t.key)) continue;
+      done.push(t.key);
+      store.set('affMilestones', done);
+      if (opts.silent) continue;
+      await this.grantDynamic(t);
+    }
+  },
+
+  async grantDynamic(tier) {
+    const meta = MILESTONE_THEMES[tier.key];
+    if (!meta) return;
+
+    const ctx = gatherMilestoneContext();
+    const p = store.profile() || {};
+    const userName = p.name || '你';
+
+    // 弹窗提示正在生成大体量长剧情与信件
+    toast(`好感度突破【${tier.name}】！托尼正在为你撰写长信与筹备剧场…`);
+
+    // 1. 生成托尼长信（硬性要求不少于 900 字）
+    let mailBody = '';
+    const mailSys = buildSystem('mail', `
+你现在扮演【托尼·斯塔克】。玩家好感度刚突破到了【${tier.name}（${tier.en}）】阶梯。
+请给玩家写一封【极其详实、情感暗涌、字数不少于 900 字】的深夜私人长邮件。
+
+【核心背景与历史经历参考】：
+${ctx}
+
+【本阶段主题要求】：
+${meta.promptFocus}
+
+【托尼式长信写作铁律】：
+1. 严禁敷衍缩写！正文必须极其充实，篇幅【严格在 900 ~ 1300 字之间】。字数不够会被系统判为失败！
+2. 语言风格：绝不准直接说“我爱你”或廉价的煽情！托尼写作充满快节奏的自我怀疑、刻薄挑刺、技术推导、漫不经心的讽刺、对往事细节的精准打脸回忆，以及最后掩盖不住的护短与笨拙深情。
+3. 必须频繁结合上述提供的【世界线历史】与【短信互动】，提到具体的工作台、某次测试、某杯咖啡、某句被顶回来的嘴炮。
+4. 正文排版错落有致，段落分明，末尾以标志性的“T.S.”落款。
+`);
+
+    try {
+      mailBody = await callAI([
+        { role: 'user', content: `请以托尼·斯塔克的身份，撰写这封好感突破【${tier.name}】的私人长信。主题：“${meta.subject}”。务必结合过往真实经历，字数必须达到 900 字以上。` }
+      ], mailSys, 'story');
+    } catch (e) {
+      // 本地高质量 1000 字兜底文本，防止无网络时空白
+      mailBody = this.getFallbackMail(tier.key, userName, flags().pepperExists);
+    }
+
+    // 存入邮件系统
+    const curMails = mailAll();
+    const mailId = 'm_ms_' + Date.now();
+    curMails.unshift({
+      id: mailId,
+      owner: 'user',
+      box: 'in',
+      from: '托尼·斯塔克 <tony@starkindustries.com>',
+      to: 'you@starkmail.com',
+      subject: meta.subject,
+      body: mailBody,
+      tag: '私人',
+      unread: true,
+      star: true,
+      time: nowTime(),
+      quote: '',
+      milestone: tier.key
+    });
+    mailSave(curMails);
+
+    // 2. 生成专属小剧场开端（Act 1 场景，硬性要求不少于 1000 字）
+    let questScene = '';
+    let questOptions = '';
+    const questSys = buildSystem('worldline', `
+你现在是电影级剧本编剧。为好感突破【${tier.name}】设计一个专属独立小剧场《${meta.name}之章》的宏大开端（Act 1）。
+【场景开端正文字数必须严格不少于 1000 字】！
+
+【历史经历沉淀】：
+${ctx}
+
+【本幕核心剧情冲突与氛围】：
+${meta.promptFocus}
+
+【写作铁律】：
+1. 电影镜头感：开篇极度细腻地描写环境、机油冷味、金属微热、全息光弧的阴影、托尼脸上的机油与眼角细纹。
+2. 结合过往经历：将两人在世界线上经历过的风波、争执与默契作为对话伏笔自然带出。
+3. 【对白语言铁律】出声台词必须全部严格写成："English Line"（中文翻译）。旁白环境纯中文，禁止任何乱码星号。
+4. 正文末尾另起一行，输出【选项】，给出 A. B. C. D. 四个哲学立场截然不同的抉择。
+`);
+
+    try {
+      const qRes = await callAI([
+        { role: 'user', content: `请为小剧场撰写不少于 1000 字的开端场景与选项。` }
+      ], questSys, 'story');
+
+      const parts = qRes.split(/【选项】/);
+      questScene = parts[0].replace(/【剧情】/g, '').trim();
+      questOptions = (parts[1] || '').trim();
+      if (!questOptions) {
+        questOptions = 'A. 径直走到操作台前，按住他发颤的手指\nB. 顺着全息投影上的破损参数，指出他推演中的致命破绽\nC. 靠在门框边保持长久的静默，换掉冰凉的杯子\nD. 用一句更尖锐的冷嘲打破这窒息的空气';
+      }
+    } catch (e) {
+      questScene = this.getFallbackQuestScene(tier.key, userName, flags().pepperExists);
+      questOptions = 'A. 走上前接下他手里的工具，直视他的眼睛\nB. 提起上次在测试中悬而未决的争议\nC. 保持距离，退到阴影里的备用椅坐下\nD. 伸手合上那份闪烁不定的底层协议';
+    }
+
+    // 注册到独立小剧场库
+    const questId = 'ms_dyn_' + tier.key;
+    const dynamicQuest = {
+      id: questId,
+      title: `${tier.emoji} ${tier.name} · ${meta.en}`,
+      eras: ALL_ERA_IDS,
+      milestone: true,
+      desc: `好感突破 ${tier.min} 分专属里程碑剧场：在深沉的时光回响中，面对褪去盔甲的安东尼·斯塔克。`,
+      scene: questScene,
+      options: questOptions,
+      ending: '夜色渐深，灯光暗至最后一档。他没有再多作辩解，但那份被留在桌上的协议与未冷却的焊点，已经替他给出了答案。'
+    };
+
+    // 动态挂载
+    const dynQuests = store.get('dynamicMilestoneQuests', {});
+    dynQuests[questId] = dynamicQuest;
+    store.set('dynamicMilestoneQuests', dynQuests);
+
+    const uQuests = store.get('theaterUnlocked', []);
+    if (!uQuests.includes(questId)) {
+      uQuests.push(questId);
+      store.set('theaterUnlocked', uQuests);
+    }
+
+    // 3. 生成符合经历的专属实验室物品
+    const itemObj = {
+      id: 'item_dyn_' + tier.key + '_' + Date.now(),
+      name: meta.itemDefault.name,
+      desc: meta.itemDefault.desc + `（于 ${eraName()}，好感突破至【${tier.name}】时托尼亲手所留）`
+    };
+    addLabItem(itemObj);
+
+    // 4. 事件引擎记录与全站横幅
+    EventEngine.record({
+      type: 'milestone',
+      icon: tier.emoji,
+      title: `好感里程碑 · ${tier.name}`,
+      detail: `已解锁千字私人长信、专属小剧场与【${itemObj.name}】`,
+      target: 'mail'
+    });
+
+    notifyBanner(`好感里程碑 · ${tier.name}`, `托尼发来了一封深夜长信，并有新的专属小剧场解锁`, () => {
+      openApp('mail');
+      apps.mail.account = 'user';
+      apps.mail.folder = 'in';
+      apps.mail.cur = mailId;
+      apps.mail.render($('#appBody'));
+    });
+
+    if (tier.min >= 151) bootAnimation(tier);
+    try { renderGrid(); } catch (e) {}
+  },
+
+  // 900字以上的高品质纯正托尼口吻兜底长信（确保断网或无Key时绝对不拉胯）
+  getFallbackMail(tierKey, userName, pepperExists) {
+    const adminRef = pepperExists ? '佩珀刚才把第三批需要我签字的法务文件拍在工作台上，顺便没收了我第四杯浓缩咖啡。' : '董事会那帮连齿轮比都算不明白的老古董又在发催促函，法务部发了整整六页纸的避责备忘录。';
+    return `发件人：托尼·斯塔克 <tony@starkindustries.com>
+收件人：${userName} <you@starkmail.com>
+时间：03:47 AM
+主题：关于 4 号工作台、冗余计算与你没删干净的代码日志
+
+现在是凌晨三点四十七分。
+贾维斯在七分钟前第三次警告我脑电波活跃度超过了安全阈值，而我十分钟前刚把它主控界面的警报音量调到了零。
+${adminRef}
+所有人都在告诉我该去睡觉，好像睡觉能把反应堆的输出阻抗或者纽约上空那些该死的潜在防御漏洞自动修补好一样。一群业余选手。
+
+顺便说一句，你上周二留在我备用终端上的那段算法。我花了整整四十分钟把它拆成了汇编指令，原本我是想找个机会在早餐时当面嘲笑你对热力学第二定律的理解还停留在麻省理工二年级的水平——别露出那种表情，我知道你在看这封邮件时绝对扬起了眉毛。但我不得不承认，你在第二级反馈回路里加的那个动态阻尼参数，居然真的把谐波震荡压下去了百分之三点六。只有百分之三点六。换算成推力大概只够把一只纽约鸽子送上天花板，但我没删它。它现在还在主架构的内核测试沙盒里跑着。
+
+我向来讨厌别人在我的实验室里留下痕迹。我不喜欢别人碰我的扳手，不喜欢别人移动螺丝盒的位置，更讨厌有人自作聪明地把咖啡杯放到离全息发生器只有两英寸的地方——你知道那台光学投射镜组有多贵吗？它够在曼哈顿买下一整栋带中央公园景观的联排别墅。但你那天把杯子放下的时候，连杯底的水渍都擦干净了。这种多余的体贴让人毛骨悚然，真的。它甚至让我花了几秒钟去思考我是不是该在安保系统里给你加一级永久性的生物阻抗豁免权。后来我加了。别问贾维斯，贾维斯只会被我下达保密协议。
+
+说点正事，虽然我猜你肯定以为这又是我在转移话题。
+这段时间发生的事情有点多。每一次新闻发布会闪光灯亮起来的时候，我都觉得自己像是一台被架在烤架上的退役引擎。人们要看钢铁侠，要看坚不可摧的金红涂装，要看那个连导弹打在脸上都能面不改色讲俏皮话的花花公子。他们根本不在乎盔甲底下到底是个什么东西，或者说，他们默认里面的血肉之躯也是钛合金浇筑的。
+但你在车库里的眼神不是那样的。
+那天火花溅到地上的时候，你递扳手的速度比平时慢了半拍。你在看我胸口那个发光的破玩意儿，你以为我没注意到你在数脉冲间歇的微弱频闪？听着，我不习惯被任何人看穿，那让我觉得自己的防火墙跟纸糊的一样可笑。但比起同情——那种该死又虚伪的慈善家眼光——你眼里只有“这家伙今天大概还能撑八个小时”。这算是我这辈子听过最不难听的评价了。
+
+备用工位上的那把椅子，我让物流部门换了液压杆。高度调过了，扶手软包也换成了阻燃皮革。别自作多情，我不是为了迎合你的坐姿，纯粹是因为之前那个劣质塑料件在我的红外测温仪里反光太严重，干扰了我观察电弧光谱。如果你明天早上九点前没有出现在那里把那个该死的稳压器装回去，我就把你的工牌权限降级为大堂访客，并且让前台每天只准给你发冷萃袋泡茶。
+
+最后，这条邮件在十分钟后会被系统自动移入深度离线归档，你要是敢截图发给罗迪或者任何一个人，我就黑掉你所有的个人设备，把你手机铃声全部换成我高中时期车库乐队录的重金属黑历史。
+
+把那杯冷掉的咖啡倒了。明天实验室见。
+
+T.S.`;
+  },
+
+  // 1000字以上的高品质小剧场开端兜底（确保叙事深度与沉浸感）
+  getFallbackQuestScene(tierKey, userName, pepperExists) {
+    const adminDesk = pepperExists ? '佩珀半小时前把整栋大厦的非核心能源彻底切断以示抗议' : '斯塔克工业的整栋大厦已经在深夜管制中陷入死寂';
+    return `斯塔克大厦地下八层，私人机械工坊。
+
+这里的空气永远带着一种近乎刻薄的冰冷。那是冷却氟化物、高标号航空煤油、以及电弧击穿空气后残留的淡臭氧味混合在一起的气息。墙壁四周没有开大灯，只有中央工作台上方垂悬着一盏冷白色的泛光聚光灯，像是一把精准的手术刀，将整个地下世界剖成光亮与极暗两个极端。
+
+${adminDesk}，整座曼哈顿的喧嚣隔着厚达两米的吸音复合铅板，被阻绝得像是一场遥远的无声黑白电影。只有全息显示屏在半空中无声地流转，复杂的 Mark 系列骨架拓扑图以深蓝色的虚线一圈圈自转，冷光倒映在环形水磨石地面上，投下细碎的波光。
+
+托尼·斯塔克就背对着门，站在那张几乎承载了他所有偏执与原罪的 4 号工作台前。
+
+他穿着一件沾满深灰色机油痕迹的黑色无袖背心，后颈处的肌肉绷得很紧，原本梳理得一丝不苟的发丝有几缕凌乱地垂在额前。他没有穿上装甲的臂甲，右手的机械钳正咬着一枚只有火柴盒大小的高能谐振线圈。他的左手无意识地按在自己的左胸前——隔着薄薄的布料，方舟反应堆的苍白微光正透出来，但今晚那团光芒并不平稳，而是随着某种内部能量的紊乱，极其细微地抽搐、泛起微不可察的青灰色光晕。
+
+“如果你是来劝我喝那杯加了双倍燕麦奶的安神茶的，”他没有回头，甚至手上的合金焊枪连火花都没停顿，“建议你把杯子直接放在第三个工具箱顶上，然后顺便帮我把通风管道的排气阀拧开三格。或者，你可以直接去休息区，把门反锁，假装大厦里根本没有一个快把自己脑子烧穿的自大狂。”
+
+他的语速很快，快得像是如果不把每个音节连珠炮般吐出来，空气里某种令人窒息的沉重就会瞬间将他压垮。
+
+你没有退回去，鞋底踏在金属格栅板上，发出极其清脆的“嗒、嗒”两声轻响。
+
+就在这脚步声落下的瞬间，托尼右手的动作终于停了。焊枪的高温等离子焰尖“嗤”地熄灭，空气里留下一道焦灼的青烟。他没有立刻转过身，只是将重型合金钳轻轻放回了托盘里，金属碰击发出冰冷的脆响。
+
+“你走路的声音比上个月轻了整整两分贝。”他背对着你，慢慢摘下护目镜，随手扔在一叠写满混乱修正公式的半透明阻燃图纸上，“这意味着什么？要么是你在神盾局的秘密潜入科目拿了满分，要么……是你已经开始习惯在半夜不声不响地摸进我的死角了。哪一种听起来都让人很不舒服。”
+
+当他终于转过身来时，全息投影的幽蓝微光打在他的侧脸上。你清晰地看到了他眼底深陷的青黑、下颌微微泛起的胡茬，以及那双向来充斥着嘲讽与傲慢的褐色眼睛里，那一抹极难捕捉到的、几乎等同于卸防的疲惫。
+
+他胸口反应堆的微光在他的下巴上镀了一层冷色调的边缘。他靠在冰冷的工作台边缘，双手撑在身后，微微仰起头看着你，嘴角扯起一个极其习惯性、用来掩饰失控的讽刺微笑：
+
+*"Don't just stand there looking at me like I'm a museum exhibit about to crash."*（别跟看快要报废的博物馆展品似的站在那儿看着我。）
+
+他身后的全息屏幕猛然跳动了一下，一行猩红色的底层过载诊断日志划过虚空，那是这间实验室最深处的秘密，也是他从未对复联任何同伴公开过的自毁性过载数据。而现在，这行代码就横亘在你们两人的视线中央。
+
+【选项】`;
+  },
+
+   // 开机校验补全
+  bootCheck() {
+    const s = store.state(); if (!s) return;
+    const aff = s.affinity || 0, done = this.done(), idx = tierIndex(aff);
+    let changed = false;
+    for (let i = 1; i <= idx; i++) {
+      if (!done.includes(AFF_TIERS[i].key)) {
+        done.push(AFF_TIERS[i].key);
+        changed = true;
+      }
+    }
+    if (changed) store.set('affMilestones', done);
+  }
+};
+
 /* 统一好感写入口：同步 state + 通讯录，并派发里程碑 */
 function applyAffinity(v,opts){
   opts=opts||{};
@@ -5379,12 +6079,14 @@ function bootAnimation(tier){
   const t=setInterval(()=>{if(el)el.textContent=lines[i]||'';i++;
     if(i>=lines.length){clearInterval(t);setTimeout(()=>{d.classList.add('out');setTimeout(()=>d.remove(),650);},420);}},680);
 }
-/* 小剧场：内置剧本 + 好感里程碑解锁的专属剧本 */
+/* 小剧场：内置剧本 + 好感里程碑解锁的专属剧本 + 动态生成剧本 */
 function allTheaterQuests(){
   const base=(typeof THEATER_QUESTS!=='undefined')?THEATER_QUESTS:[];
   const extra=(typeof MILESTONE_QUESTS!=='undefined')?MILESTONE_QUESTS:[];
+  const dynMap=store.get('dynamicMilestoneQuests',{})||{};
+  const dynList=Object.values(dynMap);
   const unlocked=store.get('theaterUnlocked',[]);
-  return [...base,...extra.filter(q=>unlocked.includes(q.id))];
+  return [...base, ...extra.filter(q=>unlocked.includes(q.id)), ...dynList.filter(q=>unlocked.includes(q.id))];
 }
 /* ============================================================
    环境层：托尼实时状态 · 环境微日志 · 斯塔克工业股价
@@ -7206,6 +7908,56 @@ v.innerHTML=`<div class="pad">
     if(rb)rb.onclick=()=>{const ov=store.get('wbOverrides',{});delete ov[x._key];store.set('wbOverrides',ov);d.remove();self.render(v);toast('已恢复默认');};
   });
 }};
+/* ---------- 内置 MCU 角色生日字典 (MM-DD) ---------- */
+const DEFAULT_MCU_BIRTHDAYS = {
+  '托尼·斯塔克': '5-29',
+  '小辣椒': '8-27',
+  '罗迪': '10-6',
+  '哈皮': '5-27',
+  '史蒂夫·罗杰斯': '7-4',
+  '托尔': '6-11',
+  '布鲁斯·班纳': '12-18',
+  '娜塔莎·罗曼诺夫': '11-22',
+  '克林特·巴顿': '1-7',
+  '彼得·帕克': '8-10',
+  '尼克·弗瑞': '7-4',
+  '玛丽亚·希尔': '4-4',
+  '旺达·马克西莫夫': '2-10',
+  '幻视': '5-5',
+  '巴基·巴恩斯': '3-10',
+  '山姆·威尔逊': '9-23',
+  '斯蒂芬·斯特兰奇': '11-18',
+  '彼得·奎尔': '10-4',
+  '斯科特·朗': '6-5',
+  '死侍': '11-22',
+  '洛基': '12-17',
+  '梅·帕克': '5-8'
+};
+
+// 获取联系人有效生日（自定义修改 > 字典预设）
+function getContactBirthday(name) {
+  const c = (store.contacts() || []).find(x => x.name === name);
+  if (c && c.birthday) return c.birthday;
+  return DEFAULT_MCU_BIRTHDAYS[name] || '';
+}
+
+/* 获取生日条目：包含用户在日历手动设定的生日 + 列表所有联系人的预设生日 */
+function birthdayEntries() {
+  const out = [];
+  const p = store.profile() || {};
+  // 用户在日历手动设定的生日
+  if (p.birthday && /^\d{1,2}-\d{1,2}$/.test(p.birthday)) {
+    out.push({ md: p.birthday, name: p.name || '你', emoji: '🎂', origin: '我的生日', isUser: true });
+  }
+  // 遍历通讯录中当前真实存在的联系人
+  (store.contacts() || []).forEach(c => {
+    const bday = getContactBirthday(c.name);
+    if (bday && /^\d{1,2}-\d{1,2}$/.test(bday)) {
+      out.push({ md: bday, name: c.name, emoji: '🎂', origin: '联系人生日', contact: c.name });
+    }
+  });
+  return out;
+}
 
 /* ============================================================
    日历（月视图 / 中国 + 美国节日 / 自定义纪念日 / 生日 / 自定义节日 / 自动触发）
@@ -7226,8 +7978,7 @@ const CN_FIXED_HOLIDAYS=[
   {md:'11-11',name:'光棍节',emoji:'🛒'},
   {md:'12-25',name:'圣诞节',emoji:'🎄'},
 ];
-/* 中国农历节日：公历日期每年不同，这里提供 2007~2026 的近似公历映射（已对齐常见日历）
-   数据基于公开日历资料，仅用于本应用的提醒展示，不作历法精确依据。 */
+/* 中国农历节日：公历日期每年不同，这里提供 2007~2026 的近似公历映射（已对齐常见日历） */
 const CN_LUNAR_HOLIDAYS={
   2007:{'春节':'2-18','元宵节':'3-4','端午节':'6-19','中秋节':'9-26','重阳节':'10-19'},
   2008:{'春节':'2-7','元宵节':'2-21','端午节':'6-8','中秋节':'9-14','重阳节':'10-7'},
@@ -7261,7 +8012,6 @@ const US_FIXED_HOLIDAYS=[
   {md:'10-31',name:'Halloween',cn:'万圣节',emoji:'🎃'},
   {md:'12-25',name:'Christmas Day',cn:'圣诞节',emoji:'🎅'},
 ];
-/* 每月第 N 个星期一 / 星期四 计算的节日 */
 function nthWeekdayOfMonth(year,month,weekday,nth){
   const d=new Date(year,month-1,1);
   let count=0;
@@ -7271,28 +8021,19 @@ function nthWeekdayOfMonth(year,month,weekday,nth){
   }
   return null;
 }
-/* 计算感恩节（11 月第 4 个星期四） */
 function thanksgivingDate(year){return nthWeekdayOfMonth(year,11,4,4);}
-/* MLK Day（1 月第 3 个星期一） */
 function mlkDate(year){return nthWeekdayOfMonth(year,1,1,3);}
-/* Presidents Day（2 月第 3 个星期一） */
 function presidentsDayDate(year){return nthWeekdayOfMonth(year,2,1,3);}
-/* Memorial Day（5 月最后一个星期一） */
 function memorialDayDate(year){
   const d=new Date(year,5,0);let date=d.getDate();
   while(d.getDay()!==1){d.setDate(date-1);date=d.getDate();}
   return date;
 }
-/* Labor Day（9 月第 1 个星期一） */
 function laborDayDate(year){return nthWeekdayOfMonth(year,9,1,1);}
-/* Columbus Day（10 月第 2 个星期一） */
 function columbusDayDate(year){return nthWeekdayOfMonth(year,10,1,2);}
-/* Mother's Day（5 月第 2 个星期日） */
 function mothersDayDate(year){return nthWeekdayOfMonth(year,5,0,2);}
-/* Father's Day（6 月第 3 个星期日） */
 function fathersDayDate(year){return nthWeekdayOfMonth(year,6,0,3);}
 
-/* 获取指定年份的全部节日（中国 + 美国），返回 [{md,name,emoji,origin}] */
 function holidaysForYear(year){
   const out=[];
   CN_FIXED_HOLIDAYS.forEach(h=>out.push({...h,origin:'中国'}));
@@ -7304,7 +8045,6 @@ function holidaysForYear(year){
     });
   }
   US_FIXED_HOLIDAYS.forEach(h=>out.push({...h,origin:'美国'}));
-  /* 动态节日 */
   const dynamic=[
     {md:`1-${mlkDate(year)}`,name:"MLK Jr. Day",cn:'马丁·路德·金纪念日',emoji:'✊',origin:'美国'},
     {md:`2-${presidentsDayDate(year)}`,name:"Presidents' Day",cn:'总统日',emoji:'🏛️',origin:'美国'},
@@ -7318,10 +8058,9 @@ function holidaysForYear(year){
   dynamic.forEach(h=>out.push(h));
   return out;
 }
-/* 获取用户设置的起始年份至 2026 的全部节日（去重后按 md 分组，方便日历标记） */
 function allHolidaysInRange(){
   const f=flags();const start=Math.min(f.year,2026);const end=2026;
-  const map={}; /* key: 'y-md' => [节日] */
+  const map={};
   for(let y=start;y<=end;y++){
     holidaysForYear(y).forEach(h=>{
       const k=y+'-'+h.md;if(!map[k])map[k]=[];map[k].push(h);
@@ -7329,24 +8068,10 @@ function allHolidaysInRange(){
   }
   return map;
 }
-/* 获取联系人生日（从 contacts.birthday 读取，格式 'MM-DD'）和用户生日（profile.birthday） */
-function birthdayEntries(){
-  const out=[];
-  const p=store.profile()||{};
-  if(p.birthday&&/^\d{1,2}-\d{1,2}$/.test(p.birthday))out.push({md:p.birthday,name:p.name||'我',emoji:'🎂',origin:'生日',isUser:true});
-  (store.contacts()||[]).forEach(c=>{
-    if(c.birthday&&/^\d{1,2}-\d{1,2}$/.test(c.birthday))out.push({md:c.birthday,name:c.name,emoji:'🎂',origin:'生日',contact:c.name});
-  });
-  return out;
-}
-/* 获取自定义纪念日（store.get('anniversaries',[])）：{id,name,md,year(起始年),contact,emoji} */
 function anniversaryEntries(){return store.get('anniversaries',[]);}
-/* 获取自定义节日（store.get('customHolidays',[])）：{id,name,md,emoji} */
 function customHolidayEntries(){return store.get('customHolidays',[]);}
-
-/* 当前年月日（用于判断"今天"是否触发）：取真实日期，但年份用世界线年份 */
 function todayYmd(){const d=new Date();const f=flags();return {y:f.year,m:d.getMonth()+1,d:d.getDate()};}
-/* 检查今日是否有触发项（节日/生日/纪念日/自定义节日） */
+
 function todayCalendarTriggers(){
   const t=todayYmd();const key=t.y+'-'+t.m+'-'+t.d;const md=t.m+'-'+t.d;
   const list=[];
@@ -7357,60 +8082,100 @@ function todayCalendarTriggers(){
     if(a.md===md&&(a.year===undefined||t.y>=a.year))list.push({type:'anniversary',...a});
   });
   customHolidayEntries().forEach(c=>{if(c.md===md)list.push({type:'custom',...c});});
-  /* 用户自定义纪念日按年匹配：起始年 ≤ 当前年 */
   return list;
 }
-/* 触发今日日历事件 → 自动生成对应消息（聊天 / 邮件 / 横幅） */
-async function fireCalendarTriggers(){
-  const fired=store.get('calFired',{}); /* {key:true} 已触发标记，每天只触发一次 */
-  const t=todayYmd();const todayKey=t.y+'-'+t.m+'-'+t.d;
-  if(fired[todayKey])return;
-  const triggers=todayCalendarTriggers();
-  if(!triggers.length){fired[todayKey]=true;store.set('calFired',fired);return;}
-  fired[todayKey]=true;store.set('calFired',fired);
-  const f=flags();
-  triggers.forEach(async tr=>{
-    try{
-      if(tr.type==='birthday'&&tr.contact){
-        /* 给联系人生日 → 在对应聊天里发一条"我"的祝福 + 对方回复 */
-        const sys=buildSystem('chat',`今天是${tr.contact}的生日。玩家要给TA发一条简短真诚的生日祝福，符合两人当前关系。只输出1条祝福短信，不超过30字。`);
-        const wish=await ai([{role:'user',content:'请生成生日祝福。'}],sys,()=>'生日快乐。这一年别太拼。');
-        const ch=store.chats();(ch[tr.contact]=ch[tr.contact]||[]).push({role:'me',content:wish,time:storyMsgTime(),read:false});
+
+/* 触发今日日历事件：全员给用户发生日祝福 / 联系人生日主动打听 */
+async function fireCalendarTriggers() {
+  const fired = store.get('calFired', {});
+  const t = todayYmd();
+  const todayKey = t.y + '-' + t.m + '-' + t.d;
+  if (fired[todayKey]) return;
+  
+  const triggers = todayCalendarTriggers();
+  if (!triggers.length) {
+    fired[todayKey] = true;
+    store.set('calFired', fired);
+    return;
+  }
+  fired[todayKey] = true;
+  store.set('calFired', fired);
+
+  const p = store.profile() || {};
+  const currentContacts = visibleContacts().filter(c => !isAI(c.name));
+
+  for (const tr of triggers) {
+    try {
+      if (tr.type === 'birthday' && tr.isUser) {
+        toast(`🎂 今天是你的生日！联系人们正在发来祝福…`);
+        let delay = 1000;
+        for (const contact of currentContacts) {
+          setTimeout(async () => {
+            const aff = contact.affinity || 0;
+            const prompt = `今天是玩家【${p.name || '你'}】的生日。你扮演【${contact.name}】。\n${castText(contact.name)}\n当前好感度：${aff}/200。请按角色独有口吻发一条 15~40 字的生日短信祝福。要求：不OOC，语气贴合角色人设，不要动作括号，直接输出对话文本。`;
+            const sys = buildSystem('chat', prompt);
+            const wish = await ai([{ role: 'user', content: '请发生日祝福短消息。' }], sys, () => {
+              if (contact.name === '托尼·斯塔克') return '生日快乐。大厦顶层的权限今天对你完全放开，去喝一杯，记在研发损耗账上。';
+              if (contact.name === '史蒂夫·罗杰斯') return '生日快乐！今天好好休息，如果有什么想去的地方随时告诉我。';
+              return `祝你生日快乐，新的一岁一切顺利。`;
+            }, 'social');
+
+            const ch = store.chats();
+            (ch[contact.name] = ch[contact.name] || []).push({
+              role: 'them',
+              who: contact.name,
+              content: wish.replace(/[*"（）()]/g, '').trim(),
+              time: storyMsgTime(),
+              worldEvent: true
+            });
+            store.setChats(ch);
+            notifyBanner(`🎂 生日祝福 · ${contact.name}`, wish, () => {
+              openApp('messages');
+              apps.messages.cur = contact.name;
+              apps.messages.view = 'chat';
+              apps.messages.render($('#appBody'));
+            });
+          }, delay);
+          delay += 2500;
+        }
+      } else if (tr.type === 'birthday' && !tr.isUser && tr.contact) {
+        const contactName = tr.contact;
+        const cObj = store.contacts().find(x => x.name === contactName) || {};
+        const aff = cObj.affinity || 0;
+        
+        const sys = buildSystem('chat', `你扮演【${contactName}】。今天是【你的生日】！\n${castText(contactName)}\n当前与玩家的好感度为 ${aff}/200。\n请按角色性格，主动给玩家发一条 15~40 字的消息，试探/打听对方是否记得今天是什么日子，或者傲娇/克制/随口提起自己的生日。严禁动作神态描写，直接输出台词。`);
+        const hintMsg = await ai([{ role: 'user', content: '请主动给玩家发短信提起自己的生日。' }], sys, () => {
+          if (contactName === '托尼·斯塔克') return '今天谁也别催我签文件。另外，顺便问一句，你日历上今天画圈了吗？';
+          if (contactName === '彼得·帕克') return '那个……今天其实是个特殊的日子！你今天有空来皇后区吗？';
+          return '今天是大厦日程里一个特别的日子。你还记得吗？';
+        }, 'social');
+
+        const ch = store.chats();
+        (ch[contactName] = ch[contactName] || []).push({
+          role: 'them',
+          who: contactName,
+          content: hintMsg.replace(/[*"（）()]/g, '').trim(),
+          time: storyMsgTime(),
+          worldEvent: true
+        });
         store.setChats(ch);
-        /* 对方按人设回复一句 */
-        const replySys=buildSystem('chat',`你扮演【${tr.contact}】。${castText(tr.contact)}今天是你的生日，玩家刚给你发了祝福。只回复1条短消息，符合人设。`);
-        const rep=await ai([{role:'user',content:'玩家祝福：'+wish}],replySys,()=>localReply(tr.contact,'生日'));
-        (ch[tr.contact]=ch[tr.contact]||[]).push({role:'them',who:tr.contact,content:rep.replace(/\*/g,'').trim(),time:storyMsgTime()});
+        notifyBanner(`🎈 今日是 ${contactName} 的生日`, hintMsg, () => {
+          openApp('messages');
+          apps.messages.cur = contactName;
+          apps.messages.view = 'chat';
+          apps.messages.render($('#appBody'));
+        });
+      } else if (tr.type === 'anniversary' && tr.contact) {
+        const sys = buildSystem('chat', `今天是「${tr.name}」纪念日。请以【${tr.contact}】口吻发一条简短有深意的消息。`);
+        const msg = await ai([{ role: 'user', content: '纪念日消息。' }], sys, () => '今天是个特别的日子。我没忘。', 'social');
+        const ch = store.chats();
+        (ch[tr.contact] = ch[tr.contact] || []).push({ role: 'them', who: tr.contact, content: msg.trim(), time: storyMsgTime(), worldEvent: true });
         store.setChats(ch);
-        banner('🎂 今日生日 · '+tr.contact,'已自动发送祝福并收到回复',()=>{openApp('messages');apps.messages.cur=tr.contact;apps.messages.view='chat';apps.messages.render($('#appBody'));});
-      }else if(tr.type==='birthday'&&tr.isUser){
-        /* 用户生日 → 收到托尼等人的祝福 */
-        const who='托尼·斯塔克';
-        const sys=buildSystem('chat',`今天是玩家（${store.profile().name||'你'}）的生日。${who}要发一条符合人设的生日祝福短信，不长、不煽情、带点刻薄但心软。只输出1条。`);
-        const wish=await ai([{role:'user',content:'请以托尼的口吻发生日祝福。'}],sys,()=>'生日快乐。蛋糕我让人放 3 号台了，别问几点。');
-        const ch=store.chats();(ch[who]=ch[who]||[]).push({role:'them',who,content:wish.replace(/\*/g,'').trim(),time:storyMsgTime(),worldEvent:true});
-        store.setChats(ch);
-        banner('🎂 生日快乐','托尼给你发了一条祝福',()=>{openApp('messages');apps.messages.cur=who;apps.messages.view='chat';apps.messages.render($('#appBody'));});
-      }else if(tr.type==='anniversary'&&tr.contact){
-        /* 纪念日（关联联系人）→ 在对应聊天里推送一条 AI 生成的纪念消息 */
-        const sys=buildSystem('chat',`今天是「${tr.name}」的纪念日，与${tr.contact}相关。请以${tr.contact}的口吻发1条短消息，提及这个日子的意义，符合人设与当前关系。不超过40字。`);
-        const msg=await ai([{role:'user',content:'请生成纪念日消息。'}],sys,()=>'今天是个特别的日子。我没忘。');
-        const ch=store.chats();(ch[tr.contact]=ch[tr.contact]||[]).push({role:'them',who:tr.contact,content:msg.replace(/\*/g,'').trim(),time:storyMsgTime(),worldEvent:true});
-        store.setChats(ch);
-        banner(tr.emoji+' 今日纪念 · '+tr.name,tr.contact+' 给你发了一条消息',()=>{openApp('messages');apps.messages.cur=tr.contact;apps.messages.view='chat';apps.messages.render($('#appBody'));});
-      }else if(tr.type==='holiday'||tr.type==='custom'){
-        /* 节日 / 自定义节日 → 收到一封节日邮件 + 横幅 */
-        const l=mailAll();
-        const fromName=tr.origin==='中国'?'斯塔克工业 · 中国区办公室':'Stark Industries · Public Affairs';
-        const fromEmail=tr.origin==='中国'?'china@starkindustries.com':'public@starkindustries.com';
-        const subject='节日问候 · '+(tr.cn||tr.name);
-        const body=`${store.profile().name||'您好'}：\n\n今天是 ${(tr.cn||tr.name)}（${tr.origin}）。斯塔克工业公关部按惯例向您致以节日问候。\n\n本邮件为自动发送，无需回复。如需联系相关部门，请通过既定联络渠道。\n\n—— 斯塔克工业`;
-        l.unshift({id:'m'+Math.random().toString(36).slice(2,9),owner:'user',box:'in',from:fromName+' <'+fromEmail+'>',to:MAIL_ACCOUNTS.user,subject,body,tag:'节日',unread:true,star:false,time:nowTime(),quote:''});
-        mailSave(l);
-        banner(tr.emoji+' 今日节日 · '+(tr.cn||tr.name),'收到一封节日问候邮件',()=>openApp('mail'));
       }
-    }catch(e){}
-  });
+    } catch (e) {
+      console.warn('Calendar trigger error:', e);
+    }
+  }
 }
 
 apps.calendar={title:'日历',ym:null,sel:null,render(v){
@@ -7420,12 +8185,22 @@ apps.calendar={title:'日历',ym:null,sel:null,render(v){
   const first=new Date(ym.y,ym.m-1,1).getDay();const days=new Date(ym.y,ym.m,0).getDate();
   const cells=[];for(let i=0;i<first;i++)cells.push('');for(let i=1;i<=days;i++)cells.push(i);
   const key=k=>ym.y+'-'+ym.m+'-'+k;
-  /* 当月所有节日 / 生日 / 纪念日 / 自定义节日 */
+  
   const yearHmap=allHolidaysInRange();
-  const monthHolidays=(d)=>{const md=ym.m+'-'+d;const k=ym.y+'-'+md;const arr=[];(yearHmap[k]||[]).forEach(h=>arr.push(h));birthdayEntries().forEach(b=>{if(b.md===md)arr.push({...b,name:(b.name||'')+' 生日'});});anniversaryEntries().forEach(a=>{if(a.md===md&&(a.year===undefined||ym.y>=a.year))arr.push({...a});});customHolidayEntries().forEach(c=>{if(c.md===md)arr.push({...c});});return arr;};
+  const monthHolidays=(d)=>{
+    const md=ym.m+'-'+d;const k=ym.y+'-'+md;const arr=[];
+    (yearHmap[k]||[]).forEach(h=>arr.push(h));
+    birthdayEntries().forEach(b=>{if(b.md===md)arr.push({...b,name:(b.name||'')+' 生日'});});
+    anniversaryEntries().forEach(a=>{if(a.md===md&&(a.year===undefined||ym.y>=a.year))arr.push({...a});});
+    customHolidayEntries().forEach(c=>{if(c.md===md)arr.push({...c});});
+    return arr;
+  };
   const items=ev[key(self.sel)]||[];
   const fmtList=(arr)=>arr.length?'<div style="margin-top:6px">'+arr.map(h=>`<div class="hint" style="font-size:11px;color:var(--gold)">${h.emoji||'📅'} ${esc(h.cn||h.name)}${h.origin?' · '+esc(h.origin):''}${h.contact?' · '+esc(h.contact):''}</div>`).join('')+'</div>':'';
+  const p = store.profile() || {};
+  const myBirthday = p.birthday || '';
   const selHolidays=self.sel?monthHolidays(self.sel):[];
+
   v.innerHTML=`<div class="pad">
     <div class="card" style="padding:12px"><div class="row" style="align-items:center;margin-bottom:10px">
       <button class="btn ghost sm" id="cal_prev" style="flex:0 0 44px">‹</button>
@@ -7436,27 +8211,55 @@ apps.calendar={title:'日历',ym:null,sel:null,render(v){
           const hd=monthHolidays(c);const hasCal=ev[key(c)]&&ev[key(c)].length;const hasMark=hd.length||hasCal;
           return `<div class="d ${hasMark?'has':''} ${self.sel===c?'today':''}" data-d="${c}" title="${hd.map(h=>h.cn||h.name).join('、')}" style="${hd.length?'border-color:var(--gold);color:var(--gold)':''}">${c}${hd.length?'<span style="position:absolute;font-size:8px;margin-top:14px">'+hd[0].emoji+'</span>':''}</div>`;
         })()).join('')}</div></div>
+
     <div class="card"><h3>◉ ${ym.y} 年 ${ym.m} 月 ${self.sel||'—'} 日</h3>
       ${items.length?items.map((x,i)=>`<div class="srow"><div><div class="t">${esc(x.t)}</div><div class="d">${esc(x.n||'')}</div></div><span class="chip" data-cd="${i}">删除</span></div>`).join(''):'<div class="hint">这一天没有自定义日程。</div>'}
       ${fmtList(selHolidays)}
       <div class="row" style="margin-top:12px"><input id="cal_t" class="inp" style="flex:1" placeholder="新日程，如：董事会 / 酒会"><button class="btn sm" id="cal_add" style="flex:0 0 62px">添加</button></div>
       <button class="btn ghost" id="cal_seed" style="margin-top:8px">📌 载入本时期典型日程</button></div>
-    <div class="card"><h3>◉ 自定义纪念日（含起始年月日和关联联系人）</h3>
+
+    <div class="card">
+      <h3>◉ 用户生日手动设置</h3>
+      <div class="hint" style="margin-bottom:8px">在此设定你的公历生日（MM-DD）。到了当天，列表里的所有联系人将按各自性格与好感度主动为你发送生日祝词。</div>
+      <div class="row">
+        <input id="my_bday_in" class="inp" placeholder="例如：5-20 或 10-1" value="${esc(myBirthday)}">
+        <button class="btn gold sm" id="my_bday_save" style="flex:0 0 80px">保存生日</button>
+      </div>
+      <div class="hint" style="margin-top:5px;color:var(--cyan)">当前设定：${myBirthday ? myBirthday + '（已启用全员祝福响应）' : '未设定'}</div>
+    </div>
+
+    <div class="card">
+      <h3>◉ 通讯录内置联系人生日表</h3>
+      <div class="hint" style="margin-bottom:8px">系统已全员内置预设漫威角色官方/推算生日。点击联系人可在当天主动发去祝福：</div>
+      <div style="max-height:180px;overflow-y:auto">
+        ${birthdayEntries().filter(b => !b.isUser).map(b => `
+          <div class="srow">
+            <div>
+              <div class="t">🎂 ${esc(b.name)}</div>
+              <div class="d">${esc(b.md)} · ${b.md === (ym.m + '-' + (new Date().getDate())) ? '<span class="tag gold">今天生日！</span>' : '预设生日'}</div>
+            </div>
+            <button class="btn ghost sm" data-wish-contact="${esc(b.name)}">发短信祝贺</button>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <div class="card"><h3>◉ 自定义纪念日</h3>
       <div class="hint" style="margin-bottom:8px">从设定的起始年起，每年这一天都会自动触发关联联系人发来的纪念消息。</div>
       <div class="row" style="margin-bottom:8px"><input id="ann_name" class="inp" style="flex:1" placeholder="纪念日名称（如：初次见面）"><input id="ann_year" class="inp" style="flex:0 0 70px" type="number" placeholder="起始年" value="${f.year}"></div>
       <div class="row" style="margin-bottom:8px"><input id="ann_md" class="inp" style="flex:0 0 90px" placeholder="MM-DD" value="${ym.m}-${self.sel||1}"><select id="ann_contact" class="inp" style="flex:1"><option value="">关联联系人（可选）</option>${activeNames().map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}</select></div>
       <div class="row" style="margin-bottom:8px"><input id="ann_emoji" class="inp" style="flex:0 0 60px" placeholder="emoji" value="💝"><button class="btn sm" id="ann_add" style="flex:1">＋ 添加纪念日</button></div>
       <div id="ann_list">${anniversaryEntries().length?anniversaryEntries().map((a,i)=>`<div class="srow"><div><div class="t">${a.emoji||'💝'} ${esc(a.name)}</div><div class="d">${a.year?a.year+' 年起 · ':''}${esc(a.md||'')}${a.contact?' · 关联 '+esc(a.contact):''}</div></div><span class="chip" data-ann-del="${i}">删除</span></div>`).join(''):'<div class="hint">还没有自定义纪念日。</div>'}</div></div>
+
     <div class="card"><h3>◉ 自定义节日</h3>
       <div class="hint" style="margin-bottom:8px">每年这一天都会标记在日历上，并自动收到一封节日问候邮件。</div>
       <div class="row" style="margin-bottom:8px"><input id="ch_name" class="inp" style="flex:1" placeholder="节日名称（如：斯塔克工业成立日）"><input id="ch_md" class="inp" style="flex:0 0 90px" placeholder="MM-DD"></div>
       <div class="row"><input id="ch_emoji" class="inp" style="flex:0 0 60px" placeholder="emoji" value="🎉"><button class="btn sm" id="ch_add" style="flex:1">＋ 添加节日</button></div>
       <div id="ch_list">${customHolidayEntries().length?customHolidayEntries().map((c,i)=>`<div class="srow"><div><div class="t">${c.emoji||'🎉'} ${esc(c.name)}</div><div class="d">${esc(c.md||'')}</div></div><span class="chip" data-ch-del="${i}">删除</span></div>`).join(''):'<div class="hint">还没有自定义节日。</div>'}</div></div>
-    <div class="card"><h3>◉ 联系人 / 用户生日</h3>
-      <div class="hint" style="margin-bottom:8px">在「信息」里点联系人头像 → 档案 → 设置生日（MM-DD）。生日当天会自动发送祝福并收到回复。</div>
-      <div>${birthdayEntries().length?birthdayEntries().map(b=>`<div class="srow"><div><div class="t">🎂 ${esc(b.name)}${b.isUser?'（我）':''}</div><div class="d">${esc(b.md)}${b.contact?' · 联系人':''}</div></div></div>`).join(''):'<div class="hint">还没有设置任何生日。</div>'}</div></div>
+
     <div class="hint" style="text-align:center">${en('Time is the one thing he can\'t build.')} · 中国 + 美国节日已载入 ${Math.min(f.year,2026)}~2026</div>
   </div>`;
+
   v.querySelector('#cal_prev').onclick=()=>{const m=ym.m-1;self.ym=m<1?{y:ym.y-1,m:12}:{y:ym.y,m};self.sel=null;self.render(v);};
   v.querySelector('#cal_next').onclick=()=>{const m=ym.m+1;self.ym=m>12?{y:ym.y+1,m:1}:{y:ym.y,m};self.sel=null;self.render(v);};
   v.querySelectorAll('[data-d]').forEach(el=>el.onclick=()=>{self.sel=+el.dataset.d;self.render(v);});
@@ -7465,7 +8268,34 @@ apps.calendar={title:'日历',ym:null,sel:null,render(v){
   v.querySelector('#cal_seed').onclick=()=>{if(!self.sel)return toast('先选一天');const e=store.get('calendar',{}),k=key(self.sel);
     const pres=[{t:'09:00 董事会 · 清洁能源预算案',n:'42 层 · 需本人到场'},{t:'19:30 慈善酒会 · 大都会博物馆',n:'黑领结 · 名单已核'},{t:'斯塔克博览会 · 新品发布',n:'贵宾观礼席'},{t:'苏富比拍卖预展',n:'私人洽购室'},{t:'日内瓦科技高峰论坛',n:'主旨演讲后台'}];
     (e[k]=e[k]||[]).push(...pres);store.set('calendar',e);self.render(v);toast('已载入典型日程');};
-  /* 自定义纪念日 */
+
+  v.querySelector('#my_bday_save').onclick = () => {
+    const val = v.querySelector('#my_bday_in').value.trim();
+    if (!val || !/^\d{1,2}-\d{1,2}$/.test(val)) return toast('请输入正确的日期格式，如 5-29 或 11-2');
+    const prof = store.profile() || {};
+    prof.birthday = val;
+    store.setProfile(prof);
+    toast('已保存生日！到达该日期时将收到全员祝福');
+    self.render(v);
+  };
+
+  v.querySelectorAll('[data-wish-contact]').forEach(btn => {
+    btn.onclick = () => {
+      const cName = btn.dataset.wishContact;
+      openApp('messages');
+      apps.messages.cur = cName;
+      apps.messages.view = 'chat';
+      apps.messages.render($('#appBody'));
+      setTimeout(() => {
+        const inp = document.querySelector('#m_in');
+        if (inp) {
+          inp.value = `生日快乐，${cName}！今天有什么特别计划吗？`;
+          inp.focus();
+        }
+      }, 100);
+    };
+  });
+
   v.querySelector('#ann_add').onclick=()=>{
     const name=v.querySelector('#ann_name').value.trim();const year=parseInt(v.querySelector('#ann_year').value)||f.year;
     const md=v.querySelector('#ann_md').value.trim();const contact=v.querySelector('#ann_contact').value;
@@ -7476,7 +8306,7 @@ apps.calendar={title:'日历',ym:null,sel:null,render(v){
     toast('已添加纪念日');self.render(v);
   };
   v.querySelectorAll('[data-ann-del]').forEach(el=>el.onclick=()=>{const arr=store.get('anniversaries',[]);arr.splice(+el.dataset.annDel,1);store.set('anniversaries',arr);self.render(v);});
-  /* 自定义节日 */
+
   v.querySelector('#ch_add').onclick=()=>{
     const name=v.querySelector('#ch_name').value.trim();const md=v.querySelector('#ch_md').value.trim();
     const emoji=v.querySelector('#ch_emoji').value.trim()||'🎉';
@@ -8275,12 +9105,18 @@ function applyTheme(id){
 function applyFullscreen(){
   const fs=store.get('fullscreen',false);
   document.body.classList.toggle('fullscreen',fs);
-  /* 尝试请求全屏 API（需要用户交互后才能调用） */
-  if(fs&&document.documentElement.requestFullscreen){
-    if(document.fullscreenElement===null){
+  const tryReq=()=>{
+    if(store.get('fullscreen',false)&&document.documentElement.requestFullscreen&&!document.fullscreenElement){
       document.documentElement.requestFullscreen().catch(()=>{});
     }
-  }else if(!fs&&document.fullscreenElement){
+  };
+  if(fs){
+    tryReq();
+    if(!window._fsResumeBound){
+      window._fsResumeBound=true;
+      document.addEventListener('pointerdown',tryReq,{passive:true});
+    }
+  }else if(document.fullscreenElement){
     document.exitFullscreen().catch(()=>{});
   }
 }
@@ -9089,7 +9925,18 @@ pickRecipient(g){
     const msg=d.querySelector('#gf_msg').value.trim();
     emSetUserWallet({total:wallet.total-g.price});
     emAddInventory({id:'inv'+Date.now(),goodId:g.id,from:'me',to:who,time:nowTime(),msg});
-    const ch=store.chats();(ch[who]=ch[who]||[]).push({role:'me',content:`（送出礼物：${g.ico||'🎁'} ${g.name} · ${emFmtPrice(g.price)}）${msg?'\n'+msg:''}`,time:storyMsgTime(),isGift:true,giftId:g.id,read:false});
+        const ch=store.chats();(ch[who]=ch[who]||[]).push({
+      role:'me',
+      content:`（送出礼物：${g.name}）`,
+      time:storyMsgTime(),
+      isGift:true,
+      giftId:g.id,
+      giftName:g.name,
+      giftIco:g.ico||'🎁',
+      giftPrice:g.price,
+      giftMsg:msg,
+      read:false
+    });
     store.setChats(ch);
     d.remove();toast('已送出 · 等待对方回应');
     try{
@@ -9315,7 +10162,7 @@ const EMPORIUM_GOODS=[
 
 /* 消费习惯预设（含总资产、常购品类、兜底赠礼概率） */
 const WEALTH_DEFAULTS={
-  '托尼·斯塔克':{total:12500000000,habits:['car','estate','tech','watch','art','drink'],avg:50000,giftChance:65,
+  '托尼·斯塔克':{total:12500000000,habits:['car','estate','tech','watch','art','drink'],avg:50000,giftChance:65,minGift:10000,
     assetDesc:'斯塔克工业绝对控股人、多处海景别墅与曼哈顿顶层资产、私人机库与顶级艺术品收藏，现金流几乎无上限。',
     prefs:'偏爱限量超跑、尖端原型硬件、独立制表、现当代抽象画与年份威士忌。',
     habitDesc:'极度冲动型高客单消费，不看标价，习惯直接买断或包场；送礼只挑最贵或最稀缺的。'},
