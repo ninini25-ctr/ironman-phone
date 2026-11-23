@@ -2653,23 +2653,25 @@ async function callAI(messages,system,kind){
 
 // 长篇场景：按用户设定的字数动态给 token 余量（中文约 1 字≈1.6 token，再留 1.8 倍冗余）
 const _wlR=wlWordRange();const wlWords=_wlR.max;  // 按上限估算 token，防截断
-const isLong=/世界线深度文学模式|对白语言铁律|字左右/.test(system||'');
-const longTokens=Math.min(16000,Math.max(4096,Math.round(wlWords*1.6*1.8)));
-const body={
-  model:c.model,
-  messages:[{role:'system',content:system},...messages.filter(m=>m.content&&String(m.content).trim())],
-  max_tokens: isLong ? longTokens : 4096
+const isLong = /世界线深度文学模式|对白语言铁律|字左右/.test(system || '');
+// 限制在标准安全区间（大部分代理接口最大输出为 4096）
+const safeTokens = isLong ? 4096 : 2048;
+
+const body = {
+  model: c.model,
+  messages: [{ role: 'system', content: system }, ...messages.filter(m => m.content && String(m.content).trim())],
+  max_tokens: safeTokens
 };
 
-if((kind||'story')==='story'){
-  const t=parseFloat(c.temperature);
-  if(!isNaN(t)) body.temperature=t;
+if ((kind || 'story') === 'story') {
+  const t = parseFloat(c.temperature);
+  if (!isNaN(t)) body.temperature = t;
 }
 
-// 超时按字数线性放宽：3500 字约 210 秒，7000 字约 420 秒，上限 600 秒
-const timeoutMs=isLong?Math.min(600000,Math.max(120000,Math.round(wlWords*60))):90000;
-const ctrl=new AbortController();
-const to=setTimeout(()=>ctrl.abort(), timeoutMs);
+// 统一采用 75 秒安全超时，防止前端死等
+const timeoutMs = 75000;
+const ctrl = new AbortController();
+const to = setTimeout(() => ctrl.abort(), timeoutMs);
 
   try{
     const r=await fetch(url,{
@@ -6617,77 +6619,75 @@ apps.worldline = {
 
     // 若当前没有剧情，发起 AI 深度推演（localOnly 时跳过网络，直接用本地剧情）
     let wlFailed=false;
-    // ===== 剧情生成状态保护 =====
+  // ===== 剧情生成状态保护 (彻底解除死锁版) =====
 const wlKey = 'worldline_turn_' + s.turn;
 
-if (!s.story && !s.localOnly) {
-  const ancStep = curAnchor ? (curAnchor.curTurns || 0) + 1 : 1;
-  const ancMax = curAnchor ? (curAnchor.maxTurns || 3) : 3;
+if (!s.story) {
+  // 1. 如果已被标记为本地模式，直接读取本地剧情，绝不再发起请求
+  if (s.localOnly) {
+    const era = WORLD.eras.find(e => e.id === s.era) || WORLD.eras[2];
+    s.story = LOCAL.story(era);
+    s.options = 'A. 把访客徽章别好，先问那行被划掉的数字\nB. 不碰任何东西，只把三份文件按日期理齐\nC. 回一句更快的俏皮话，把节奏抢回来\nD. 走到他身后，看他到底在改什么';
+  } else {
+    const ancStep = curAnchor ? (curAnchor.curTurns || 0) + 1 : 1;
+    const ancMax = curAnchor ? (curAnchor.maxTurns || 3) : 3;
 
-  // 正在生成中：渲染等待占位状态，避免界面显示异常
-  const st0 = v.querySelector('#wl_story');
-  if (st0) {
-    st0.innerHTML = `<div class="hint" style="line-height:1.8">
-      <div class="spin" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px"></div>
-      贾维斯正在结合事件锚点校准剧情（本锚点第 ${ancStep}/${ancMax} 回合）…
-    </div><div class="card" style="height:64px;margin-top:8px;background:var(--panel2)"></div>`;
-  }
-  // 禁用行动输入框和发送按钮，防止生成中二次输入
-  const sendBtn = v.querySelector('#w_send');
-  const actInput = v.querySelector('#w_act');
-  if (sendBtn) sendBtn.disabled = true;
-  if (actInput) actInput.disabled = true;
-
-  try {
-    let resPromise = AIGuard.getPromise(wlKey);
-
-    if (!resPromise) {
-      // 当前没有在跑的任务，新建请求并加锁
-      const era = WORLD.eras.find(e => e.id === s.era) || WORLD.eras[2];
-      const last = s.history.length ? s.history[s.history.length - 1] : null;
-
-      let pacingGuide = '';
-      if (curAnchor) {
-        if (curAnchor.isBlip) {
-          const blipStages = {
-            1: '【烁灭五年 · 第 1/3 回合】重点描写归来后的创伤与空旷感。',
-            2: '【烁灭五年 · 第 2/3 回合】时间跨入烁灭第三年，湖畔木屋的退隐日常。',
-            3: '【烁灭五年 · 第 3/3 回合】烁灭第五年，莫比乌斯环时间模型暗涌。'
-          };
-          pacingGuide = '\n' + (blipStages[ancStep] || blipStages[3]);
-        } else {
-          pacingGuide = `\n【本锚点进度：第 ${ancStep}/${ancMax} 回合】请围绕【${curAnchor.title}】展开推进。`;
-        }
-      }
-
-      let ctx = last 
-        ? `\n【上一轮剧情回顾】：\n${last.story.slice(-450)}\n【玩家上一轮行动与纠偏】：${last.choice}\n请紧密承接上文，围绕当前小事件锚点【${curAnchor ? formatAnchorTitle(curAnchor) : ''}】展开本回合。${pacingGuide}` 
-        : `\n这是开局第一回合。请写托尼·斯塔克与玩家的初会与磨合，围绕首个小事件锚点【${curAnchor ? formatAnchorTitle(curAnchor) : '初识'}】展开。${pacingGuide}`;
-
-      const sys = buildSystem('worldline');
-
-      // 创建唯一 Promise 并加入守护锁
-      resPromise = ai(
-        [{ role: 'user', content: '请生成接下来的剧情：' + ctx }],
-        sys,
-        () => LOCAL.story(era),
-        'story'
-      );
-      AIGuard.lock(wlKey, resPromise);
+    // 正在生成中：渲染等待占位状态
+    const st0 = v.querySelector('#wl_story');
+    if (st0) {
+      st0.innerHTML = `<div class="hint" style="line-height:1.8">
+        <div class="spin" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px"></div>
+        贾维斯正在结合事件锚点校准剧情（本锚点第 ${ancStep}/${ancMax} 回合）…
+      </div><div class="card" style="height:64px;margin-top:8px;background:var(--panel2)"></div>`;
     }
 
-    // 等待当前请求完成（无论本次渲染是由谁触发的，都共用该 Promise）
-    let res = await resPromise;
+    const sendBtn = v.querySelector('#w_send');
+    const actInput = v.querySelector('#w_act');
+    if (sendBtn) sendBtn.disabled = true;
+    if (actInput) actInput.disabled = true;
 
-    // 生成成功后释放锁
-    AIGuard.unlock(wlKey);
+    try {
+      // 如果当前已有未完成的请求在跑，复用它；否则新建
+      let resPromise = AIGuard.getPromise(wlKey);
 
-    // 如果在等待期间用户已在其他标签页生成并落库，以最新的 state 为准
-    const freshState = store.state() || {};
-    if (freshState.story && freshState.turn === s.turn) {
-      s = freshState;
-    } else {
-      // 强力清洗逻辑保持原有规则
+      if (!resPromise) {
+        const era = WORLD.eras.find(e => e.id === s.era) || WORLD.eras[2];
+        const last = s.history.length ? s.history[s.history.length - 1] : null;
+
+        let pacingGuide = '';
+        if (curAnchor) {
+          if (curAnchor.isBlip) {
+            pacingGuide = `\n【烁灭五年 · 当前第 ${ancStep}/3 回合】结合五年空旷感与情感羁绊推进。`;
+          } else {
+            pacingGuide = `\n【本锚点进度：第 ${ancStep}/${ancMax} 回合】围绕核心事件【${curAnchor.title}】展开推进。`;
+          }
+        }
+
+        let ctx = last 
+          ? `\n【上一轮剧情回顾】：\n${last.story.slice(-350)}\n【玩家上一轮行动】：${last.choice}\n请承接前文，紧扣小事件锚点【${curAnchor ? formatAnchorTitle(curAnchor) : ''}】展开本回合。${pacingGuide}` 
+          : `\n开局第一回合。请写托尼·斯塔克与玩家的初会与磨合，紧扣首个事件锚点【${curAnchor ? formatAnchorTitle(curAnchor) : '初识'}】。${pacingGuide}`;
+
+        const sys = buildSystem('worldline');
+
+        // 发起请求
+        resPromise = ai(
+          [{ role: 'user', content: '请推进剧情：' + ctx }],
+          sys,
+          () => LOCAL.story(era),
+          'story'
+        );
+        AIGuard.lock(wlKey, resPromise);
+      }
+
+      let res = await resPromise;
+
+      // 无论成功与否，立即释放本回合的锁！
+      AIGuard.unlock(wlKey);
+
+      if (!res || typeof res !== 'string' || !res.trim()) {
+        throw new Error('返回内容为空');
+      }
+
       if (!f.pepperExists) {
         res = res.replace(/小辣椒/g, '公关部主管')
                  .replace(/佩珀·波茨/g, '法务部代表')
@@ -6709,9 +6709,7 @@ if (!s.story && !s.localOnly) {
       if (m) {
         let raw = parseInt(m[1]) || 0;
         const lastGainTurn = s.lastGainTurn || 0;
-        if (raw > 0 && (s.turn - lastGainTurn < 3) && raw < 4) {
-          raw = 0;
-        }
+        if (raw > 0 && (s.turn - lastGainTurn < 3) && raw < 4) raw = 0;
         if (raw > 0) s.lastGainTurn = s.turn;
         affDelta = Math.max(-20, Math.min(5, raw));
       }
@@ -6719,16 +6717,16 @@ if (!s.story && !s.localOnly) {
       s.story = storyPart.replace(/【剧情】/g, '').replace(/【好感度变动[:：][^】]*】/g, '').trim();
       s.options = optPart.trim();
 
-      if (!s.story) {
-        s.story = LOCAL.story(WORLD.eras.find(e => e.id === s.era) || WORLD.eras[2]);
-        s.options = 'A. 把访客徽章别好，先问那行被划掉的数字\nB. 不碰任何东西，只把三份文件按日期理齐\nC. 回一句更快的俏皮话，把节奏抢回来\nD. 走到他身后，看他到底在改什么';
-        s.localOnly = true;
-        addHint('AI 未返回正文，已切换为本地预设剧情', 'E-WL-003', true);
-      }
-
+      // 解析备选选项
       if (!s.options) {
-        s.options = 'A. 提出完全相反的逆向工程论点\nB. 顺着他刚才没说完的半句话递出扳手\nC. 保持沉默，把冷却的咖啡杯换掉\nD. 转移话题，核实传感器参数';
-        addHint('未解析到选项，已提供默认行动', 'E-WL-004', true);
+        const optLines = s.story.split('\n').filter(line => /^[A-DＡ-Ｄ][\.、\s]/.test(line.trim()));
+        if (optLines.length >= 2) {
+          s.options = optLines.join('\n');
+          optLines.forEach(l => { s.story = s.story.replace(l, ''); });
+          s.story = s.story.trim();
+        } else {
+          s.options = 'A. 提出完全相反的逆向工程论点\nB. 顺着他刚才没说完的半句话递出扳手\nC. 保持沉默，把冷却的咖啡杯换掉\nD. 转移话题，核实传感器参数';
+        }
       }
 
       if (affDelta !== 0) {
@@ -6736,20 +6734,26 @@ if (!s.story && !s.localOnly) {
         s = store.state();
       }
       s.lastDelta = affDelta;
+      delete s.localOnly;
       store.setState(s);
+    } catch (e) {
+      // 彻底解锁！
+      AIGuard.unlock(wlKey);
+      console.error('Worldline Generation Error:', e);
+      
+      // 降级为离线模式并写入可用剧情，绝不允许空白
+      const era = WORLD.eras.find(er => er.id === s.era) || WORLD.eras[2];
+      s.story = LOCAL.story(era);
+      s.options = 'A. 把访客徽章别好，先问那行被划掉的数字\nB. 不碰任何东西，只把三份文件按日期理齐\nC. 回一句更快的俏皮话，把节奏抢回来\nD. 走到他身后，看他到底在改什么';
+      s.localOnly = true;
+      store.setState(s);
+      
+      toast('⚠️ 网络连接或接口超时，已自动为你恢复剧情');
+    } finally {
+      AIGuard.unlock(wlKey);
+      if (sendBtn) sendBtn.disabled = false;
+      if (actInput) actInput.disabled = false;
     }
-  } catch (e) {
-    // 出现异常时解锁，允许重试
-    AIGuard.unlock(wlKey);
-    showErr('E-WL-001', { err: e, retry: true });
-    wlFailed = true;
-    addHint('本回合推演未能完成，已保留可操作界面', 'E-WL-001', false);
-    s.story = '';
-    s.options = '';
-    try { store.setState(s); } catch (e2) {}
-  } finally {
-    if (sendBtn) sendBtn.disabled = false;
-    if (actInput) actInput.disabled = false;
   }
 }
 
@@ -7079,9 +7083,14 @@ if (!s.story && !s.localOnly) {
 
 // ===== 世界线三出路：不推进回合、不清骨架，统一走 safeRender =====
 function retryWorldline(){
-  const s=store.state()||{};
-  s.story=''; s.options=''; delete s.localOnly;
+  const s = store.state() || {};
+  // 强制释放当前回合的锁
+  AIGuard.unlock('worldline_turn_' + s.turn);
+  s.story = '';
+  s.options = '';
+  delete s.localOnly;
   store.setState(s);
+  toast('正在重新连接贾维斯推演剧情…');
   safeRender('worldline', document.getElementById('appBody'));
 }
 function useLocalStory(){
