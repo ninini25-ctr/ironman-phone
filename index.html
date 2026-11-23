@@ -7285,14 +7285,14 @@ apps.contacts={title:'关系网',tab:'radar',
       v.innerHTML=`<div class="pad">${seg}
         <div class="card" style="padding:12px"><button class="btn" id="sc_add">＋ 添加联系人</button>
           <div class="hint" style="margin-top:8px">全部联系人已收录。点卡片进入短信；点「设关系」定义你与 TA 的关系（影响所有剧情）。</div></div>
-        ${vis.map(c=>{const pct=Math.min(100,(c.affinity||0)/2);const rel=relationOf(c.name);
+       ${vis.map(c=>{const pct=Math.min(100,(c.affinity||0)/2);const rel=relationOf(c.name);
           return `<div class="rel-card">
             <div class="rh"><div class="av">${esc(c.name[0])}</div>
               <div style="flex:1;min-width:0">
                 <div style="font-weight:700;font-size:13.5px">${esc(c.name)}${c.isTony?' <span class="tag">核心</span>':''}${isAI(c.name)?' <span class="tag gold">保密</span>':''}${c.cond==='jarvis'&&f.ultronAfter?' <span class="tag red">幻视代回</span>':''}</div>
                 <div class="hint" style="margin:2px 0 0">${esc(c.desc||'')}</div>
               </div></div>
-            <div style="margin-top:7px"><span class="rel-chip ${rel?'':'none'}">${rel?('🔗 '+esc(rel.label||'已设定')+' · 好感 '+(c.affinity||rel.closeness||0)):'未设定关系'}</span>
+            <div style="margin-top:7px"><span class="rel-chip ${rel?'':'none'}">${rel?('🔗 '+esc(rel.label||'已设定')+' · 好感 '+(c.affinity!=null?c.affinity:(rel.closeness||0))):'未设定关系'}</span></div>
             <div class="rbar"><i style="width:${pct}%"></i></div>
             <div class="hint" style="margin-top:3px">对${esc((store.profile()||{}).name||'你')}的好感度 ${c.affinity||0}/200</div>
             <div class="row" style="margin-top:8px"><button class="btn ghost sm" data-chat="${esc(c.name)}">💬 短信</button><button class="btn sm" data-rel="${esc(c.name)}">🔗 设关系</button></div>
@@ -7366,28 +7366,28 @@ apps.contacts={title:'关系网',tab:'radar',
   d.querySelector('#rel_close').oninput=e=>d.querySelector('#rel_cv').textContent=e.target.value;
   d.querySelectorAll('[data-preset]').forEach(el=>el.onclick=()=>{d.querySelector('#rel_label').value=el.dataset.preset;});
   d.querySelector('#rel_save').onclick=()=>{
-    const label=d.querySelector('#rel_label').value.trim();
-    if(!label)return toast('请填写或选择一个关系');
-    const val=+d.querySelector('#rel_close').value||0;
+      const label=d.querySelector('#rel_label').value.trim();
+      if(!label)return toast('请填写或选择一个关系');
+      const val=+d.querySelector('#rel_close').value||0;
 
-    // 1. 同步保存关系网配置
-    setUserRelation(name,{label,closeness:val,note:d.querySelector('#rel_note').value.trim()});
+      // 1. 同步保存关系网
+      setUserRelation(name,{label,closeness:val,note:d.querySelector('#rel_note').value.trim()});
 
-    // 2. 双向同步保存到通讯录 contacts 中该联系人的实际好感度
-    const cs=store.contacts();
-    const target=cs.find(x=>x.name===name);
-    if(target){
-      target.affinity=val;
-      store.setContacts(cs);
-      if(target.isTony||name==='托尼·斯塔克'){
-        applyAffinity(val);
+      // 2. 双向同步更新通讯录 contacts 中该角色的实际好感度
+      const cs=store.contacts();
+      const target=cs.find(x=>x.name===name);
+      if(target){
+        target.affinity=val;
+        store.setContacts(cs);
+        if(target.isTony||name==='托尼·斯塔克'){
+          applyAffinity(val);
+        }
       }
-    }
 
-    d.remove();
-    toast(`已保存 · 与「${name}」的好感度已同步为 ${val}`);
-    self.render(v);
-  };
+      d.remove();
+      toast(`已保存 · 与「${name}」的好感度已同步为 ${val}`);
+      self.render(v);
+    };
   const del=d.querySelector('#rel_del');
   if(del)del.onclick=()=>{delUserRelation(name);d.remove();toast('已清除关系');self.render(v);};
 }
