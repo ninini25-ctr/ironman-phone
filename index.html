@@ -1292,6 +1292,114 @@ body.guide-open{background:
 @keyframes soBootFail{to{display:flex}}
 body.theme-light .so-err{box-shadow:0 4px 14px rgba(20,40,70,.14);}
 body.theme-light .so-err-code{background:#f3f6fa;color:#b3261e;border-color:rgba(179,38,30,.28);}
+/* ===== 黑胶转盘唱机 ===== */
+.vt-platter{
+  position:relative;
+  width:min(72vw,260px);height:min(72vw,260px);
+  margin:0 auto;
+  background:linear-gradient(145deg,#2a2a2e,#111114);
+  border-radius:22px;
+  box-shadow:0 24px 64px rgba(0,0,0,.55),
+    inset 0 1px 0 rgba(255,255,255,.07);
+  flex-shrink:0;
+}
+.vt-vinyl{
+  position:absolute;left:50%;top:50%;
+  width:88%;height:88%;
+  transform:translate(-50%,-50%);
+  border-radius:50%;
+  background:
+    repeating-radial-gradient(circle at 50% 50%,
+      #1c1c1f 0 1.2px, #252528 1.2px 3.2px),
+    radial-gradient(circle at 50% 50%,#333 0 28%,#111 28% 100%);
+  box-shadow:0 0 0 1px rgba(255,255,255,.08),
+    inset 0 0 50px rgba(0,0,0,.7);
+  animation:vinylSpin 2s linear infinite;
+  animation-play-state:paused;
+}
+.vt-vinyl.spin{animation-play-state:running;}
+.vt-label{
+  position:absolute;left:50%;top:50%;
+  width:34%;height:34%;
+  transform:translate(-50%,-50%);
+  border-radius:50%;
+  background:radial-gradient(circle at 38% 32%,
+    hsl(var(--sp-h),var(--sp-s),var(--sp-l-hi)) 0%,
+    var(--sp-accent) 50%,
+    hsl(var(--sp-h),var(--sp-s),var(--sp-l-lo)) 100%);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 2px 12px rgba(0,0,0,.45);
+}
+.vt-label-text{
+  font-size:9px;font-weight:800;
+  color:var(--sp-on-accent);
+  letter-spacing:.6px;text-align:center;
+  padding:4px;line-height:1.2;
+  text-shadow:0 1px 3px rgba(0,0,0,.4);
+}
+.vt-spindle{
+  position:absolute;left:50%;top:50%;
+  transform:translate(-50%,-50%);
+  width:9px;height:9px;border-radius:50%;
+  background:#08080a;
+  box-shadow:0 0 0 2px rgba(255,255,255,.18);
+  z-index:2;
+}
+.vt-shine{
+  position:absolute;inset:0;border-radius:50%;
+  background:linear-gradient(130deg,
+    rgba(255,255,255,.08) 0% 25%,
+    transparent 25% 100%);
+  pointer-events:none;
+}
+/* 唱臂 */
+.vt-arm-wrap{
+  position:absolute;right:-8%;top:4%;
+  width:46%;height:50%;
+  pointer-events:none;z-index:4;
+  transform-origin:92% 10%;
+  transform:rotate(-28deg);
+  transition:transform .75s cubic-bezier(.3,.8,.3,1);
+}
+.vt-arm-wrap.on{transform:rotate(-10deg);}
+.vt-arm-line{
+  position:absolute;right:4%;top:9%;
+  width:68%;height:3px;
+  background:linear-gradient(90deg,
+    rgba(220,230,240,.55),rgba(200,210,220,.8),rgba(240,245,250,.9));
+  border-radius:2px;
+  transform-origin:right center;
+  transform:rotate(-18deg);
+  box-shadow:0 1px 4px rgba(0,0,0,.35);
+}
+.vt-arm-pivot{
+  position:absolute;right:0;top:0;
+  width:20px;height:20px;border-radius:50%;
+  background:radial-gradient(circle at 35% 32%,
+    #d8e0e8,#8a9298);
+  box-shadow:0 2px 8px rgba(0,0,0,.5);
+}
+.vt-arm-head{
+  position:absolute;right:69%;top:8%;
+  width:14px;height:12px;border-radius:3px;
+  background:linear-gradient(160deg,#dde4ec,#9aaab8);
+  box-shadow:0 1px 5px rgba(0,0,0,.5);
+}
+/* 均衡器小动画（播放中显示）*/
+.vt-eq{
+  display:flex;gap:2px;align-items:flex-end;
+  height:12px;padding:0 4px;
+}
+.vt-eq i{
+  width:3px;border-radius:2px;
+  background:var(--sp-on-accent);
+  opacity:.85;
+}
+.vt-vinyl.spin~.vt-label .vt-eq i{
+  animation:spEq .7s ease-in-out infinite alternate;
+}
+.vt-vinyl.spin~.vt-label .vt-eq i:nth-child(2){animation-delay:.18s;}
+.vt-vinyl.spin~.vt-label .vt-eq i:nth-child(3){animation-delay:.36s;}
 </style>
 </head>
 <body>
@@ -6929,7 +7037,7 @@ apps.contacts={title:'关系网',tab:'radar',
               </div></div>
             <div style="margin-top:7px"><span class="rel-chip ${rel?'':'none'}">${rel?('🔗 '+esc(rel.label||'已设定')+' · 亲密 '+(rel.closeness??100)):'未设定关系'}</span></div>
             <div class="rbar"><i style="width:${pct}%"></i></div>
-            <div class="hint" style="margin-top:3px">对托尼好感度 ${c.affinity||0}/200</div>
+            <div class="hint" style="margin-top:3px">对${esc((store.profile()||{}).name||'你')}的好感度 ${c.affinity||0}/200</div>
             <div class="row" style="margin-top:8px"><button class="btn ghost sm" data-chat="${esc(c.name)}">💬 短信</button><button class="btn sm" data-rel="${esc(c.name)}">🔗 设关系</button></div>
           </div>`;}).join('')}
         <button class="btn ghost" id="sc_seed" style="margin-top:4px">↺ 重置为默认联系人</button>
@@ -7038,6 +7146,10 @@ function syncDeckUI(body){
   const playing=!player.paused&&!!player.src;
   const play=q('#sp_play');
   if(play){play.textContent=playing?'⏸':'▶';play.setAttribute('aria-label',playing?'暂停':'播放');play.setAttribute('aria-pressed',playing?'true':'false');}
+const vn=body&&body.querySelector('.vt-vinyl');
+const arm=body&&body.querySelector('.vt-arm-wrap');
+if(vn)vn.classList.toggle('spin',playing);
+if(arm)arm.classList.toggle('on',playing);
   const wrap=q('.sp-cover-wrap');if(wrap)wrap.classList.toggle('playing',playing);
   const dur=player.duration||0,cur=player.currentTime||0,fill=dur?Math.round(cur/dur*100):0;
   const seek=q('#sp_seek');
@@ -7250,65 +7362,110 @@ apps.music={title:'音乐',tab:'deck',
   },
 
   /* ---------- ① 唱机 ---------- */
- renderDeck(body,v,tracks,cfg){
+renderDeck(body,v,tracks,cfg){
   const self=this;
   const playing=!player.paused&&!!player.src;
   const liked=store.get('musicLiked',[]);
   const isLiked=curTrackId&&liked.includes(curTrackId);
-  const listenSession=ltSession();
+  const session=ltSession();
   const maxSec=Math.max(1,Math.floor(player.duration||1));
   const seekVal=Math.floor(player.currentTime||0);
   const seekFill=player.duration?Math.round((player.currentTime||0)/player.duration*100):0;
+  const shortTitle=(curTrack||'未装载曲目').length>22
+    ?(curTrack||'未装载曲目').slice(0,22)+'…'
+    :(curTrack||'未装载曲目');
 
   body.innerHTML=`
-    <div class="sp-player">
-      <div class="sp-top">
-        <div class="sp-room-banner" ${listenSession?'':'hidden'}>
-          <span aria-hidden="true" style="font-size:16px">🎧</span>
-          <div style="flex:1;min-width:0">
-            <div data-sp-peer style="font-size:11px;color:var(--muted)">${listenSession?'正在与 '+esc(listenSession.peer)+' 一起听':''}</div>
-            <div class="sp-room-code">${listenSession?esc(listenSession.code):''}</div>
-          </div>
-          <button class="btn ghost sm" id="sp_leave_room" type="button" aria-label="离开一起听房间" style="flex:0 0 auto;font-size:11px">离开</button>
+    <div style="display:flex;flex-direction:column;align-items:stretch;height:100%;min-height:0;padding:12px 14px 0;gap:0">
+
+      <!-- 一起听横幅 -->
+      <div class="sp-room-banner" ${session?'':'hidden'} style="margin-bottom:8px">
+        <span style="font-size:16px">🎧</span>
+        <div style="flex:1;min-width:0">
+          <div data-sp-peer style="font-size:11px;color:var(--muted)">${session?'正在与 '+esc(session.peer)+' 一起听':''}</div>
+          <div class="sp-room-code">${session?esc(session.code):''}</div>
         </div>
-        <div class="sp-cover-wrap ${playing?'playing':''}">
-          <div class="sp-cover-art"><span class="sp-eq" aria-hidden="true"><i></i><i></i><i></i></span></div>
+        <button class="btn ghost sm" id="sp_leave_room" type="button" style="flex:0 0 auto;font-size:11px">离开</button>
+      </div>
+
+      <!-- 黑胶转盘区域 -->
+      <div style="display:flex;justify-content:center;align-items:center;flex:0 0 auto;padding:8px 0 4px;position:relative">
+        <div class="vt-platter">
+          <!-- 唱片 -->
+          <div class="vt-vinyl ${playing?'spin':''}">
+            <div class="vt-shine"></div>
+          </div>
+          <!-- 中心标签 -->
+          <div class="vt-label">
+            <div class="vt-label-text">
+              ${playing?`<div class="vt-eq"><i style="height:4px"></i><i style="height:9px"></i><i style="height:6px"></i></div>`:esc(shortTitle.slice(0,8))}
+            </div>
+          </div>
+          <div class="vt-spindle"></div>
+          <!-- 唱臂 -->
+          <div class="vt-arm-wrap ${playing?'on':''}">
+            <div class="vt-arm-line"></div>
+            <div class="vt-arm-pivot"></div>
+            <div class="vt-arm-head"></div>
+          </div>
         </div>
       </div>
-      <div class="sp-bottom">
-        <div class="sp-track-info">
-          <div>
-            <div class="sp-track-title">${esc(curTrack||'未装载曲目')}</div>
-            <div class="sp-track-artist">${playing?'NOW PLAYING':'STARK AUDIO'}</div>
-          </div>
-          <button class="sp-heart ${isLiked?'on':''}" id="sp_like" type="button" aria-label="收藏当前曲目" aria-pressed="${isLiked?'true':'false'}">♥</button>
+
+      <!-- 曲目信息 -->
+      <div class="sp-track-info" style="margin:12px 0 0">
+        <div style="flex:1;min-width:0">
+          <div class="sp-track-title">${esc(curTrack||'未装载曲目')}</div>
+          <div class="sp-track-artist">${playing?'NOW PLAYING':'STARK AUDIO'}</div>
         </div>
-        <div class="sp-progress-wrap">
-          <input id="sp_seek" class="sp-progress-bar" type="range" min="0" max="${maxSec}" value="${seekVal}"
-            style="--sp-fill:${seekFill}%" aria-label="播放进度" aria-valuetext="${fmtTime(player.currentTime)} / ${fmtTime(player.duration)}">
-          <div class="sp-time-row"><span id="sp_cur">${fmtTime(player.currentTime)}</span><span id="sp_dur">${fmtTime(player.duration)}</span></div>
-        </div>
-        <div class="sp-controls">
-          <button class="sp-btn ${cfg.shuffle?'on':''}" id="sp_shuf" type="button" aria-label="随机播放" aria-pressed="${cfg.shuffle?'true':'false'}">🔀</button>
-          <button class="sp-btn" id="sp_prev" type="button" aria-label="上一曲">⏮</button>
-          <button class="sp-btn-main" id="sp_play" type="button" aria-label="${playing?'暂停':'播放'}" aria-pressed="${playing?'true':'false'}">${playing?'⏸':'▶'}</button>
-          <button class="sp-btn" id="sp_next" type="button" aria-label="下一曲">⏭</button>
-          <button class="sp-btn ${cfg.repeat!=='off'?'on':''}" id="sp_rep" type="button" aria-label="${cfg.repeat==='one'?'单曲循环':'循环播放'}" aria-pressed="${cfg.repeat!=='off'?'true':'false'}">${cfg.repeat==='one'?'🔂':'🔁'}</button>
-        </div>
-        <div class="sp-vol-row">
-          <span aria-hidden="true" style="font-size:14px;color:var(--muted)">🔈</span>
-          <input id="sp_vol" type="range" min="0" max="100" value="${cfg.vol}" style="flex:1;min-width:0;--sp-fill:${cfg.vol}%" aria-label="音量" aria-valuetext="${cfg.vol}%">
-          <span aria-hidden="true" style="font-size:14px;color:var(--muted)">🔊</span>
-        </div>
-        <button class="sp-listen-btn ${listenSession?'sp-listen-active':''}" id="sp_listen" type="button" aria-label="${listenSession?'一起听进行中':'邀请一起听'}">🎧 ${listenSession?'一起听中…':'邀请一起听'}</button>
-        ${tracks.length?`<div class="row" style="margin-top:0;width:100%">
-          <button class="btn ghost sm" id="sp_tolib" type="button" aria-label="打开曲库">📚 曲库 (${tracks.length})</button>
-          <button class="btn ghost sm" id="sp_stop" type="button" aria-label="停止播放">⏹ 停止</button>
-        </div>`:`<button class="btn" id="sp_tolib2" type="button" style="margin-top:0;width:100%" aria-label="导入音乐">📥 导入音乐</button>`}
+        <button class="sp-heart ${isLiked?'on':''}" id="sp_like" type="button"
+          aria-label="收藏" aria-pressed="${isLiked}">♥</button>
       </div>
+
+      <!-- 进度条 -->
+      <div class="sp-progress-wrap" style="margin-top:10px">
+        <input id="sp_seek" class="sp-progress-bar" type="range"
+          min="0" max="${maxSec}" value="${seekVal}"
+          style="--sp-fill:${seekFill}%" aria-label="播放进度">
+        <div class="sp-time-row">
+          <span id="sp_cur">${fmtTime(player.currentTime)}</span>
+          <span id="sp_dur">${fmtTime(player.duration)}</span>
+        </div>
+      </div>
+
+      <!-- 控制按钮 -->
+      <div class="sp-controls">
+        <button class="sp-btn ${cfg.shuffle?'on':''}" id="sp_shuf" type="button" aria-label="随机">🔀</button>
+        <button class="sp-btn" id="sp_prev" type="button" aria-label="上一曲">⏮</button>
+        <button class="sp-btn-main" id="sp_play" type="button"
+          aria-pressed="${playing}">${playing?'⏸':'▶'}</button>
+        <button class="sp-btn" id="sp_next" type="button" aria-label="下一曲">⏭</button>
+        <button class="sp-btn ${cfg.repeat!=='off'?'on':''}" id="sp_rep" type="button"
+          aria-label="循环">${cfg.repeat==='one'?'🔂':'🔁'}</button>
+      </div>
+
+      <!-- 音量 -->
+      <div class="sp-vol-row">
+        <span style="font-size:14px;color:var(--muted)">🔈</span>
+        <input id="sp_vol" type="range" min="0" max="100" value="${cfg.vol}"
+          style="flex:1;--sp-fill:${cfg.vol}%" aria-label="音量">
+        <span style="font-size:14px;color:var(--muted)">🔊</span>
+      </div>
+
+      <!-- 一起听按钮 -->
+      <button class="sp-listen-btn ${session?'sp-listen-active':''}" id="sp_listen" type="button">
+        🎧 ${session?'一起听中…':'邀请联系人一起听'}
+      </button>
+
+      <!-- 底部操作 -->
+      ${tracks.length?`
+      <div class="row" style="margin-bottom:12px;gap:8px">
+        <button class="btn ghost sm" id="sp_tolib" type="button">📚 曲库 (${tracks.length})</button>
+        <button class="btn ghost sm" id="sp_stop" type="button">⏹ 停止</button>
+      </div>`:`
+      <button class="btn" id="sp_tolib2" type="button" style="margin-bottom:12px">📥 导入音乐</button>`}
     </div>`;
 
-  // 进度定时器：只做局部 DOM 写，不重建唱机
+  // 进度定时器
   clearInterval(musicTick);
   musicTick=setInterval(()=>{
     if(currentApp!=='music'||self.tab!=='deck'){clearInterval(musicTick);musicTick=null;return;}
@@ -7316,40 +7473,41 @@ apps.music={title:'音乐',tab:'deck',
     const a=body.querySelector('#sp_cur'),b=body.querySelector('#sp_dur'),sk=body.querySelector('#sp_seek');
     if(a)a.textContent=fmtTime(cur);
     if(b)b.textContent=fmtTime(dur);
-    if(sk){sk.max=Math.max(1,Math.floor(dur));sk.value=Math.floor(cur);sk.style.setProperty('--sp-fill',(dur?Math.round(cur/dur*100):0)+'%');sk.setAttribute('aria-valuetext',fmtTime(cur)+' / '+fmtTime(dur));}
-    const wrap=body.querySelector('.sp-cover-wrap');
-    if(wrap)wrap.classList.toggle('playing',!player.paused&&!!player.src);
+    if(sk){sk.max=Math.max(1,Math.floor(dur));sk.value=Math.floor(cur);
+      sk.style.setProperty('--sp-fill',(dur?Math.round(cur/dur*100):0)+'%');}
+    // 同步转盘动画
+    const vn=body.querySelector('.vt-vinyl');
+    const arm=body.querySelector('.vt-arm-wrap');
+    const isP=!player.paused&&!!player.src;
+    if(vn)vn.classList.toggle('spin',isP);
+    if(arm)arm.classList.toggle('on',isP);
     const pb=body.querySelector('#sp_play');
-    if(pb){const on=!player.paused&&!!player.src;pb.textContent=on?'⏸':'▶';pb.setAttribute('aria-label',on?'暂停':'播放');pb.setAttribute('aria-pressed',on?'true':'false');}
+    if(pb){pb.textContent=isP?'⏸':'▶';pb.setAttribute('aria-pressed',isP?'true':'false');}
   },250);
 
   player.volume=cfg.vol/100;
 
-  // 控制绑定：状态切换一律走 syncDeckUI 局部刷新
   body.querySelector('#sp_play').onclick=()=>{
-    if(ltGuestGuard())return;
     if(!player.src){if(!tracks.length)return toast('请先导入音乐');return self.play(tracks[0],v);}
-    if(player.paused)player.play().catch(e=>{showErr('E-MUSIC-002',{err:e});toast('播放失败：'+e.message);});
+    if(player.paused)player.play().catch(e=>toast('播放失败：'+e.message));
     else player.pause();
-    syncDeckUI(body);
-    ltHostAction();
+    syncDeckUI(body); ltHostAction();
   };
-  body.querySelector('#sp_prev').onclick=()=>{if(!ltGuestGuard())self.step(v,-1);};
-  body.querySelector('#sp_next').onclick=()=>{if(!ltGuestGuard())self.step(v,1);};
-  body.querySelector('#sp_shuf').onclick=()=>{if(ltGuestGuard())return;mzSetCfg({shuffle:!mzCfg().shuffle});syncDeckUI(body);};
+  body.querySelector('#sp_prev').onclick=()=>self.step(v,-1);
+  body.querySelector('#sp_next').onclick=()=>self.step(v,1);
+  body.querySelector('#sp_shuf').onclick=()=>{mzSetCfg({shuffle:!mzCfg().shuffle});syncDeckUI(body);};
   body.querySelector('#sp_rep').onclick=()=>{
-    if(ltGuestGuard())return;
     const nxt={off:'all',all:'one',one:'off'}[mzCfg().repeat||'off'];
     mzSetCfg({repeat:nxt});player.loop=(nxt==='one');syncDeckUI(body);
     toast('循环：'+({off:'关',all:'列表',one:'单曲'}[nxt]));
   };
   body.querySelector('#sp_seek').oninput=e=>{
-    if(ltGuestGuard(true))return;
-    if(player.duration){player.currentTime=+e.target.value;e.target.style.setProperty('--sp-fill',Math.round(+e.target.value/player.duration*100)+'%');}
+    if(player.duration){player.currentTime=+e.target.value;
+      e.target.style.setProperty('--sp-fill',Math.round(+e.target.value/player.duration*100)+'%');}
   };
   body.querySelector('#sp_vol').oninput=e=>{
     const vol=+e.target.value;mzSetCfg({vol});player.volume=vol/100;
-    e.target.style.setProperty('--sp-fill',vol+'%');e.target.setAttribute('aria-valuetext',vol+'%');
+    e.target.style.setProperty('--sp-fill',vol+'%');
   };
   body.querySelector('#sp_like').onclick=()=>{
     if(!curTrackId)return;
@@ -7360,116 +7518,159 @@ apps.music={title:'音乐',tab:'deck',
   const tl=body.querySelector('#sp_tolib')||body.querySelector('#sp_tolib2');
   if(tl)tl.onclick=()=>{self.tab='lib';self.render(v);};
   const sp=body.querySelector('#sp_stop');
-  if(sp)sp.onclick=()=>{if(ltGuestGuard())return;player.pause();player.currentTime=0;curTrack=null;curTrackId=null;syncDeckUI(body);ltHostAction();};
-  const leave=body.querySelector('#sp_leave_room');
-  if(leave)leave.onclick=()=>{ltLeave(true);toast('已退出一起听');};
-  // 一起听
+  if(sp)sp.onclick=()=>{player.pause();player.currentTime=0;curTrack=null;curTrackId=null;syncDeckUI(body);};
+  const lv=body.querySelector('#sp_leave_room');
+  if(lv)lv.onclick=()=>{ltLeave(true);toast('已退出一起听');syncDeckUI(body);};
   body.querySelector('#sp_listen').onclick=()=>self.openListenTogether(v,tracks,cfg);
 },
 
 // 一起听功能：创建 / 加入 / 房主与客端权限 / 请求同步 / 退出
 openListenTogether(v,tracks,cfg){
   const self=this;
-  const body=v.querySelector('#mz_body')||document.querySelector('#mz_body')||v;
-  let session=null,contacts=[];
-  try{session=ltSession();contacts=(store.contacts()||[]).filter(c=>c&&!isAI(c.name));}
-  catch(e){showErr('E-LISTEN-001',{err:e});}
+  const session=ltSession();
+  const contacts=store.contacts().filter(c=>!isAI(c.name)&&(c.affinity||0)>=31);
 
+  // 已在听 → 显示状态
   if(session){
-    const isHost=!!session.host;
-    const d=modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:16px">🎧 一起听 · ${isHost?'房主':'客端'}</h2>
+    const d=modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:16px">🎧 正在与 ${esc(session.peer)} 一起听</h2>
       <div class="card">
-        <div class="hint" style="margin-bottom:8px">正在与 <b>${esc(session.peer||'伙伴')}</b> 共享音乐体验 · ${isHost?'你控制播放':'由房主控制播放'}</div>
-        <div style="text-align:center;padding:14px 0">
-          <div class="eyebrow">房间码</div>
-          <div class="sp-room-code">${esc(session.code)}</div>
-          <div class="hint" style="margin-top:4px">在本机另一个标签页打开本应用，用同一个房间码「加入房间」</div>
+        <div class="hint" style="margin-bottom:10px">当前曲目：<b>${esc(curTrack||'—')}</b></div>
+        <div class="hint" style="margin-bottom:10px">
+          ${esc(session.peer)} 已收到邀请并开始听歌，Ta 会不时在聊天里发来反馈。
         </div>
-        <div class="hint" style="margin-bottom:8px">当前曲目：<b>${esc(curTrack||'—')}</b> · ${fmtTime(player.currentTime)} · 通道 ${esc(LT.mode)}</div>
-        <div class="hint" style="margin-bottom:8px">${isHost?'你的播放 / 暂停 / 切歌 / 拖动进度会实时同步给客端。':'播放控制由房主掌握；若两端曲目不同或进度漂移，可点「请求同步」。'}</div>
-        <div class="hint" style="margin-bottom:8px;color:var(--muted)">边界：仅同一台设备、同一浏览器的多个标签页可同步；房间码不会跨设备传输音频或状态。</div>
-        <div class="row" style="flex-wrap:wrap;gap:6px">
-          <button class="btn ghost" id="lt_copy" type="button">📋 复制房间码</button>
-          ${isHost?'':'<button class="btn ghost" id="lt_sync" type="button">🔄 请求同步</button>'}
-          <button class="btn red" id="lt_end" type="button">离开</button>
+        <div class="row">
+          <button class="btn" id="lt_chat" type="button">💬 去聊天</button>
+          <button class="btn ghost" id="lt_end" type="button">结束一起听</button>
         </div>
         <button class="btn ghost" data-close style="margin-top:8px">关闭</button>
       </div>`);
-    const bCopy=d.querySelector('#lt_copy');if(bCopy)bCopy.onclick=()=>{
-      if(navigator.clipboard&&navigator.clipboard.writeText)
-        navigator.clipboard.writeText(session.code).then(()=>toast('已复制房间码 '+session.code)).catch(()=>toast('房间码：'+session.code));
-      else toast('房间码：'+session.code);
+    d.querySelector('#lt_chat').onclick=()=>{
+      d.remove();
+      openApp('messages');apps.messages.cur=session.peer;apps.messages.view='chat';
+      safeRender('messages', $('#appBody'));
     };
-    const bSync=d.querySelector('#lt_sync');if(bSync)bSync.onclick=()=>{ltPost({type:'request-sync'});toast('已向房主请求同步');};
-    const bEnd=d.querySelector('#lt_end');if(bEnd)bEnd.onclick=()=>{
-      ltLeave(true);
-      closeModals();
-      toast('已退出一起听');
+    d.querySelector('#lt_end').onclick=()=>{
+      self._endListenTogether(session.peer);
+      d.remove(); syncDeckUI(v.querySelector('#mz_body'));
     };
     return;
   }
 
-  // 新建或加入
-  const noContacts=!contacts.length;
-  const d=modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:16px">🎧 一起听</h2>
+  if(!tracks.length) return toast('请先在曲库导入音乐');
+  if(!contacts.length) return toast('还没有好感度 ≥ 31 的联系人，先和他们多聊几句吧');
+
+  const d=modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:16px">🎧 邀请联系人一起听</h2>
     <div class="card">
-      <div class="hint" style="margin-bottom:12px">仅支持<b>同一台设备、同一浏览器、同一 origin 的多个标签页</b>同步（本机应用无服务端，不提供跨设备实时同步）。房间码只是本机标签页之间的约定名，音频文件始终来自各自本机曲库。</div>
-      <div class="seg" id="lt_mode" style="margin-bottom:12px">
-        <button data-ltm="create" class="on" type="button">🎵 新建房间</button>
-        <button data-ltm="join" type="button">🚪 加入房间</button>
+      <div class="hint" style="margin-bottom:10px">
+        邀请后，对方会在聊天里实时发来听歌反馈（由 AI 按其人设生成），就像真的在一起听。
       </div>
-      <div id="lt_create_pane">
-        ${noContacts?'<div class="hint" style="margin-bottom:8px;color:var(--red)">E-LISTEN-003 · 通讯录里还没有可邀请的联系人，请先在通讯录添加，或改用「加入房间」。</div>':''}
-        <div class="field"><label>邀请的联系人</label>
-          <select id="lt_peer" class="inp">${contacts.map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('')}</select></div>
-        <div class="field"><label>分享曲目</label>
-          <div class="hint" style="margin-top:4px">当前：<b>${esc(curTrack||'(未播放)')}</b></div></div>
-        <button class="btn gold" id="lt_create_go" type="button" ${noContacts?'disabled':''}>✨ 创建并邀请</button>
+      <div class="field"><label>邀请谁一起听</label>
+        <select id="lt_peer" class="inp">
+          ${contacts.map(c=>`<option value="${esc(c.name)}">${esc(c.name)} · 好感 ${c.affinity||0}</option>`).join('')}
+        </select>
       </div>
-      <div id="lt_join_pane" style="display:none">
-        <div class="field"><label>输入房间码（ARC + 3 位，如 ARCK7Q）</label>
-          <input id="lt_code_in" class="inp" maxlength="6" placeholder="ARCXXX" style="font-family:var(--font-mono);font-size:18px;letter-spacing:4px;text-transform:uppercase"></div>
-        <button class="btn" id="lt_join_go" type="button">加入</button>
+      <div class="field"><label>当前曲目</label>
+        <div class="hint" style="margin-top:4px">🎵 <b>${esc(curTrack||'(未播放，邀请后可切歌)')}</b></div>
       </div>
+      <button class="btn gold" id="lt_invite" type="button">📨 发出邀请</button>
       <button class="btn ghost" data-close style="margin-top:8px">取消</button>
     </div>`);
-  d.querySelectorAll('#lt_mode [data-ltm]').forEach(b=>b.onclick=()=>{
-    d.querySelectorAll('#lt_mode [data-ltm]').forEach(x=>x.classList.toggle('on',x===b));
-    const cp=d.querySelector('#lt_create_pane'),jp=d.querySelector('#lt_join_pane');
-    if(cp)cp.style.display=b.dataset.ltm==='create'?'':'none';
-    if(jp)jp.style.display=b.dataset.ltm==='join'?'':'none';
-  });
-  const bCreate=d.querySelector('#lt_create_go');
-  if(bCreate)bCreate.onclick=()=>{
-    if(ltSession()){showErr('E-LISTEN-010');return;}
-    if(!contacts.length){showErr('E-LISTEN-003');return;}
-    const sel=d.querySelector('#lt_peer');
-    const peer=sel?String(sel.value||'').trim():'';
-    if(!peer||!contacts.some(c=>c.name===peer)){showErr('E-LISTEN-004');return;}
-    const code=ltNewCode();
-    try{
-      const ch=store.chats();
-      (ch[peer]=ch[peer]||[]).push({role:'me',content:`🎧 邀请你一起听 · 房间码：${code}\n曲目：${curTrack||'—'}`,time:storyMsgTime(),read:false});
-      store.setChats(ch);
-    }catch(e){showErr('E-LISTEN-001',{err:e});}
-    ltSetSession({code,peer,host:true,startAt:Date.now()});
-    ltOpenChannel();
+
+  d.querySelector('#lt_invite').onclick=async()=>{
+    const peer=d.querySelector('#lt_peer').value;
+    if(!peer)return;
     d.remove();
-    toast('已邀请 '+peer+' · 房间码 '+code);
-    banner('🎧 一起听 · 已创建','房间码：'+code+' · 已发送给 '+peer,()=>{});
-  };
-  const bJoin=d.querySelector('#lt_join_go');
-  if(bJoin)bJoin.onclick=()=>{
-    if(ltSession()){showErr('E-LISTEN-010');return;}
-    const el=d.querySelector('#lt_code_in');
-    const code=el?String(el.value||'').trim().toUpperCase():'';
-    if(!LT_ROOM_RE.test(code)){showErr('E-LISTEN-002');return;}
-    ltSetSession({code,peer:'房主',host:false,joinAt:Date.now()});
-    ltOpenChannel();
-    d.remove();
-    toast('已加入房间 '+code+' · 等待房主同步');
+
+    // 建立 session（本地模拟）
+    ltSetSession({code:'LC'+Date.now().toString(36).slice(-4).toUpperCase(),peer,host:true,startAt:Date.now()});
+
+    // 发送邀请消息到聊天
+    const ch=store.chats();
+    (ch[peer]=ch[peer]||[]).push({
+      role:'me',
+      content:`🎧 邀请你一起听歌～现在在听《${curTrack||'（即将播放）'}》，来不来？`,
+      time:storyMsgTime(),read:false
+    });
+    store.setChats(ch);
+
+    // 通知
+    banner('🎧 一起听', `已邀请 ${peer}，等待 Ta 的回应…`, ()=>{
+      openApp('messages');apps.messages.cur=peer;apps.messages.view='chat';
+      safeRender('messages', $('#appBody'));
+    });
+
+    // 对方回应（延迟 2~4 秒）
+    setTimeout(async()=>{
+      await self._peerJoinResponse(peer);
+    }, 2000+Math.random()*2000);
+
+    // 刷新唱机界面
+    safeRender('music', $('#appBody'));
+
+    // 启动周期性反馈（每 60~120 秒）
+    self._scheduleFeedback(peer);
   };
 },
+
+// 对方接受邀请的回应
+async _peerJoinResponse(peer){
+  const sys=buildSystem('chat',`你是【${peer}】。玩家刚刚邀请你一起听歌《${curTrack||'一首歌'}》。
+请按你的人设发 1 条 15~30 字的短消息，表示你接受邀请、开始听了，带点期待或随意的感觉。严禁动作描写。`);
+  const r=await ai([{role:'user',content:'请回复接受邀请。'}],sys,
+    ()=>localReply(peer,'一起听歌'),'social');
+  const ch=store.chats();
+  (ch[peer]=ch[peer]||[]).push({role:'them',who:peer,content:r.replace(/[*"（）()]/g,'').trim(),time:storyMsgTime()});
+  store.setChats(ch);
+  notifyBanner('🎧 '+peer,'接受了你的一起听邀请',()=>{
+    openApp('messages');apps.messages.cur=peer;apps.messages.view='chat';
+    safeRender('messages', $('#appBody'));
+  });
+},
+
+// 周期性反馈（听歌中随机评论）
+_scheduleFeedback(peer){
+  const self=this;
+  const session=ltSession();
+  if(!session||session.peer!==peer)return;
+
+  const delay=60000+Math.random()*60000; // 1~2 分钟
+  setTimeout(async()=>{
+    const curSess=ltSession();
+    if(!curSess||curSess.peer!==peer)return; // 已结束
+
+    const song=curTrack||'这首歌';
+    const sys=buildSystem('chat',`你是【${peer}】，正在和玩家一起听歌《${song}》。
+请按人设发 1 条 15~35 字的真实听歌反馈：可以是评价这首歌、问玩家感受、分享联想、或随口一句。自然、口语化，不要动作描写。`);
+    const r=await ai([{role:'user',content:'发一条听歌中的反馈。'}],sys,
+      ()=>'这首还不错，你是怎么找到的？','social');
+    const ch=store.chats();
+    (ch[peer]=ch[peer]||[]).push({role:'them',who:peer,content:r.replace(/[*"（）()]/g,'').trim(),time:storyMsgTime()});
+    store.setChats(ch);
+    notifyBanner('🎧 '+peer,'分享了听歌感受',()=>{
+      openApp('messages');apps.messages.cur=peer;apps.messages.view='chat';
+      safeRender('messages', $('#appBody'));
+    });
+
+    // 继续调度下一次反馈
+    self._scheduleFeedback(peer);
+  }, delay);
+},
+
+// 结束一起听
+async _endListenTogether(peer){
+  ltSetSession(null);
+  const sys=buildSystem('chat',`你是【${peer}】。玩家刚刚结束了一起听歌的时光。
+请发 1 条 15~30 字的告别或感慨，自然轻松，符合你的人设。`);
+  const r=await ai([{role:'user',content:'一起听歌结束了，发一句告别。'}],sys,
+    ()=>'好啊，下次再一起听。','social');
+  const ch=store.chats();
+  if(ch[peer]){
+    (ch[peer]).push({role:'them',who:peer,content:r.replace(/[*"（）()]/g,'').trim(),time:storyMsgTime()});
+    store.setChats(ch);
+  }
+  toast('一起听已结束');
+},
+
   /* ---------- ② 曲库 ---------- */
   renderLib(body,v,tracks){
     const self=this;
