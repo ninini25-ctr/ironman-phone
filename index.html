@@ -5172,11 +5172,17 @@ const sys=buildSystem('chat',`你现在扮演【${who}】。${castText(who)}\n${
   settings(v,c){
     const proac = c.proactive !== false; // 默认允许主动发
     const replyCount = c.replyCount || 2; // 默认一次 2 条
+const defaultBday = getContactBirthday(c.name);
+const displayBday = c.birthday || defaultBday || '';
     const d=modal(`<h2 style="color:var(--cyan);font-size:16px;margin-top:0">${esc(c.name)} · 专属联系人档案</h2>
       <div class="card">
         <div class="field"><label>简介</label><textarea id="c_desc" rows="2">${esc(c.desc||'')}</textarea></div>
         <div class="field"><label>好感度 (0-200)</label><input id="c_aff" type="number" min="0" max="200" value="${c.affinity||0}"></div>
-        <div class="field"><label>生日 (MM-DD，用于日历自动触发祝福)</label><input id="c_birthday" placeholder="如 5-29" value="${esc(c.birthday||'')}"></div>
+        <div class="field">
+  <label>生日 (MM-DD，用于日历自动触发祝福)</label>
+  <input id="c_birthday" class="inp" placeholder="如 5-29" value="${esc(displayBday)}">
+  ${defaultBday && !c.birthday ? `<div class="hint" style="font-size:10.5px;color:var(--cyan);margin-top:2px">已自动同步日历预设生日：${esc(defaultBday)}</div>` : ''}
+</div>
         
         <div class="srow">
   <div><div class="t">允许该角色主动发消息</div><div class="d">开启后满足下列设定条件时主动搭话</div></div>
@@ -7201,7 +7207,7 @@ function relationsForPrompt(){
   const f=flags(),rels=userRelations();
   return Object.keys(rels).filter(k=>f.pepperExists||k!=='小辣椒').map(k=>{
     const r=rels[k]||{};
-    return `· 与「${k}」：关系＝${r.label||'未定义'}，亲密度 ${r.closeness??100}/200${r.note?'，备注：'+r.note:''}`;
+    return `· 与「${k}」：关系＝${r.label||'未定义'}，好感度 ${r.closeness??100}/200${r.note?'，备注：'+r.note:''}`;
   });
 }
 
@@ -7246,7 +7252,7 @@ apps.contacts={title:'关系网',tab:'radar',
       const defined=Object.keys(userRelations()).filter(k=>f.pepperExists||k!=='小辣椒').length;
       v.innerHTML=`<div class="pad">${seg}
         <div class="card" style="padding:12px"><div class="eyebrow">RELATIONSHIP RADAR · ${esc(me)}</div>
-          <div class="hint" style="margin:6px 0 2px">以你为中心的关系网：<b>连线越粗越亮、节点越靠近中心＝越亲密</b>。点任意节点设定你与 TA 的关系，设定后会实时影响短信、世界线、约饭等所有剧情里的称呼与亲疏。</div>
+         <div class="hint" style="margin:6px 0 2px">以你为中心的关系网：<b>连线越粗越亮、节点越靠近中心＝好感度越高</b>。点任意节点设定你与 TA 的关系与好感度，设定后会实时同步至通讯录、短信、世界线与约饭剧情。</div>
           <div class="rel-radar"><svg viewBox="0 0 320 340">
             <defs><radialGradient id="relCore"><stop offset="0" stop-color="#eafcff"/><stop offset="40%" stop-color="var(--cyan)"/><stop offset="100%" stop-color="#0a3b55"/></radialGradient></defs>
             <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="var(--line)" stroke-dasharray="2 4" opacity=".4"/>
@@ -7259,7 +7265,7 @@ apps.contacts={title:'关系网',tab:'radar',
           <div class="row" style="margin-top:9px"><button class="btn ghost sm" id="rel_clearall">↺ 清空全部关系</button></div>
         </div>
         <div class="card" style="padding:12px"><h3>◉ 好感度档位（0~200）</h3>
-          <div class="hint" style="margin-bottom:8px">雷达的「亲密度」由你自定义（0~200，与好感度 / 世界线同量纲）；下面是托尼好感度的六档说明，跨档会解锁专属内容。</div>
+          <div class="hint" style="margin-bottom:8px">雷达的「好感度」支持在此自定义（0~200）；下面是好感度的六档说明，跨档会解锁专属内容。</div>
           ${AFF_TIERS.map(t=>{const cur=tierOf((store.state()||{}).affinity||0).key===t.key;
             return `<div class="srow" style="${cur?'border-left:3px solid var(--gold);padding-left:8px;border-radius:8px;background:rgba(245,185,66,.08)':''}">
               <div><div class="t">${t.emoji} ${esc(t.name)} ${cur?'<span class="tag gold">当前</span>':''}</div>
@@ -7286,7 +7292,7 @@ apps.contacts={title:'关系网',tab:'radar',
                 <div style="font-weight:700;font-size:13.5px">${esc(c.name)}${c.isTony?' <span class="tag">核心</span>':''}${isAI(c.name)?' <span class="tag gold">保密</span>':''}${c.cond==='jarvis'&&f.ultronAfter?' <span class="tag red">幻视代回</span>':''}</div>
                 <div class="hint" style="margin:2px 0 0">${esc(c.desc||'')}</div>
               </div></div>
-            <div style="margin-top:7px"><span class="rel-chip ${rel?'':'none'}">${rel?('🔗 '+esc(rel.label||'已设定')+' · 亲密 '+(rel.closeness??100)):'未设定关系'}</span></div>
+            <div style="margin-top:7px"><span class="rel-chip ${rel?'':'none'}">${rel?('🔗 '+esc(rel.label||'已设定')+' · 好感 '+(c.affinity||rel.closeness||0)):'未设定关系'}</span>
             <div class="rbar"><i style="width:${pct}%"></i></div>
             <div class="hint" style="margin-top:3px">对${esc((store.profile()||{}).name||'你')}的好感度 ${c.affinity||0}/200</div>
             <div class="row" style="margin-top:8px"><button class="btn ghost sm" data-chat="${esc(c.name)}">💬 短信</button><button class="btn sm" data-rel="${esc(c.name)}">🔗 设关系</button></div>
@@ -7339,31 +7345,52 @@ apps.contacts={title:'关系网',tab:'radar',
 
   /* 关系编辑弹窗：预设/自定义关系 + 亲密度滑块 + 备注 */
   editRelation(name,v){
-    const self=this;const cur=relationOf(name)||{label:'',closeness:50,note:''};
-    const d=modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:16px">🔗 设定你与「${esc(name)}」的关系</h2>
-      <div class="card">
-        <div class="hint" style="margin-bottom:8px">这里设定的关系会<b>直接注入所有剧情生成</b>：短信、世界线、约饭、群聊、FaceTime 里的称呼、口吻与亲疏都会据此变化。</div>
-        <div class="field"><label>关系（点预设或自己输入）</label>
-          <div class="rel-preset">${REL_PRESETS.map(p=>`<span class="chip" data-preset="${esc(p)}">${esc(p)}</span>`).join('')}</div>
-          <input id="rel_label" class="inp" value="${esc(cur.label||'')}" placeholder="如：并肩作战的老搭档 / 相看两厌的竞争对手"></div>
-        <div class="field"><label>亲密度：<b id="rel_cv" style="color:var(--gold)">${cur.closeness??100}</b> / 200</label>
-          <input id="rel_close" type="range" min="0" max="200" value="${cur.closeness??100}" style="width:100%;accent-color:var(--cyan)"></div>
-        <div class="field"><label>关系备注（给 AI 的补充设定，选填）</label>
-          <textarea id="rel_note" rows="3" placeholder="如：三年前欠过 TA 一次人情 / 表面客气暗地较劲 / 只有 TA 见过你哭">${esc(cur.note||'')}</textarea></div>
-        <div class="row"><button class="btn" id="rel_save">保存关系</button>${relationOf(name)?'<button class="btn ghost" id="rel_del">清除</button>':''}</div>
-        <button class="btn ghost" data-close style="margin-top:8px">取消</button>
-      </div>`);
-    d.querySelector('#rel_close').oninput=e=>d.querySelector('#rel_cv').textContent=e.target.value;
-    d.querySelectorAll('[data-preset]').forEach(el=>el.onclick=()=>{d.querySelector('#rel_label').value=el.dataset.preset;});
-    d.querySelector('#rel_save').onclick=()=>{
-      const label=d.querySelector('#rel_label').value.trim();
-      if(!label)return toast('请填写或选择一个关系');
-      setUserRelation(name,{label,closeness:+d.querySelector('#rel_close').value||50,note:d.querySelector('#rel_note').value.trim()});
-      d.remove();toast('已保存 · 该关系将影响今后所有剧情');self.render(v);
-    };
-    const del=d.querySelector('#rel_del');
-    if(del)del.onclick=()=>{delUserRelation(name);d.remove();toast('已清除关系');self.render(v);};
-  }
+  const self=this;
+  const cur=relationOf(name)||{label:'',closeness:50,note:''};
+  const cObj=store.contacts().find(x=>x.name===name)||{};
+  const currentAff=cObj.affinity!=null?cObj.affinity:(cur.closeness??50);
+
+  const d=modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:16px">🔗 设定你与「${esc(name)}」的关系</h2>
+    <div class="card">
+      <div class="hint" style="margin-bottom:8px">这里设定的关系与好感度会<b>直接同步至通讯录及所有剧情</b>：短信、世界线、约饭、群聊、FaceTime 里的称呼、口吻与好感判定都会据此变化。</div>
+      <div class="field"><label>关系（点预设或自己输入）</label>
+        <div class="rel-preset">${REL_PRESETS.map(p=>`<span class="chip" data-preset="${esc(p)}">${esc(p)}</span>`).join('')}</div>
+        <input id="rel_label" class="inp" value="${esc(cur.label||'')}" placeholder="如：并肩作战的老搭档 / 相看两厌的竞争对手"></div>
+      <div class="field"><label>好感度：<b id="rel_cv" style="color:var(--gold)">${currentAff}</b> / 200</label>
+        <input id="rel_close" type="range" min="0" max="200" value="${currentAff}" style="width:100%;accent-color:var(--cyan)"></div>
+      <div class="field"><label>关系备注（给 AI 的补充设定，选填）</label>
+        <textarea id="rel_note" rows="3" placeholder="如：三年前欠过 TA 一次人情 / 表面客气暗地较劲 / 只有 TA 见过你哭">${esc(cur.note||'')}</textarea></div>
+      <div class="row"><button class="btn" id="rel_save">保存关系与好感度</button>${relationOf(name)?'<button class="btn ghost" id="rel_del">清除</button>':''}</div>
+      <button class="btn ghost" data-close style="margin-top:8px">取消</button>
+    </div>`);
+  d.querySelector('#rel_close').oninput=e=>d.querySelector('#rel_cv').textContent=e.target.value;
+  d.querySelectorAll('[data-preset]').forEach(el=>el.onclick=()=>{d.querySelector('#rel_label').value=el.dataset.preset;});
+  d.querySelector('#rel_save').onclick=()=>{
+    const label=d.querySelector('#rel_label').value.trim();
+    if(!label)return toast('请填写或选择一个关系');
+    const val=+d.querySelector('#rel_close').value||0;
+
+    // 1. 同步保存关系网配置
+    setUserRelation(name,{label,closeness:val,note:d.querySelector('#rel_note').value.trim()});
+
+    // 2. 双向同步保存到通讯录 contacts 中该联系人的实际好感度
+    const cs=store.contacts();
+    const target=cs.find(x=>x.name===name);
+    if(target){
+      target.affinity=val;
+      store.setContacts(cs);
+      if(target.isTony||name==='托尼·斯塔克'){
+        applyAffinity(val);
+      }
+    }
+
+    d.remove();
+    toast(`已保存 · 与「${name}」的好感度已同步为 ${val}`);
+    self.render(v);
+  };
+  const del=d.querySelector('#rel_del');
+  if(del)del.onclick=()=>{delUserRelation(name);d.remove();toast('已清除关系');self.render(v);};
+}
 };
 
 /* ============================================================
@@ -13456,7 +13483,12 @@ const DEFAULT_MCU_BIRTHDAYS = {
 function getContactBirthday(name) {
   const c = (store.contacts() || []).find(x => x.name === name);
   if (c && c.birthday) return c.birthday;
-  return DEFAULT_MCU_BIRTHDAYS[name] || '';
+  if (DEFAULT_MCU_BIRTHDAYS[name]) return DEFAULT_MCU_BIRTHDAYS[name];
+  // 别名与模糊匹配兜底
+  for (const k in DEFAULT_MCU_BIRTHDAYS) {
+    if (name.includes(k) || k.includes(name)) return DEFAULT_MCU_BIRTHDAYS[k];
+  }
+  return '';
 }
 
 /* 获取生日条目：包含用户在日历手动设定的生日 + 列表所有联系人的预设生日 */
