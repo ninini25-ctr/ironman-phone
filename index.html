@@ -6322,31 +6322,63 @@ async function initOrGetAnchors() {
   return anchors;
 }
 
-// 获取当前正在执行的未完成锚点（优先固定锚点，调整顺序不会让当前剧情漂移）
+// 获取当前锚点（带安全保底，绝不返回 null）
 function getCurrentAnchor() {
-  try{return wlPickCurrent(normalizeAnchorList(store.get('wl_anchors', [])));}
-  catch(e){showErr('E-ANCHOR-001',{err:e});return null;}
+  try {
+    let anchors = normalizeAnchorList(store.get('wl_anchors', []));
+    if (!anchors || !anchors.length) return null;
+    
+    // 优先读取固定或第一个未完成的
+    let cur = wlPickCurrent(anchors);
+    
+    // 如果全部都完成了，自动循环重置或进入下一阶段，绝不返回空！
+    if (!cur || cur.done) {
+      const unfinished = anchors.find(a => !a.done);
+      if (unfinished) {
+        cur = unfinished;
+      } else {
+        // 全部完成时，自动解锁并生成新一轮推进循环
+        anchors.forEach(a => { a.done = false; a.curTurns = 0; });
+        store.set('wl_anchors', anchors);
+        cur = anchors[0];
+      }
+      wlSetPinned(cur ? cur.id : '');
+    }
+    return cur;
+  } catch(e) {
+    console.error('getCurrentAnchor error:', e);
+    return null;
+  }
 }
 
-// 推进当前锚点 1 回合；满 3~4 回合后自动达成并切入下一锚点
+// 推进当前锚点回合
 function advanceCurrentAnchorTurn() {
-  let anchors=[];
-  try{anchors = normalizeAnchorList(store.get('wl_anchors', []));}
-  catch(e){showErr('E-ANCHOR-001',{err:e});return;}
-  const cur = wlPickCurrent(anchors);
-  if (!cur) return;
-  cur.curTurns = (cur.curTurns || 0) + 1;
-  const max = cur.maxTurns || 3;
-  if (cur.curTurns >= max) {
-    cur.curTurns = max;
-    cur.done = true;
-    try{store.set('wl_anchors', anchors);}catch(e){showErr('E-ANCHOR-002',{err:e});}
-    wlSetPinned('');   // 本锚点已完成，下回合按当前顺序挑第一个未完成
-    toast(`🎯 已完成事件锚点：【${cur.title} (${cur.curTurns}/${max} 回合)】！下回合进入新锚点`);
-  } else {
-    try{store.set('wl_anchors', anchors);}catch(e){showErr('E-ANCHOR-002',{err:e});}
-    wlSetPinned(cur.id||'');
-    toast(`⏳ 锚点推进中：【${cur.title} (${cur.curTurns}/${max} 回合)】`);
+  try {
+    let anchors = normalizeAnchorList(store.get('wl_anchors', []));
+    const cur = getCurrentAnchor();
+    if (!cur) return;
+
+    cur.curTurns = (cur.curTurns || 0) + 1;
+    const max = cur.maxTurns || 3;
+
+    if (cur.curTurns >= max) {
+      cur.curTurns = max;
+      cur.done = true;
+      // 寻找下一个锚点并提前锁定，防止下一回合获取为 null
+      const next = anchors.find(a => !a.done && a.id !== cur.id);
+      if (next) {
+        wlSetPinned(next.id);
+        toast(`🎯 阶段事件【${cur.title}】达成！下回合开启：${next.title}`);
+      } else {
+        wlSetPinned('');
+        toast(`🎯 阶段事件【${cur.title}】达成！`);
+      }
+    } else {
+      wlSetPinned(cur.id || '');
+    }
+    store.set('wl_anchors', anchors);
+  } catch(e) {
+    showErr('E-ANCHOR-002', { err: e });
   }
 }
 
@@ -6654,18 +6686,32 @@ if (!s.story) {
         const era = WORLD.eras.find(e => e.id === s.era) || WORLD.eras[2];
         const last = s.history.length ? s.history[s.history.length - 1] : null;
 
-        let pacingGuide = '';
-        if (curAnchor) {
-          if (curAnchor.isBlip) {
-            pacingGuide = `\n【烁灭五年 · 当前第 ${ancStep}/3 回合】结合五年空旷感与情感羁绊推进。`;
-          } else {
-            pacingGuide = `\n【本锚点进度：第 ${ancStep}/${ancMax} 回合】围绕核心事件【${curAnchor.title}】展开推进。`;
-          }
-        }
+       // 构造 3~4 回合制锚点节奏指引（加入空对象安全防御）
+const safeAnchor = curAnchor || { title: '日常技术协同', curTurns: 1, maxTurns: 3, isBlip: false };
+const safeStep = Math.min(safeAnchor.curTurns || 1, safeAnchor.maxTurns || 3);
+const safeMax = safeAnchor.maxTurns || 3;
 
-        let ctx = last 
-          ? `\n【上一轮剧情回顾】：\n${last.story.slice(-350)}\n【玩家上一轮行动】：${last.choice}\n请承接前文，紧扣小事件锚点【${curAnchor ? formatAnchorTitle(curAnchor) : ''}】展开本回合。${pacingGuide}` 
-          : `\n开局第一回合。请写托尼·斯塔克与玩家的初会与磨合，紧扣首个事件锚点【${curAnchor ? formatAnchorTitle(curAnchor) : '初识'}】。${pacingGuide}`;
+let pacingGuide = '';
+if (safeAnchor.isBlip) {
+  const blipStages = {
+    1: '【烁灭五年 · 当前第 1/3 回合】重点描写归来后的创伤与空旷感。',
+    2: '【烁灭五年 · 当前第 2/3 回合】时间跨入烁灭第三年，湖畔木屋的退隐日常。',
+    3: '【烁灭五年 · 当前第 3/3 回合】烁灭第五年，莫比乌斯环时间模型暗涌。'
+  };
+  pacingGuide = '\n' + (blipStages[safeStep] || blipStages[3]);
+} else {
+  if (safeStep === 1) {
+    pacingGuide = `\n【本锚点进度：第 1/${safeMax} 回合 · 起势】请展开【${safeAnchor.title}】的开端场景与初步冲突。`;
+  } else if (safeStep < safeMax) {
+    pacingGuide = `\n【本锚点进度：第 ${safeStep}/${safeMax} 回合 · 深入】请深入推演【${safeAnchor.title}】的核心事件。`;
+  } else {
+    pacingGuide = `\n【本锚点进度：第 ${safeStep}/${safeMax} 回合 · 收束】这是本事件【${safeAnchor.title}】的收官阶段，请给出高潮解决与余韵。`;
+  }
+}
+
+let ctx = last 
+  ? `\n【上一轮剧情回顾】：\n${last.story.slice(-350)}\n【玩家上一轮行动】：${last.choice}\n请承接前文，紧扣事件锚点【${formatAnchorTitle(safeAnchor)}】展开本回合。${pacingGuide}` 
+  : `\n开局第一回合。请写托尼·斯塔克与玩家的初会与磨合，紧扣首个事件锚点【${formatAnchorTitle(safeAnchor)}】。${pacingGuide}`;
 
         const sys = buildSystem('worldline');
 
@@ -8745,9 +8791,13 @@ const Milestones = {
       const t = AFF_TIERS[i];
       if (done.includes(t.key)) continue;
       done.push(t.key);
-      store.set('affMilestones', done);
-      if (opts.silent) continue;
-      await this.grantDynamic(t);
+store.set('affMilestones', done);
+if (opts.silent) continue;
+
+// 核心修复：严禁 await 阻塞世界线主线程！放到后台稍后执行
+setTimeout(() => {
+  this.grantDynamic(t).catch(err => console.warn('Milestone background error:', err));
+}, 1500);
     }
   },
 
