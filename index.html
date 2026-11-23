@@ -2696,7 +2696,15 @@ const _wlR=wlWordRange();const wlWords=_wlR.max;  // 按上限估算 token，防
     return content.trim();
   }catch(e){
     clearTimeout(to);
-           if(e.name==='AbortError') throw new Error('生成超时（已等待 '+Math.round(timeoutMs/1000)+' 秒）· 建议在世界线里把「单回合字数」调小，或更换更快的模型');
+           // ✅ 修复：
+    if(e.name==='AbortError') throw new Error(
+      '生成超时（已等待 '+Math.round(timeoutMs/1000)+' 秒）· ' +
+      '当前 Base URL: ' + (c.baseUrl||'').slice(0,40) + ' · ' +
+      '当前模型: ' + (c.model||'未填') + ' · ' +
+      '建议：① 把世界线「单回合字数」调小（如切到「短篇 1200~1800」）；' +
+      '② 换更快的模型（如 gpt-4o-mini / claude-3-5-haiku）；' +
+      '③ 确认中转站是否正常（有些公益站高峰期会超时）'
+    );
     if(/load failed|failed to fetch/i.test(e.message)) throw new Error('网络连接中断或中转站未开启跨域（CORS）');
     throw e;
   }
@@ -6699,14 +6707,24 @@ apps.worldline = {
   // ===== 剧情生成状态保护 (彻底解除死锁版) =====
 const wlKey = 'worldline_turn_' + s.turn;
 
-// ✅ 确保离屏或者预览时不发送真请求，只加载安全本地演示：
+// ✅ 修复：localOnly 只在离屏预览时才无条件走本地；
+// 正常渲染时，localOnly 仅作为「上次失败」的标记，
+// 本次仍然尝试 AI（如果有 Key），失败再降级。
 if (!s.story) {
-  if (window.__soOffscreenRendering || s.localOnly) {
+  if (window.__soOffscreenRendering) {
+    // 离屏预览（指南页截图）：绝对不发请求
     const era = WORLD.eras.find(e => e.id === s.era) || WORLD.eras[2];
     s.story = LOCAL.story(era);
     s.options = 'A. 把访客徽章别好，先问那行被划掉的数字\nB. 不碰任何东西，只把三份文件按日期理齐\nC. 回一句更快的俏皮话，把节奏抢回来\nD. 走到他身后，看他到底在改什么';
+  } else if (!apiCfg('story').apiKey) {
+    // 没有 API Key：直接用本地，不报错
+    const era = WORLD.eras.find(e => e.id === s.era) || WORLD.eras[2];
+    s.story = LOCAL.story(era);
+    s.options = 'A. 把访客徽章别好，先问那行被划掉的数字\nB. 不碰任何东西，只把三份文件按日期理齐\nC. 回一句更快的俏皮话，把节奏抢回来\nD. 走到他身后，看他到底在改什么';
+    s.localOnly = true;
+    store.setState(s);
+    addHint('未配置 API Key · 当前使用本地预设剧情', 'E-AI-001', true);
   } else {
-    // 这里保持你原有的安全推演请求逻辑...
     const safeAnchor = getCurrentAnchor() || { title: '日常技术协同', curTurns: 1, maxTurns: 3, done: false };
 // 当前正在推演的回合序号，取值严格在 1 ~ maxTurns 之间
 const ancStep = Math.max(1, Math.min(safeAnchor.curTurns || 1, safeAnchor.maxTurns || 3));
@@ -6830,19 +6848,29 @@ let ctx = last
       s.lastDelta = affDelta;
       delete s.localOnly;
       store.setState(s);
+   // ✅ 修复：catch 时不再设 localOnly（下次渲染仍会重试 AI），
+// 并把真实错误原因写进页面可见的诊断条，不再只用 toast 闪一下
     } catch (e) {
-      // 彻底解锁！
       AIGuard.unlock(wlKey);
       console.error('Worldline Generation Error:', e);
       
-      // 降级为离线模式并写入可用剧情，绝不允许空白
       const era = WORLD.eras.find(er => er.id === s.era) || WORLD.eras[2];
       s.story = LOCAL.story(era);
       s.options = 'A. 把访客徽章别好，先问那行被划掉的数字\nB. 不碰任何东西，只把三份文件按日期理齐\nC. 回一句更快的俏皮话，把节奏抢回来\nD. 走到他身后，看他到底在改什么';
-      s.localOnly = true;
+      // ★ 不再设 s.localOnly = true，下次点重试或选项时会重新尝试 AI
       store.setState(s);
+      wlFailed = true;
       
-      toast('⚠️ 网络连接或接口超时，已自动为你恢复剧情');
+      // ★ 把真实错误原因写进 hint 条，页面上持久可见
+      const errMsg = String(e.message || e || '未知错误');
+      const help = apiErrorHelp(errMsg);
+      addHint(
+        `剧情推演失败 · <b>${help.title}</b><br>` +
+        `<span style="font-size:10.5px;color:var(--muted);word-break:break-all">原始信息：${esc(errMsg.slice(0,180))}</span><br>` +
+        `<b>修复建议：</b>${esc(help.fix)}`,
+        help.code || 'E-WL-003',
+        false
+      );
     } finally {
       AIGuard.unlock(wlKey);
       if (sendBtn) sendBtn.disabled = false;
@@ -6930,7 +6958,16 @@ let ctx = last
 
     // F8 只填提示行，保留骨架里的 #w_act 与 #w_send
     fill('wl_f8_tip', ()=>`💡 提示：<b>（括号内）</b>输入剧情纠偏/规则指引，<b>括号外</b>输入行动与台词`, 'E-WL-002');
-
+// ★ 新增：如果上次是本地兜底（localOnly），在页面上持久显示原因与修复建议
+if (s.localOnly && apiCfg('story').apiKey) {
+  addHint(
+    '上一次推演未能连接 AI，当前显示的是本地预设剧情。点「↻ 重试」可重新尝试联网推演。<br>' +
+    '<b>常见原因：</b>Base URL 填错（需以 /v1 结尾）、API Key 过期、模型名拼错、中转站未开 CORS、网络不通。<br>' +
+    '<b>建议：</b>去「设置 → AI 接入」点「🔍 测试连通性」确认通道可用后再重试。',
+    'E-AI-002',
+    true
+  );
+}
     // 最终 hint：显示所有状态条并启用三出路
     paintHint();
 
@@ -7182,13 +7219,13 @@ const rawHist = (s.history || [])
 };
 
 // ===== 世界线三出路：不推进回合、不清骨架，统一走 safeRender =====
+// ✅ 修复（retryWorldline 保持不变，确认 delete s.localOnly 存在即可）
 function retryWorldline(){
   const s = store.state() || {};
-  // 强制释放当前回合的锁
   AIGuard.unlock('worldline_turn_' + s.turn);
   s.story = '';
   s.options = '';
-  delete s.localOnly;
+  delete s.localOnly;  // ← 确认这行存在
   store.setState(s);
   toast('正在重新连接贾维斯推演剧情…');
   safeRender('worldline', document.getElementById('appBody'));
