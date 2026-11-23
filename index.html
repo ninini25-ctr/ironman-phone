@@ -1624,6 +1624,27 @@ body.theme-light .so-err-code{background:#f3f6fa;color:#b3261e;border-color:rgba
   <span class="so-err-msg">脚本解析失败 · JS 未执行，请重载页面并复制上方错误码</span>
 </div>
 <script>
+// ====== 全局授权与云端同步配置 ======
+const AUTH_SERVER = 'https://stark-api.milloni.workers.dev'; // 替换为你刚才部署的 Worker 域名
+
+// 获取或初始化本机永久设备指纹
+function getLocalDeviceId() {
+  let id = localStorage.getItem('so_device_id');
+  if (!id) {
+    id = 'dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem('so_device_id', id);
+  }
+  return id;
+}
+
+function getLicenseCode() {
+  return localStorage.getItem('so_license_code') || '';
+}
+
+function setLicenseCode(c) {
+  if (c) localStorage.setItem('so_license_code', c.trim());
+  else localStorage.removeItem('so_license_code');
+}
 /* 解析/启动看门狗：完全独立于主脚本，不依赖主脚本任何函数。
    主脚本解析失败时其内部语句全部不执行，故监听器必须前置。 */
 (function(){
@@ -4010,8 +4031,20 @@ apps.settings={title:'设置',render(v){
       <div>${black.length?black.map(x=>`<span class="chip" data-bl="${esc(x)}">${esc(x)} ✕</span>`).join(''):'<span class="hint">暂无</span>'}</div>
       <button class="btn ghost sm" id="s_blclr" style="margin-top:8px">清空黑名单</button></div>
       <div class="hint" style="margin-top:6px" id="s_ci_info"></div></div>
-    <div class="card"><h3>◉ 数据</h3>
-      <div class="row" style="margin-bottom:8px"><button class="btn ghost" id="s_export">导出存档 (JSON)</button><button class="btn ghost" id="s_import">导入存档</button></div>
+    <div class="card">
+      <h3>◉ 云端存档与设备管理 (激活码专属)</h3>
+      <div class="hint" style="margin-bottom:8px">当前激活码：<b style="color:var(--cyan)">${getLicenseCode() || '未绑定'}</b></div>
+      
+      <div class="row" style="margin-bottom:8px">
+        <button class="btn sm gold" id="cloud_save_btn">☁️ 上传存档至云端</button>
+        <button class="btn sm ghost" id="cloud_load_btn">📥 从云端恢复存档</button>
+      </div>
+      
+      <button class="btn ghost sm" id="cloud_logout_btn" style="width:100%;color:var(--red)">🚪 退出登录 (释放当前设备授权)</button>
+    </div>
+
+    <div class="card"><h3>◉ 本地数据</h3>
+      <div class="row" style="margin-bottom:8px"><button class="btn ghost" id="s_export">导出本地存档 (JSON)</button><button class="btn ghost" id="s_import">导入本地存档</button></div>
       <input type="file" id="s_file" accept="application/json" style="display:none">
       <button class="btn ghost" id="s_persist" style="margin-bottom:8px">申请持久化存储</button>
       <div class="hint" id="s_persist_hint" style="margin-bottom:8px"></div>
@@ -4296,6 +4329,75 @@ bindSL('#sl_p','postToDmChance','%');
     } catch (err) {
       showPersistGuideModal(err.message);
     }
+  };
+// 云端存档上传
+  q('#cloud_save_btn').onclick = async () => {
+    const code = getLicenseCode();
+    if (!code) return toast('未检测到激活码');
+
+    const dump = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('so_') && k !== 'so_device_id') {
+        dump[k] = localStorage.getItem(k);
+      }
+    }
+
+    toast('正在打包上传云端…');
+    try {
+      const res = await fetch(AUTH_SERVER + '/api/save/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, deviceId: getLocalDeviceId(), saveData: JSON.stringify(dump) })
+      });
+      const d = await res.json();
+      if (d.ok) toast('✅ 云端同步成功！随时可在第二台设备无缝恢复');
+      else toast('同步失败：' + d.msg);
+    } catch (e) {
+      toast('网络连接失败');
+    }
+  };
+
+  // 云端存档恢复
+  q('#cloud_load_btn').onclick = async () => {
+    const code = getLicenseCode();
+    if (!code) return toast('未检测到激活码');
+    if (!confirm('从云端恢复存档将覆盖当前设备上的所有世界线进度，确定？')) return;
+
+    toast('正在从云端读取…');
+    try {
+      const res = await fetch(AUTH_SERVER + '/api/save/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, deviceId: getLocalDeviceId() })
+      });
+      const d = await res.json();
+      if (d.ok && d.saveData) {
+        const dump = JSON.parse(d.saveData);
+        Object.keys(dump).forEach(k => localStorage.setItem(k, dump[k]));
+        toast('✅ 存档恢复完成，即将刷新页面');
+        setTimeout(() => location.reload(), 800);
+      } else {
+        toast(d.msg || '读取失败');
+      }
+    } catch (e) {
+      toast('网络连接失败');
+    }
+  };
+
+  // 退出登录并释放当前设备名额
+  q('#cloud_logout_btn').onclick = async () => {
+    if (!confirm('确定在此设备退出登录？退出后将腾出1个设备名额，方便你在新设备登录。')) return;
+    const code = getLicenseCode();
+    try {
+      await fetch(AUTH_SERVER + '/api/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, deviceId: getLocalDeviceId() })
+      });
+    } catch (e) {}
+    setLicenseCode('');
+    location.reload();
   };
   q('#s_clear').onclick=()=>{if(!confirm('确定清空全部数据？不可恢复'))return;for(let i=localStorage.length-1;i>=0;i--){const k=localStorage.key(i);if(k.startsWith('so_'))localStorage.removeItem(k);}toast('已清空');setTimeout(()=>location.reload(),600);};
 }};
@@ -16557,46 +16659,181 @@ function bootReactorIntro(done){
 /* ============================================================
    启动
    ============================================================ */
-(function boot(){
-  // 旧版明暗存档迁移到完整外观预设
-  const ap=store.get('appearance',{});
-  if(!ap.theme){ap.theme=(localStorage.getItem('so_theme')==='dark')?'graphite':'malibu';store.set('appearance',ap);}
-  // 旧版单栏 API 配置 → 分栏（文本/生图/总结）
-  const rawCfg=store.g('cfg',null);
-  if(rawCfg&&(rawCfg.baseUrl||rawCfg.apiKey||rawCfg.provider)&&!rawCfg.text){
-    store.setCfg({text:{baseUrl:rawCfg.baseUrl||'https://api.openai.com/v1',apiKey:rawCfg.apiKey||'',model:rawCfg.model||'gpt-4o-mini',temperature:rawCfg.temperature??0.85,presets:[]},
-      image:{baseUrl:'',apiKey:'',model:rawCfg.imgModel||'',presets:[]},summary:{baseUrl:'',apiKey:'',model:'',presets:[]}});
+// 校验设备与激活码
+async function checkAuthGate(onSuccess) {
+  const code = getLicenseCode();
+  const devId = getLocalDeviceId();
+
+  if (!code) {
+    showLoginModal(onSuccess);
+    return;
   }
-// text 栏 → story 栏迁移
-const curCfg=store.g('cfg',null);
-if(curCfg&&curCfg.text&&!curCfg.story){
-  curCfg.story=curCfg.text;
-  if(!curCfg.social)curCfg.social={baseUrl:'',apiKey:'',model:'',presets:[]};
-  delete curCfg.text;
-  store.setCfg(curCfg);
-}
-  SFX.on=store.get('sfxOn',true);
-  applyAppearance();
-  applyFullscreen();
-  FX.scan(store.get('fxOn',true));
-  JarvisHUD.init();
-  TonyStatus.refresh();
-  EnvLog.init();
-  FT.init().then(()=>ftIndexAll());
-  const hasState=!!store.state();
-  if(hasState){seedContacts();seedMails();seedNews();seedChats();}
-  renderGrid();
-  Milestones.bootCheck();
-  /* 启动时检查今日是否有日历触发项（节日 / 生日 / 纪念日 / 自定义节日） */
-  if(hasState){try{fireCalendarTriggers();}catch(e){}}
-  /* 开屏顺序：晨光反应堆预加载（等真实校时）→ 操作说明 / 时间线校时 / 今日简报横幅 */
-  bootReactorIntro(()=>{
-    if(((store.state()||{}).affinity||0)>=151&&!store.get('bootFxSeen',[]).includes('t5')){
-      setTimeout(()=>bootAnimation(AFF_TIERS[4]),320);
+
+  try {
+    const res = await fetch(AUTH_SERVER + '/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, deviceId: devId })
+    });
+    const d = await res.json();
+    if (d.ok) {
+      onSuccess && onSuccess();
+    } else {
+      showLoginModal(onSuccess, d.msg, d.code === 'DEVICE_LIMIT');
     }
-    if(needGuide()||store.get('alwaysGuide',false))showGuide(false);
-    else if(needOnboard()||store.get('alwaysOnboard',false))showOnboard(!needOnboard());
-    else setTimeout(showBriefingBanner,620);
+  } catch (err) {
+    // 弱网或离线时，本地有码则允许进入
+    onSuccess && onSuccess();
+  }
+}
+
+// 弹出激活/登录界面
+function showLoginModal(onSuccess, errorMsg = '', isDeviceLimit = false) {
+  const old = document.querySelector('#authGateLayer');
+  if (old) old.remove();
+
+  const mask = document.createElement('div');
+  mask.id = 'authGateLayer';
+  mask.style.cssText = 'position:fixed;inset:0;background:rgba(5,9,14,.96);backdrop-filter:blur(15px);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;';
+
+  mask.innerHTML = `
+    <div style="width:100%;max-width:380px;background:var(--panel,#10151c);border:1px solid var(--cyan,#35d0ff);border-radius:20px;padding:24px;color:var(--text,#eaf4ff);box-shadow:0 0 50px rgba(53,208,255,.2)">
+      <div style="text-align:center;margin-bottom:16px">
+        <div style="width:48px;height:48px;border-radius:50%;background:radial-gradient(circle,#eafcff,#35d0ff 40%,#0a3b55 80%);margin:0 auto 10px;box-shadow:0 0 20px rgba(53,208,255,.4)"></div>
+        <h2 style="font-family:var(--font-serif);font-size:18px;margin:0;color:var(--cyan,#35d0ff)">STARK OS · 系统激活授权</h2>
+        <p style="font-size:11px;color:var(--muted,#7c8da0);margin:5px 0 0">请输入管理员分发的一机一码激活凭据</p >
+      </div>
+
+      ${errorMsg ? `<div style="background:rgba(226,54,54,.15);border:1px solid var(--red,#e23636);color:#ff8f8f;padding:10px;border-radius:10px;font-size:12px;margin-bottom:12px;line-height:1.5">${esc(errorMsg)}</div>` : ''}
+
+      <div class="field" style="margin-bottom:14px">
+        <label style="font-size:11px;color:var(--muted)">激活码 (License Key)</label>
+        <input id="auth_code_inp" class="inp" placeholder="例如：STARK-8888-9999" value="${esc(getLicenseCode())}" style="font-family:var(--font-mono);font-size:14px;letter-spacing:1px;text-align:center">
+      </div>
+
+      <button class="btn gold" id="auth_btn_submit" style="margin-bottom:8px">验证并登入系统</button>
+      
+      ${isDeviceLimit ? `
+        <button class="btn ghost sm" id="auth_btn_force" style="width:100%;color:var(--red);margin-bottom:8px">⚠️ 强制下线其他设备并登录当前设备</button>
+      ` : ''}
+
+      <div style="font-size:10.5px;color:var(--muted);line-height:1.6;margin-top:12px;border-top:1px dashed var(--line);padding-top:10px">
+        · 单个激活码支持 <b>2台设备</b> 同时在线（手机/平板/电脑随时切换）。<br>
+        · 更换新设备登录时，在旧设备点击“退出登录”即可释放名额。<br>
+        · 登录后可在「设置」中一键将全部世界线数据备份至云端。
+      </div>
+    </div>
+  `;
+  document.body.appendChild(mask);
+
+  const inp = mask.querySelector('#auth_code_inp');
+  const btn = mask.querySelector('#auth_btn_submit');
+  const devId = getLocalDeviceId();
+
+  btn.onclick = async () => {
+    const code = inp.value.trim();
+    if (!code) return toast('请输入激活码');
+    btn.disabled = true;
+    btn.textContent = '正在连接主机验证…';
+
+    try {
+      const res = await fetch(AUTH_SERVER + '/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, deviceId: devId })
+      });
+      const d = await res.json();
+      if (d.ok) {
+        setLicenseCode(code);
+        mask.remove();
+        toast('✅ 验证授权成功，系统启动');
+        onSuccess && onSuccess();
+      } else {
+        showLoginModal(onSuccess, d.msg, d.code === 'DEVICE_LIMIT');
+      }
+    } catch (err) {
+      toast('连接验证服务器失败，请检查网络');
+      btn.disabled = false;
+      btn.textContent = '验证并登入系统';
+    }
+  };
+
+  const forceBtn = mask.querySelector('#auth_btn_force');
+  if (forceBtn) {
+    forceBtn.onclick = async () => {
+      const code = inp.value.trim();
+      if (!confirm('强制下线会把此激活码名下的其他已绑定设备踢出，当前设备将被绑定。是否继续？')) return;
+      forceBtn.disabled = true;
+      try {
+        const res = await fetch(AUTH_SERVER + '/api/force-reset-devices', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, deviceId: devId })
+        });
+        const d = await res.json();
+        if (d.ok) {
+          setLicenseCode(code);
+          mask.remove();
+          toast('✅ 已完成设备置换！');
+          onSuccess && onSuccess();
+        } else {
+          toast(d.msg || '操作失败');
+        }
+      } catch (e) {
+        toast('网络异常');
+      }
+    };
+  }
+}
+
+// 真正启动入口
+(function boot(){
+  checkAuthGate(() => {
+    // 只有验证通过后，才开始执行原有系统的初始化
+    const ap = store.get('appearance', {});
+    if(!ap.theme){ ap.theme = (localStorage.getItem('so_theme')==='dark') ? 'graphite' : 'malibu'; store.set('appearance', ap); }
+    
+    const rawCfg = store.g('cfg', null);
+    if(rawCfg && (rawCfg.baseUrl || rawCfg.apiKey || rawCfg.provider) && !rawCfg.text){
+      store.setCfg({
+        text:{baseUrl:rawCfg.baseUrl||'https://api.openai.com/v1', apiKey:rawCfg.apiKey||'', model:rawCfg.model||'gpt-4o-mini', temperature:rawCfg.temperature??0.85, presets:[]},
+        image:{baseUrl:'', apiKey:'', model:rawCfg.imgModel||'', presets:[]},
+        summary:{baseUrl:'', apiKey:'', model:'', presets:[]}
+      });
+    }
+
+    const curCfg = store.g('cfg', null);
+    if(curCfg && curCfg.text && !curCfg.story){
+      curCfg.story = curCfg.text;
+      if(!curCfg.social) curCfg.social = {baseUrl:'', apiKey:'', model:'', presets:[]};
+      delete curCfg.text;
+      store.setCfg(curCfg);
+    }
+
+    SFX.on = store.get('sfxOn', true);
+    applyAppearance();
+    applyFullscreen();
+    FX.scan(store.get('fxOn', true));
+    JarvisHUD.init();
+    TonyStatus.refresh();
+    EnvLog.init();
+    FT.init().then(() => ftIndexAll());
+    
+    const hasState = !!store.state();
+    if(hasState){ seedContacts(); seedMails(); seedNews(); seedChats(); }
+    renderGrid();
+    Milestones.bootCheck();
+    
+    if(hasState){ try{ fireCalendarTriggers(); }catch(e){} }
+
+    bootReactorIntro(() => {
+      if(((store.state()||{}).affinity||0) >= 151 && !store.get('bootFxSeen',[]).includes('t5')){
+        setTimeout(() => bootAnimation(AFF_TIERS[4]), 320);
+      }
+      if(needGuide() || store.get('alwaysGuide', false)) showGuide(false);
+      else if(needOnboard() || store.get('alwaysOnboard', false)) showOnboard(!needOnboard());
+      else setTimeout(showBriefingBanner, 620);
+    });
   });
 })();
 window.__SO_BOOTED__=true;
