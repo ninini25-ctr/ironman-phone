@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
 <meta name="theme-color" content="#faf5ec"/>
 <title>STARK OS </title>
 <!-- PWA 应用清单：支持离线全屏运行与桌面图标 -->
@@ -81,22 +81,63 @@ body.theme-light{background:#dfe6ef;}
     box-shadow:0 0 0 2px #0c1118,0 0 0 11px #05070b,0 0 80px rgba(53,208,255,.18);}
   body.theme-light .device{box-shadow:0 0 0 2px #e6ebf2,0 0 0 11px #cbd5e2,0 0 80px rgba(0,0,0,.18);}
 }
-/* ---- 全屏自适应模式（移动端覆盖状态栏，铺满屏幕） ---- */
-body.fullscreen{align-items:stretch;justify-content:stretch;background:var(--bg);}
-body.fullscreen .device{
-  width:100vw;max-width:100vw;height:100vh;height:100dvh;max-height:100vh;max-height:100dvh;
-  border-radius:0;box-shadow:none;margin:0;
+
+/* ---- 全屏自适应增强（全面覆盖 iOS Safari & 独立 App 模式） ---- */
+body.fullscreen {
+  align-items: stretch !important;
+  justify-content: stretch !important;
+  background: var(--bg) !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  overflow: hidden !important;
 }
-body.fullscreen .statusbar{
-  height:calc(30px + env(safe-area-inset-top,0px));
-  min-height:30px;
-  padding-top:env(safe-area-inset-top,0px);
-  background:linear-gradient(180deg,rgba(7,9,13,.75) 0%,transparent 100%);
+
+body.fullscreen .device {
+  width: 100vw !important;
+  max-width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  max-height: 100vh !important;
+  max-height: 100dvh !important;
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
-body.theme-light.fullscreen .statusbar{
-  background:linear-gradient(180deg,rgba(255,255,255,.75) 0%,transparent 100%);
+
+/* 彻底抵消大于500px宽屏下的手机壳装饰 */
+@media(min-width: 500px) {
+  body.fullscreen .device {
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+  }
 }
-body.fullscreen .screen{padding-top:calc(46px + env(safe-area-inset-top,0px));}
+
+body.fullscreen .statusbar {
+  height: calc(44px + env(safe-area-inset-top, 0px)) !important;
+  padding-top: env(safe-area-inset-top, 0px) !important;
+  background: linear-gradient(180deg, rgba(7,9,13,.88) 0%, transparent 100%) !important;
+}
+
+body.theme-light.fullscreen .statusbar {
+  background: linear-gradient(180deg, rgba(255,255,255,.9) 0%, transparent 100%) !important;
+}
+
+body.fullscreen .screen {
+  padding-top: calc(46px + env(safe-area-inset-top, 0px)) !important;
+}
+
+body.fullscreen .composer {
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 16px)) !important;
+}
 body.fullscreen .device::before{content:none;}
 /* 全屏模式下隐藏桌面顶部的外观条移到安全区内 */
 body.fullscreen #deskSkinBar{padding-top:env(safe-area-inset-top,0px);}
@@ -1400,6 +1441,59 @@ body.theme-light .so-err-code{background:#f3f6fa;color:#b3261e;border-color:rgba
 }
 .vt-vinyl.spin~.vt-label .vt-eq i:nth-child(2){animation-delay:.18s;}
 .vt-vinyl.spin~.vt-label .vt-eq i:nth-child(3){animation-delay:.36s;}
+/* ===== 战甲工坊电影级蓝图与控制台 ===== */
+.mk-schematic-wrap {
+  position: relative;
+  width: 100%;
+  height: 310px;
+  background: radial-gradient(circle at 50% 30%, rgba(53,208,255,.15) 0%, rgba(8,16,28,.95) 75%), #050a10;
+  border: 1px solid rgba(53,208,255,.35);
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 0 40px rgba(0,0,0,.8), 0 0 20px rgba(53,208,255,.12);
+}
+.mk-grid-bg {
+  position: absolute;
+  inset: 0;
+  background-image: 
+    linear-gradient(to right, rgba(53,208,255,.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(53,208,255,.05) 1px, transparent 1px);
+  background-size: 16px 16px;
+  pointer-events: none;
+}
+.mk-ring-radar {
+  position: absolute;
+  width: 250px;
+  height: 250px;
+  border-radius: 50%;
+  border: 1px dashed rgba(53,208,255,.18);
+  pointer-events: none;
+  animation: arRot 32s linear infinite;
+}
+.mk-svg-model {
+  width: 170px;
+  height: 285px;
+  filter: drop-shadow(0 0 10px rgba(53,208,255,.35));
+  z-index: 2;
+  transition: transform .4s ease;
+}
+.mk-hud-telemetry {
+  position: absolute;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--cyan);
+  pointer-events: none;
+  line-height: 1.5;
+  text-shadow: 0 0 5px rgba(53,208,255,.6);
+  z-index: 3;
+}
+.mk-hud-top-left { top: 10px; left: 12px; }
+.mk-hud-top-right { top: 10px; right: 12px; text-align: right; }
+.mk-hud-bot-left { bottom: 10px; left: 12px; }
+.mk-hud-bot-right { bottom: 10px; right: 12px; text-align: right; }
 </style>
 </head>
 <body>
@@ -9598,160 +9692,476 @@ function ArmorStats(){
   const ready=Math.min(98,Math.round(avg*.8+((a.done||[]).length)*3));
   return {total:MARKS.length,unlocked:unlocked.length,avgIntegrity:avg,ready};
 }
-function markWire(color,dmg){
-  const c=color||'#35d0ff';
-  return `<svg viewBox="0 0 120 210" width="118" height="206">
-    <g class="mk-line" style="stroke:${c}">
-      <path d="M46 22 q14 -12 28 0 l3 20 q-17 8 -34 0 Z"/>
-      <path d="M50 30 h20" style="stroke-width:2.4;opacity:.95"/>
-      <path d="M44 48 L76 48 L82 60 L78 118 L42 118 L38 60 Z"/>
-      <circle cx="60" cy="74" r="7" style="stroke-width:2"/>
-      <path d="M60 54 v40 M44 74 h32"/>
-      <path d="M44 48 L30 56 L26 96 L34 112 L40 104 L38 70"/>
-      <path d="M76 48 L90 56 L94 96 L86 112 L80 104 L82 70"/>
-      <circle cx="30" cy="100" r="4" style="stroke-width:1.6"/>
-      <circle cx="90" cy="100" r="4" style="stroke-width:1.6"/>
-      <path d="M48 118 L46 168 L52 196 L58 196 L58 150 L60 130 L62 150 L62 196 L68 196 L74 168 L72 118"/>
-      <path d="M50 140 h20 M49 160 h22"/>
+// 电影级高精度战甲矢量线框生成器
+function markWire(color, dmg, mode) {
+  const c = color || '#35d0ff';
+  const isHolo = mode === 'core';
+  const isHydraulic = mode === 'joint';
+
+  return `
+  <svg class="mk-svg-model" viewBox="0 0 220 380" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="arcCoreGrad" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#ffffff"/>
+        <stop offset="40%" stop-color="${c}"/>
+        <stop offset="100%" stop-color="#051a2e"/>
+      </linearGradient>
+      <filter id="wireGlow">
+        <feGaussianBlur stdDeviation="1.2" result="coloredBlur"/>
+        <feMerge>
+          <feMergeNode in="coloredBlur"/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+      </filter>
+    </defs>
+
+    <!-- 背景参考标线 -->
+    <g opacity="0.25" stroke="${c}" stroke-width="0.5" stroke-dasharray="2 4">
+      <line x1="110" y1="10" x2="110" y2="370"/>
+      <line x1="20" y1="115" x2="200" y2="115"/>
+      <line x1="30" y1="190" x2="190" y2="190"/>
+      <circle cx="110" cy="115" r="45" fill="none"/>
     </g>
-    ${dmg<70?`<g class="mk-dmg" style="stroke:var(--red)"><path d="M78 60 l8 -6 m-2 10 l6 4" style="stroke-width:1.6"/><path d="M42 92 l-6 4 m4 6 l-4 4" style="stroke-width:1.4"/></g>`:''}
+
+    <!-- ====== 头部构造 (Helmet & Faceplate) ====== -->
+    <g stroke="${c}" fill="none" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+      <!-- 颅顶外装甲与空气扰流槽 -->
+      <path d="M88 42 C88 22, 132 22, 132 42 L138 52 L82 52 Z" fill="rgba(53,208,255,0.06)"/>
+      <path d="M96 24 L96 38 M124 24 L124 38 M102 22 L118 22"/>
+      
+      <!-- 经典面罩分界金红棱线 (Faceplate Jawline) -->
+      <path d="M82 52 L86 78 L98 94 L110 97 L122 94 L134 78 L138 52 Z"/>
+      <path d="M92 58 L98 72 L122 72 L128 58"/>
+      <path d="M98 72 L104 86 L116 86 L122 72"/>
+      <!-- 下颌散热网格 -->
+      <line x1="106" y1="90" x2="114" y2="90" stroke-width="1.8"/>
+      <line x1="108" y1="93" x2="112" y2="93" stroke-width="1.8"/>
+
+      <!-- 复眼光学瞄准器 (Lighted Eyes) -->
+      <polygon points="94,62 104,64 102,67 93,65" fill="${isHolo ? '#fff' : c}" filter="url(#wireGlow)"/>
+      <polygon points="126,62 116,64 118,67 127,65" fill="${isHolo ? '#fff' : c}" filter="url(#wireGlow)"/>
+      
+      <!-- 颈部碳纤维编织支架 -->
+      <path d="M96 96 L92 110 M124 96 L128 110 M102 97 L100 112 M118 97 L120 112" stroke-width="0.8"/>
+    </g>
+
+    <!-- ====== 肩装甲与颈椎重装吊架 ====== -->
+    <g stroke="${c}" fill="none" stroke-width="1.2">
+      <!-- 锁骨受力桁架 -->
+      <path d="M78 108 L110 114 L142 108 L156 118 L64 118 Z" fill="rgba(53,208,255,0.05)"/>
+      <!-- 复合多层肩甲 (Shoulder Pauldrons) -->
+      <path d="M62 116 L40 124 L36 148 L56 156 L66 142 Z"/>
+      <path d="M44 126 L42 144 M50 128 L48 148" stroke-width="0.7"/>
+      
+      <path d="M158 116 L180 124 L184 148 L164 156 L154 142 Z"/>
+      <path d="M176 126 L178 144 M170 128 L172 148" stroke-width="0.7"/>
+    </g>
+
+    <!-- ====== 胸甲与弧光反应堆 (Chest & Arc Reactor) ====== -->
+    <g stroke="${c}" fill="none" stroke-width="1.3">
+      <!-- 胸肌主装甲分块 (Pectoral Plates) -->
+      <path d="M66 120 L102 120 L106 152 L76 162 L66 140 Z" fill="rgba(53,208,255,0.08)"/>
+      <path d="M154 120 L118 120 L114 152 L144 162 L154 140 Z" fill="rgba(53,208,255,0.08)"/>
+      
+      <!-- 胸背联动微型减速扰流翼板 (Flaps) -->
+      <line x1="72" y1="126" x2="96" y2="126" stroke-dasharray="1 2"/>
+      <line x1="148" y1="126" x2="124" y2="126" stroke-dasharray="1 2"/>
+
+      <!-- 核心方舟反应堆 (Central Arc Reactor) -->
+      <circle cx="110" cy="142" r="15" stroke-width="1.8" fill="#040c16"/>
+      <circle cx="110" cy="142" r="11" stroke-width="1.2" stroke-dasharray="3 2"/>
+      <circle cx="110" cy="142" r="6" fill="url(#arcCoreGrad)" filter="url(#wireGlow)"/>
+      <!-- 反应堆能量导流棱形骨架 -->
+      <path d="M110 127 L110 157 M95 142 L125 142" stroke-width="0.8"/>
+    </g>
+
+    <!-- ====== 腹部多段防弹仿生龙骨 (Abdominal Plating) ====== -->
+    <g stroke="${c}" fill="none" stroke-width="1.1">
+      <path d="M80 166 L110 162 L140 166 L134 178 L110 176 L86 178 Z"/>
+      <path d="M84 180 L110 178 L136 180 L130 192 L110 190 L90 192 Z"/>
+      <path d="M88 194 L110 192 L132 194 L128 206 L110 208 L92 206 Z"/>
+      <!-- 侧腰腹液压传动连杆 (Actuators) -->
+      <line x1="74" y1="168" x2="84" y2="204" stroke-width="1.5"/>
+      <line x1="146" y1="168" x2="136" y2="204" stroke-width="1.5"/>
+    </g>
+
+    <!-- ====== 手臂与掌心脉冲炮 (Arms & Repulsors) ====== -->
+    <g stroke="${c}" fill="none" stroke-width="1.1">
+      <!-- 大臂二头肌装甲 -->
+      <path d="M54 160 L40 164 L36 200 L50 204 L56 176 Z"/>
+      <path d="M166 160 L180 164 L184 200 L170 204 L164 176 Z"/>
+      <!-- 肘关节伺服铰链 -->
+      <circle cx="44" cy="208" r="5" stroke-width="1.4"/>
+      <circle cx="176" cy="208" r="5" stroke-width="1.4"/>
+      <!-- 前臂激光发射模块与装甲腕甲 -->
+      <path d="M38 214 L48 214 L52 254 L36 250 Z"/>
+      <path d="M182 214 L172 214 L168 254 L184 250 Z"/>
+      <!-- 手部掌心炮节点 (Palm Repulsor Nodes) -->
+      <circle cx="42" cy="264" r="4.5" fill="${isHolo ? '#fff' : c}" filter="url(#wireGlow)"/>
+      <path d="M36 258 L48 258 L48 270 L34 268 Z"/>
+      <circle cx="178" cy="264" r="4.5" fill="${isHolo ? '#fff' : c}" filter="url(#wireGlow)"/>
+      <path d="M184 258 L172 258 L172 270 L186 268 Z"/>
+    </g>
+
+    <!-- ====== 骨盆与髋关节定位系统 (Pelvis & Hip) ====== -->
+    <g stroke="${c}" fill="none" stroke-width="1.2">
+      <path d="M84 210 L110 214 L136 210 L142 228 L110 242 L78 228 Z" fill="rgba(53,208,255,0.06)"/>
+      <!-- 髋臼动力万向旋转球节 -->
+      <circle cx="86" cy="236" r="6" stroke-dasharray="2 2"/>
+      <circle cx="134" cy="236" r="6" stroke-dasharray="2 2"/>
+    </g>
+
+    <!-- ====== 双腿推进器与重力矢量足部 (Legs & Thrusters) ====== -->
+    <g stroke="${c}" fill="none" stroke-width="1.2">
+      <!-- 股四头肌复合外骨骼 -->
+      <path d="M78 238 L98 242 L94 286 L74 282 L70 252 Z"/>
+      <path d="M142 238 L122 242 L126 286 L146 282 L150 252 Z"/>
+      <!-- 膝盖重装防弹撞角关节 (Knee Reinforcements) -->
+      <polygon points="74,286 94,290 90,302 70,298" fill="rgba(53,208,255,0.1)"/>
+      <polygon points="146,286 126,290 130,302 150,298" fill="rgba(53,208,255,0.1)"/>
+      
+      <!-- 小腿矢量导流槽与制动翼 -->
+      <path d="M72 306 L88 308 L84 352 L66 348 Z"/>
+      <path d="M148 306 L132 308 L136 352 L154 348 Z"/>
+      <line x1="70" y1="324" x2="84" y2="324" stroke-width="0.8"/>
+      <line x1="150" y1="324" x2="136" y2="324" stroke-width="0.8"/>
+
+      <!-- 踝部缓冲柱与足底超音速喷口 (Boots & Thrusters) -->
+      <path d="M64 352 L86 354 L90 366 L58 366 Z" fill="rgba(53,208,255,0.15)"/>
+      <line x1="66" y1="366" x2="84" y2="366" stroke-width="3" stroke="${isHolo ? '#fff' : c}" filter="url(#wireGlow)"/>
+      
+      <path d="M156 352 L134 354 L130 366 L162 366 Z" fill="rgba(53,208,255,0.15)"/>
+      <line x1="154" y1="366" x2="136" y2="366" stroke-width="3" stroke="${isHolo ? '#fff' : c}" filter="url(#wireGlow)"/>
+    </g>
+
+    <!-- ====== 受损警告与电弧闪烁效果 ====== -->
+    ${dmg < 75 ? `
+      <g stroke="var(--red)" stroke-width="1.4" class="mk-dmg">
+        <!-- 损伤爆点 1：左肩裂隙 -->
+        <path d="M42 128 L52 136 L48 142 M52 136 L58 132"/>
+        <!-- 损伤爆点 2：胸甲穿透性过载裂纹 -->
+        <path d="M116 138 L126 132 L132 140 M126 132 L128 124"/>
+        <!-- 损伤爆点 3：右膝制动器击穿 -->
+        <path d="M128 290 L136 296 L142 292"/>
+        <circle cx="126" cy="132" r="3" fill="var(--red)" opacity="0.6"/>
+      </g>
+    ` : ''}
   </svg>`;
 }
-apps.armory={title:'战甲陈列室 / 工坊',tab:'hall',cur:null,
-  render(v){
-    const self=this,f=flags();$('#actBtn').style.display='none';
-    const a=armorData();
-    const segBtn=(k,txt)=>`<button data-t="${k}" class="${self.tab===k?'on':''}">${txt}</button>`;
-    if(this.tab==='hall'){
-      const stats=ArmorStats();
-      v.innerHTML=`<div class="pad">
-        <div class="card" style="padding:12px"><div class="eyebrow">HALL OF ARMOR · MARK SERIES</div>
-          <div style="font-family:var(--font-serif);font-size:15px;font-weight:700;margin:6px 0">🤖 战甲陈列室 · Mark I–LXXXV</div>
-          <div class="hint">在役 ${stats.unlocked}/${stats.total} 型 · 平均完整度 ${stats.avgIntegrity}% · 备勤率 <b style="color:var(--gold)">${stats.ready}%</b>${(a.done||[]).length?' · 已完成协作模块 '+a.done.length+' 个':''}</div>
-          <div class="seg" style="margin:9px 0 0;flex-wrap:wrap">${segBtn('hall','🏛 陈列室')}${segBtn('tune','🎚 调参')}${segBtn('rd','🧪 协作研发')}${segBtn('items','🧰 实验室物品')}</div></div>
-        ${MARKS.map(m=>{const lk=m.year>f.year;const integ=a.integrity[m.no];
-          return `<div class="mk-card ${lk?'lk':''} ${self.cur===m.no?'on':''}" data-m="${m.no}">
-            <div style="display:flex;align-items:center;gap:9px"><span class="no">MK ${m.no}</span><b style="font-family:var(--font-serif);font-size:13.5px">${esc(m.name)}</b>
-              <span style="margin-left:auto;font-size:10.5px;color:var(--muted);flex-shrink:0">${lk?'未解锁 · '+(m.year-f.year)+' 年后':'完整度 '+(integ==null?'—':integ+'%')}</span></div>
-            <div class="hint" style="margin-top:4px">${lk?'该时间点尚不存在。'+esc(m.note):esc(m.note)}</div></div>`;}).join('')}
-      </div>`;
-      v.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{self.tab=b.dataset.t;self.render(v);});
-      v.querySelectorAll('[data-m]').forEach(el=>el.onclick=()=>{const no=el.dataset.m;const m=MARKS.find(x=>x.no===no);
-        if(m.year>f.year)return toast('该战甲在 '+m.year+' 年才出现');
-        self.cur=no;self.tab='suit';self.render(v);});
-      return;
-    }
-    if(this.tab==='suit'){
-      const m=MARKS.find(x=>x.no===this.cur);if(!m){this.tab='hall';this.render(v);return;}
-      const integ=a.integrity[m.no]??70;
-      v.innerHTML=`<div class="pad">
-        <button class="btn ghost sm" id="mk_back" style="margin-bottom:10px">← 陈列室</button>
-        <div class="card"><div class="eyebrow">MARK ${esc(m.no)} · ${esc(m.name.toUpperCase())}</div>
-          <div class="mk-wire">
-            <div class="mk-rot">${markWire(m.color,integ)}</div>
-            <div style="position:absolute;left:0;right:0;top:50%;height:2px;background:linear-gradient(90deg,transparent,rgba(53,208,255,.5),transparent);animation:mkscan2 3.4s linear infinite;pointer-events:none;"></div>
-            <div style="position:absolute;left:10px;top:8px;font-family:var(--font-mono);font-size:9.5px;color:var(--cyan)">${m.year} · WIREFRAME ROTATION</div>
-            <div style="position:absolute;right:10px;bottom:8px;font-family:var(--font-mono);font-size:9.5px;color:var(--muted)">INTEGRITY ${integ}%</div>
+apps.armory = {
+  title: '战甲工坊',
+  tab: 'hall',
+  cur: null,
+  viewMode: 'armor', // armor: 装甲全貌, core: 反应堆核心透视, joint: 液压总成
+
+  render(v) {
+    const self = this, f = flags();
+    $('#actBtn').style.display = 'none';
+    const a = armorData();
+    const segBtn = (k, txt) => `<button data-t="${k}" class="${self.tab === k ? 'on' : ''}">${txt}</button>`;
+
+    // TAB 1: 战甲陈列室
+    if (this.tab === 'hall') {
+      const stats = ArmorStats();
+      v.innerHTML = `
+        <div class="pad">
+          <div class="card" style="padding:12px">
+            <div class="eyebrow">HALL OF ARMOR · MARK SERIES</div>
+            <div style="font-family:var(--font-serif);font-size:15px;font-weight:700;margin:6px 0">🤖 斯塔克地下陈列室 · Mark I–LXXXV</div>
+            <div class="hint">在役 ${stats.unlocked}/${stats.total} 型 · 综合装甲完整度 ${stats.avgIntegrity}% · 战备可用率 <b style="color:var(--gold)">${stats.ready}%</b></div>
+            <div class="seg" style="margin:10px 0 0;flex-wrap:wrap">
+              ${segBtn('hall','🏛 陈列室')}${segBtn('suit','🔬 核心蓝图')}${segBtn('tune','🎚 四维调参')}${segBtn('rd','🧪 协作研发')}${segBtn('items','🧰 物品仓')}
+            </div>
           </div>
-          <div class="hint" style="margin-top:9px">${esc(m.note)}</div>
-          <div style="margin-top:8px"><span class="tag">完整度 ${integ}%</span>${integ<70?' <span class="tag red">受损 · 建议返修</span>':' <span class="tag green">可出勤</span>'}</div>
-          <div class="hint" style="margin-top:8px">武器方案（公开陈列口径）：<br>${m.weapons.map(w=>'· '+esc(w)).join('<br>')}</div>
-          <button class="btn" id="mk_repair" style="margin-top:10px">🔧 返修校准${integ<100?'（恢复至 100%）':''}</button>
-        </div>
-        <div class="seg" style="flex-wrap:wrap">${segBtn('hall','🏛 陈列室')}${segBtn('tune','🎚 调参')}${segBtn('rd','🧪 协作研发')}${segBtn('items','🧰 实验室物品')}</div>
-      </div>`;
-      v.querySelector('#mk_back').onclick=()=>{self.tab='hall';self.render(v);};
-      v.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{self.tab=b.dataset.t;self.render(v);});
-      v.querySelector('#mk_repair').onclick=async()=>{
-        const aa=armorData();aa.integrity[m.no]=100;store.set('armor',aa);
-        const line=await ai([{role:'user',content:'玩家在工坊把 Mark '+m.no+' 返修到 100%。以托尼口吻吐槽一句（25字内，只对白）。'}],
-          buildSystem('chat','你是托尼·斯塔克，在工坊看着玩家校准战甲。只输出 1 句吐槽，无动作描写。'),
-          ()=>'*"Maintenance. Riveting. Try not to scratch it before Tuesday."*（保养。真精彩。周二之前别刮花它。）','social');
-        toast(line.replace(/\*/g,'').slice(0,44));self.render(v);};
+          ${MARKS.map(m => {
+            const lk = m.year > f.year;
+            const integ = a.integrity[m.no];
+            return `
+              <div class="mk-card ${lk ? 'lk' : ''} ${self.cur === m.no ? 'on' : ''}" data-m="${m.no}">
+                <div style="display:flex;align-items:center;gap:9px">
+                  <span class="no">MK ${m.no}</span>
+                  <b style="font-family:var(--font-serif);font-size:13.5px">${esc(m.name)}</b>
+                  <span style="margin-left:auto;font-size:10.5px;color:var(--muted);flex-shrink:0">
+                    ${lk ? '🔒 未解锁 · ' + (m.year - f.year) + '年后' : '完整度 ' + (integ == null ? '—' : integ + '%')}
+                  </span>
+                </div>
+                <div class="hint" style="margin-top:4px">${lk ? '该时期此型号尚未研发。' : esc(m.note)}</div>
+              </div>`;
+          }).join('')}
+        </div>`;
+
+      v.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { self.tab = b.dataset.t; self.render(v); });
+      v.querySelectorAll('[data-m]').forEach(el => {
+        const no = el.dataset.m;
+        const m = MARKS.find(x => x.no === no);
+        if (m.year > f.year) return toast('该型号在 ' + m.year + ' 年方舟档案中尚未诞生');
+        self.cur = no; self.tab = 'suit'; self.render(v);
+      });
       return;
     }
-    if(this.tab==='tune'){
-      const t=store.get('suitTune',{thrust:60,mass:50,power:55});
-      v.innerHTML=`<div class="pad">
-        <div class="card" style="padding:12px"><div class="eyebrow">WORKSHOP · PARAMETER BENCH</div>
-          <div style="font-family:var(--font-serif);font-size:15px;font-weight:700;margin:6px 0">🎚 战甲参数调试</div>
-          <div class="hint" style="margin-bottom:9px">调整当前主力战甲的推力 / 装甲质量 / 能量分配。托尼会实时发表意见——这是他控制欲的具象化。</div>
-          <div class="mk-wire" style="height:190px"><div class="mk-rot">${markWire('#35d0ff',90)}</div></div>
-          <div class="tune-row" style="margin-top:11px"><label>推力输出 <span id="tn_t">${t.thrust}</span></label><input type="range" id="tn_thrust" min="0" max="100" value="${t.thrust}"></div>
-          <div class="tune-row"><label>装甲质量 <span id="tn_m">${t.mass}</span></label><input type="range" id="tn_mass" min="0" max="100" value="${t.mass}"></div>
-          <div class="tune-row"><label>能量分配（攻击↔防御） <span id="tn_p">${t.power}</span></label><input type="range" id="tn_power" min="0" max="100" value="${t.power}"></div>
-          <div class="card" style="border-color:var(--gold);padding:10px"><h3 style="color:var(--gold);margin:0 0 6px;font-size:13px">◉ 托尼的点评</h3><div class="story" style="font-size:12.5px" id="tn_say">${fmt(TUNE_SNARK[Math.floor(Math.random()*TUNE_SNARK.length)])}</div></div>
-        </div>
-        <div class="seg" style="flex-wrap:wrap">${segBtn('hall','🏛 陈列室')}${segBtn('tune','🎚 调参')}${segBtn('rd','🧪 协作研发')}${segBtn('items','🧰 实验室物品')}</div>
-      </div>`;
-      v.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{self.tab=b.dataset.t;self.render(v);});
-      const snark=async()=>{
-        const el=v.querySelector('#tn_say');if(!el)return;
-        el.innerHTML='<i style="color:var(--muted)">…</i>';
-        const r=await ai([{role:'user',content:`玩家把战甲调参为：推力${t.thrust}、质量${t.mass}、能量分配${t.power}。以托尼口吻点评一句（30字内，只对白）。`}],
-          buildSystem('chat','你是托尼·斯塔克，正在看玩家调战甲参数。只输出 1 句刻薄但专业的点评对白，无动作描写。'),
-          ()=>TUNE_SNARK[Math.floor(Math.random()*TUNE_SNARK.length)],'social');
-        el.innerHTML=fmt(r);};
-      [['thrust','tn_t','#tn_thrust'],['mass','tn_m','#tn_mass'],['power','tn_p','#tn_power']].forEach(([k,lab,sel])=>{
-        const inp=v.querySelector(sel);if(!inp)return;
-        inp.addEventListener('input',()=>{t[k]=+inp.value;const lb=v.querySelector('#'+lab);if(lb)lb.textContent=inp.value;store.set('suitTune',t);});
-        inp.addEventListener('change',()=>snark());});
+
+    // TAB 2: 电影级高精度蓝图与全息透视
+    if (this.tab === 'suit') {
+      const activeNo = self.cur || (MARKS.find(x => x.year <= f.year)?.no || 'III');
+      self.cur = activeNo;
+      const m = MARKS.find(x => x.no === activeNo) || MARKS[2];
+      const integ = a.integrity[m.no] ?? 88;
+
+      v.innerHTML = `
+        <div class="pad">
+          <div class="row" style="margin-bottom:8px">
+            <button class="btn ghost sm" id="mk_back" style="flex:0 0 80px">← 返回陈列</button>
+            <div style="flex:1;text-align:right">
+              <span class="tag gold" style="font-size:11px">MK ${esc(m.no)} · ${esc(m.name)}</span>
+            </div>
+          </div>
+
+          <!-- 电影级全息扫描台视口 -->
+          <div class="mk-schematic-wrap">
+            <div class="mk-grid-bg"></div>
+            <div class="mk-ring-radar"></div>
+            
+            <!-- HUD 遥测字符 -->
+            <div class="mk-hud-telemetry mk-hud-top-left">
+              HUD // SYS_ONLINE<br>
+              FREQ: 433.92 MHz<br>
+              CORE: RT-${m.year}
+            </div>
+            <div class="mk-hud-telemetry mk-hud-top-right">
+              PRESSURE: NOMINAL<br>
+              ARMOR: TI-GOLD<br>
+              VIEW: ${self.viewMode.toUpperCase()}
+            </div>
+            <div class="mk-hud-telemetry mk-hud-bot-left">
+              INTEGRITY: ${integ}%<br>
+              STATUS: ${integ < 75 ? 'DAMAGED' : 'COMBAT_READY'}
+            </div>
+            <div class="mk-hud-telemetry mk-hud-bot-right">
+              JARVIS // TELEMETRY<br>
+              STARK IND. LAB-04
+            </div>
+
+            <!-- 复杂矢量战甲模型 -->
+            ${markWire(m.color, integ, self.viewMode)}
+          </div>
+
+          <!-- 蓝图视角切换分段 -->
+          <div class="seg" style="margin:10px 0 8px;padding:3px">
+            <button class="${self.viewMode==='armor'?'on':''}" data-vm="armor">🛡 外层复合装甲</button>
+            <button class="${self.viewMode==='core'?'on':''}" data-vm="core">⚡ 反应堆核心管线</button>
+            <button class="${self.viewMode==='joint'?'on':''}" data-vm="joint">🦾 液压关节骨架</button>
+          </div>
+
+          <div class="card" style="padding:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <b style="font-size:13.5px">实时装甲状态与武器阵列</b>
+              <span class="tag ${integ < 75 ? 'red' : 'green'}">${integ < 75 ? '受损告警' : '状态良好'}</span>
+            </div>
+            <div class="hint" style="margin:6px 0 10px">${esc(m.note)}</div>
+            <div class="hint"><b>已部署武器载荷：</b>${m.weapons.map(w=>`「${esc(w)}」`).join(' ')}</div>
+            
+            <div class="row" style="margin-top:12px;gap:8px">
+              <button class="btn sm" id="mk_repair">🔧 全纳米修复至 100%</button>
+              <button class="btn ghost sm" id="mk_test_fire">⚡ 掌心炮校准试射</button>
+            </div>
+          </div>
+
+          <div class="seg" style="margin-top:10px;flex-wrap:wrap">
+            ${segBtn('hall','🏛 陈列室')}${segBtn('suit','🔬 核心蓝图')}${segBtn('tune','🎚 四维调参')}${segBtn('rd','🧪 协作研发')}${segBtn('items','🧰 物品仓')}
+          </div>
+        </div>`;
+
+      v.querySelector('#mk_back').onclick = () => { self.tab = 'hall'; self.render(v); };
+      v.querySelectorAll('[data-vm]').forEach(b => {
+        b.onclick = () => { self.viewMode = b.dataset.vm; self.render(v); };
+      });
+      v.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { self.tab = b.dataset.t; self.render(v); });
+
+      // 修复装甲
+      v.querySelector('#mk_repair').onclick = async () => {
+        const aa = armorData();
+        aa.integrity[m.no] = 100;
+        store.set('armor', aa);
+        toast(`Mark ${m.no} 纳米装甲修补完毕，结构完整度 100%`);
+        self.render(v);
+      };
+
+      // 试射掌心炮
+      v.querySelector('#mk_test_fire').onclick = () => {
+        SFX.tap('warn');
+        if (Math.random() < 0.4) FX.glitch();
+        toast(`⚡ Mark ${m.no} 双掌电弧脉冲校准完毕，峰值功率 102%`);
+      };
       return;
     }
-    if(this.tab==='rd'){
-      const rd=a.rd||{module:null,progress:0,log:[]};const done=a.done||[];
-      v.innerHTML=`<div class="pad">
-        <div class="card" style="padding:12px"><div class="eyebrow">CO-LAB · AUX MODULES</div>
-          <div style="font-family:var(--font-serif);font-size:15px;font-weight:700;margin:6px 0">🧪 协作研发辅助模块</div>
-          <div class="hint" style="margin-bottom:9px">与托尼共同推进的战甲辅助模块。每推进一轮会得到他一句（绝不承认的）认可；完成后进入「实验室物品」，可在世界线剧情中使用，并提升备勤率。</div>
-          ${RD_MODULES.map(mo=>`<div class="cap-card">
-            <div style="display:flex;align-items:center;gap:8px"><b style="font-family:var(--font-serif)">${esc(mo.name)}</b>
-              ${done.includes(mo.id)?'<span class="tag green">已完成</span>':rd.module===mo.id?`<span class="tag gold">进行中 ${rd.progress}%</span>`:'<span class="tag">未开始</span>'}</div>
-            <div class="hint" style="margin-top:5px">${esc(mo.desc)} · ${mo.bonus}</div>
-            ${rd.module===mo.id?`<button class="btn sm" data-rdp="${mo.id}" style="margin-top:8px">🔧 推进一轮（当前 ${rd.progress}%）</button>`:done.includes(mo.id)?'':`<button class="btn ghost sm" data-rds="${mo.id}" style="margin-top:8px">立项</button>`}
-          </div>`).join('')}
-        </div>
-        ${rd.log.length?`<div class="card"><h3>◉ 研发日志（最近 5 条）</h3>${rd.log.slice(-5).map(l=>`<div class="hint">· ${esc(l)}</div>`).join('')}</div>`:''}
-        <div class="seg" style="flex-wrap:wrap">${segBtn('hall','🏛 陈列室')}${segBtn('tune','🎚 调参')}${segBtn('rd','🧪 协作研发')}${segBtn('items','🧰 实验室物品')}</div>
-      </div>`;
-      v.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{self.tab=b.dataset.t;self.render(v);});
-      v.querySelectorAll('[data-rds]').forEach(el=>el.onclick=()=>{const aa=armorData();
-        aa.rd={module:el.dataset.rds,progress:0,log:(aa.rd&&aa.rd.log)||[]};store.set('armor',aa);
-        toast('已立项 · 托尼假装这不关他的事');self.render(v);});
-      v.querySelectorAll('[data-rdp]').forEach(el=>el.onclick=async()=>{
-        const aa=armorData();const id=el.dataset.rdp;const mod=RD_MODULES.find(x=>x.id===id);
-        aa.rd.progress=Math.min(100,(aa.rd.progress||0)+25);
-        aa.rd.log=aa.rd.log||[];
-        const cmt=await ai([{role:'user',content:'玩家与托尼协作研发「'+mod.name+'」，进度 '+aa.rd.progress+'%。以托尼口吻写一句研发日志（40字内，用技术细节代替情绪）。'}],
-          buildSystem('chat','你是托尼·斯塔克，协作研发战甲辅助模块。只输出 1 句研发日志式短评，无动作描写。'),
-          ()=>('焊点重做了三遍。不是不满意，是第三遍才发现对。'+(aa.rd.progress>=100?' 模块下线测试通过。':'')));
-        aa.rd.log.push(nowTime()+' · '+cmt.replace(/\*/g,'').slice(0,60));
-        if(aa.rd.progress>=100){
-          aa.done=aa.done||[];if(!aa.done.includes(id))aa.done.push(id);
-          const modDone=aa.rd.module;aa.rd.module=null;
-          addLabItem({id:'mod_'+modDone,name:'辅助模块 · '+mod.name,desc:mod.desc+'（协作研发完成。托尼在模块内侧刻了一个极小的 T.S.。）'});
-          banner('工坊 · 研发完成',mod.name+' 已下线，进入实验室物品栏',()=>{openApp('armory');apps.armory.tab='items';safeRender('armory', $('#appBody'));});
+
+    // TAB 3: 四维深度调参工坊
+    if (this.tab === 'tune') {
+      const t = store.get('suitTune', { thrust: 65, mass: 55, power: 70, damping: 50 });
+      v.innerHTML = `
+        <div class="pad">
+          <div class="card" style="padding:12px">
+            <div class="eyebrow">WORKSHOP // TELEMETRY TUNING</div>
+            <div style="font-family:var(--font-serif);font-size:15px;font-weight:700;margin:6px 0">🎚 战甲动力与装甲四维调参</div>
+            <div class="hint" style="margin-bottom:12px">实时调配战甲矢量喷口推力、外层钛金装甲厚度、反应堆分流比率与惯性阻尼系统。</div>
+
+            <!-- 动态微型预览视口 -->
+            <div class="mk-schematic-wrap" style="height:190px">
+              <div class="mk-grid-bg"></div>
+              ${markWire('#35d0ff', 95, 'core')}
+            </div>
+
+            <div class="tune-row" style="margin-top:14px">
+              <label>推进器矢量喷流 (Thrust Output) <span id="tn_t" style="color:var(--cyan);font-weight:700">${t.thrust}%</span></label>
+              <input type="range" id="tn_thrust" min="10" max="100" value="${t.thrust}">
+            </div>
+            <div class="tune-row">
+              <label>外装甲密度配重 (Armor Density) <span id="tn_m" style="color:var(--cyan);font-weight:700">${t.mass}%</span></label>
+              <input type="range" id="tn_mass" min="10" max="100" value="${t.mass}">
+            </div>
+            <div class="tune-row">
+              <label>光束武器供能比 (Beam Weapon Routing) <span id="tn_p" style="color:var(--cyan);font-weight:700">${t.power}%</span></label>
+              <input type="range" id="tn_power" min="10" max="100" value="${t.power}">
+            </div>
+            <div class="tune-row">
+              <label>高空超音速惯性阻尼 (Inertial Dampers) <span id="tn_d" style="color:var(--cyan);font-weight:700">${t.damping || 50}%</span></label>
+              <input type="range" id="tn_damping" min="10" max="100" value="${t.damping || 50}">
+            </div>
+
+            <div class="card" style="border-color:var(--gold);padding:10px;margin-top:10px;background:var(--panel2)">
+              <h3 style="color:var(--gold);margin:0 0 6px;font-size:12px">◉ 托尼的实时技术通讯</h3>
+              <div class="story" style="font-size:12.5px" id="tn_say">${fmt(TUNE_SNARK[Math.floor(Math.random() * TUNE_SNARK.length)])}</div>
+            </div>
+          </div>
+          
+          <div class="seg" style="margin-top:10px;flex-wrap:wrap">
+            ${segBtn('hall','🏛 陈列室')}${segBtn('suit','🔬 核心蓝图')}${segBtn('tune','🎚 四维调参')}${segBtn('rd','🧪 协作研发')}${segBtn('items','🧰 物品仓')}
+          </div>
+        </div>`;
+
+      v.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { self.tab = b.dataset.t; self.render(v); });
+
+      const syncTuneUI = () => {
+        store.set('suitTune', t);
+        const sayEl = v.querySelector('#tn_say');
+        if (sayEl && Math.random() < 0.35) {
+          sayEl.innerHTML = fmt(TUNE_SNARK[Math.floor(Math.random() * TUNE_SNARK.length)]);
         }
-        store.set('armor',aa);self.render(v);});
+      };
+
+      v.querySelector('#tn_thrust').oninput = e => { t.thrust = +e.target.value; v.querySelector('#tn_t').textContent = t.thrust + '%'; syncTuneUI(); };
+      v.querySelector('#tn_mass').oninput = e => { t.mass = +e.target.value; v.querySelector('#tn_m').textContent = t.mass + '%'; syncTuneUI(); };
+      v.querySelector('#tn_power').oninput = e => { t.power = +e.target.value; v.querySelector('#tn_p').textContent = t.power + '%'; syncTuneUI(); };
+      v.querySelector('#tn_damping').oninput = e => { t.damping = +e.target.value; v.querySelector('#tn_d').textContent = t.damping + '%'; syncTuneUI(); };
       return;
     }
-    // items：实验室物品
-    const items=labItems();
-    v.innerHTML=`<div class="pad">
-      <div class="card" style="padding:12px"><div class="eyebrow">LAB INVENTORY · USABLE</div>
-        <div style="font-family:var(--font-serif);font-size:15px;font-weight:700;margin:6px 0">🧰 实验室物品</div>
-        <div class="hint" style="margin-bottom:9px">可检查、可在世界线剧情中使用的物件。点「装备使用」后，世界线的自定义行动会自动带上它。</div>
-        ${items.map(it=>`<div class="cap-card"><div style="display:flex;align-items:center;gap:8px"><b style="font-family:var(--font-serif)">${esc(it.name)}</b>${store.get('useItem',null)===it.id?'<span class="tag gold">已装备</span>':''}</div>
-          <div class="hint" style="margin-top:5px">${esc(it.desc)}</div>
-          <div class="row" style="margin-top:8px"><button class="btn ghost sm" data-ins="${it.id}">🔍 检查</button><button class="btn sm" data-use="${it.id}">${store.get('useItem',null)===it.id?'收起':'装备使用'}</button></div></div>`).join('')}
-      </div>
-      <div class="seg" style="flex-wrap:wrap">${segBtn('hall','🏛 陈列室')}${segBtn('tune','🎚 调参')}${segBtn('rd','🧪 协作研发')}${segBtn('items','🧰 实验室物品')}</div>
-    </div>`;
-    v.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{self.tab=b.dataset.t;self.render(v);});
-    v.querySelectorAll('[data-ins]').forEach(el=>el.onclick=()=>{const it=items.find(x=>x.id===el.dataset.ins);if(!it)return;
-      modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:15px">🔍 ${esc(it.name)}</h2><div class="card"><div class="story" style="font-size:13.5px">${fmtStory(it.desc)}</div><button class="btn" data-close style="margin-top:10px">收好</button></div>`);});
-    v.querySelectorAll('[data-use]').forEach(el=>el.onclick=()=>{const cur=store.get('useItem',null);const id=el.dataset.use;
-      store.set('useItem',cur===id?null:id);toast(cur===id?'已收起':'已装备 · 世界线行动将带上它');self.render(v);});
+
+    // TAB 4: 协作研发模块
+    if (this.tab === 'rd') {
+      const rd = a.rd || { module: null, progress: 0, log: [] };
+      const done = a.done || [];
+      v.innerHTML = `
+        <div class="pad">
+          <div class="card" style="padding:12px">
+            <div class="eyebrow">CO-LAB // JOINT ENGINEERING</div>
+            <div style="font-family:var(--font-serif);font-size:15px;font-weight:700;margin:6px 0">🧪 斯塔克协同研发实验室</div>
+            <div class="hint" style="margin-bottom:10px">推进高精辅助战甲部件，完成后将自动实装入你的专属实验室物品栏。</div>
+            ${RD_MODULES.map(mo => `
+              <div class="cap-card">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <b style="font-family:var(--font-serif)">${esc(mo.name)}</b>
+                  ${done.includes(mo.id) ? '<span class="tag green">已下线实装</span>' : rd.module === mo.id ? `<span class="tag gold">装配进度 ${rd.progress}%</span>` : '<span class="tag">待立项</span>'}
+                </div>
+                <div class="hint" style="margin-top:5px">${esc(mo.desc)} · <span style="color:var(--cyan)">${mo.bonus}</span></div>
+                ${rd.module === mo.id 
+                  ? `<button class="btn sm gold" data-rdp="${mo.id}" style="margin-top:8px">🔧 推进微米级焊接校准 (+25%)</button>` 
+                  : done.includes(mo.id) ? '' : `<button class="btn ghost sm" data-rds="${mo.id}" style="margin-top:8px">立项并通电调试</button>`}
+              </div>`).join('')}
+          </div>
+          ${rd.log.length ? `
+            <div class="card" style="padding:12px">
+              <h3 style="margin:0 0 8px;font-size:13px">◉ 研发工程日志</h3>
+              ${rd.log.slice(-5).map(l => `<div class="hint" style="line-height:1.6">· ${esc(l)}</div>`).join('')}
+            </div>` : ''}
+          <div class="seg" style="margin-top:10px;flex-wrap:wrap">
+            ${segBtn('hall','🏛 陈列室')}${segBtn('suit','🔬 核心蓝图')}${segBtn('tune','🎚 四维调参')}${segBtn('rd','🧪 协作研发')}${segBtn('items','🧰 物品仓')}
+          </div>
+        </div>`;
+
+      v.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { self.tab = b.dataset.t; self.render(v); });
+
+      v.querySelectorAll('[data-rds]').forEach(el => el.onclick = () => {
+        const aa = armorData();
+        aa.rd = { module: el.dataset.rds, progress: 0, log: (aa.rd && aa.rd.log) || [] };
+        store.set('armor', aa);
+        toast('立项已下发，工作台伺服就绪');
+        self.render(v);
+      });
+
+      v.querySelectorAll('[data-rdp]').forEach(el => el.onclick = async () => {
+        const aa = armorData();
+        const id = el.dataset.rdp;
+        const mod = RD_MODULES.find(x => x.id === id);
+        aa.rd.progress = Math.min(100, (aa.rd.progress || 0) + 25);
+        aa.rd.log = aa.rd.log || [];
+        
+        const logLine = nowTime() + ` · [${mod.name}] 回路增益测试通过，当前装配进度 ${aa.rd.progress}%`;
+        aa.rd.log.push(logLine);
+
+        if (aa.rd.progress >= 100) {
+          aa.done = aa.done || [];
+          if (!aa.done.includes(id)) aa.done.push(id);
+          aa.rd.module = null;
+          addLabItem({
+            id: 'mod_' + id,
+            name: '辅助模块 · ' + mod.name,
+            desc: mod.desc + '（由托尼在4号台激光刻录“T.S. & Partner”完成下线验证）'
+          });
+          toast(`🎉 ${mod.name} 研发完成！已移入实验室物品`);
+        } else {
+          toast(`进度更新：${aa.rd.progress}%`);
+        }
+        store.set('armor', aa);
+        self.render(v);
+      });
+      return;
+    }
+
+    // TAB 5: 物品仓
+    const items = labItems();
+    v.innerHTML = `
+      <div class="pad">
+        <div class="card" style="padding:12px">
+          <div class="eyebrow">LAB INVENTORY</div>
+          <div style="font-family:var(--font-serif);font-size:15px;font-weight:700;margin:6px 0">🧰 实验室专属物品栏</div>
+          <div class="hint" style="margin-bottom:10px">在此装备的道具将在世界线剧情与推演行动中自动生效。</div>
+          ${items.map(it => `
+            <div class="cap-card">
+              <div style="display:flex;align-items:center;gap:8px">
+                <b style="font-family:var(--font-serif)">${esc(it.name)}</b>
+                ${store.get('useItem', null) === it.id ? '<span class="tag gold">已随身携带</span>' : ''}
+              </div>
+              <div class="hint" style="margin-top:5px">${esc(it.desc)}</div>
+              <div class="row" style="margin-top:8px">
+                <button class="btn sm" data-use="${it.id}">
+                  ${store.get('useItem', null) === it.id ? '收起放回储物柜' : '随身佩戴 / 装备'}
+                </button>
+              </div>
+            </div>`).join('')}
+        </div>
+        <div class="seg" style="margin-top:10px;flex-wrap:wrap">
+          ${segBtn('hall','🏛 陈列室')}${segBtn('suit','🔬 核心蓝图')}${segBtn('tune','🎚 四维调参')}${segBtn('rd','🧪 协作研发')}${segBtn('items','🧰 物品仓')}
+        </div>
+      </div>`;
+
+    v.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { self.tab = b.dataset.t; self.render(v); });
+    v.querySelectorAll('[data-use]').forEach(el => el.onclick = () => {
+      const cur = store.get('useItem', null);
+      const id = el.dataset.use;
+      store.set('useItem', cur === id ? null : id);
+      toast(cur === id ? '已收起' : '已装备 · 世界线行动将自动挂载该物品');
+      self.render(v);
+    });
   }
 };
 
@@ -14132,21 +14542,27 @@ function applyTheme(id){
 }
 /* 全屏自适应模式应用 */
 function applyFullscreen(){
-  const fs=store.get('fullscreen',false);
-  document.body.classList.toggle('fullscreen',fs);
-  const tryReq=()=>{
-    if(store.get('fullscreen',false)&&document.documentElement.requestFullscreen&&!document.fullscreenElement){
-      document.documentElement.requestFullscreen().catch(()=>{});
+  const fs = store.get('fullscreen', false);
+  document.body.classList.toggle('fullscreen', fs);
+  
+  // 检测是否为 iOS 设备
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+
+  if (fs) {
+    // 非 iOS 浏览器尝试使用原生全屏 API
+    if (!isIOS && document.documentElement.requestFullscreen && !document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
     }
-  };
-  if(fs){
-    tryReq();
-    if(!window._fsResumeBound){
-      window._fsResumeBound=true;
-      document.addEventListener('pointerdown',tryReq,{passive:true});
+    // 如果是 iOS 且处于普通 Safari 网页浏览状态（未添加到主屏幕）
+    if (isIOS && !isStandalone && !store.get('ios_fs_hint_seen', false)) {
+      toast('💡 iOS 专属提示：点击浏览器底部“分享”→“添加到主屏幕”，即可享受无地址栏的真正原生沉浸全屏');
+      store.set('ios_fs_hint_seen', true);
     }
-  }else if(document.fullscreenElement){
-    document.exitFullscreen().catch(()=>{});
+  } else {
+    if (document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    }
   }
 }
 function resetAppearance(){
