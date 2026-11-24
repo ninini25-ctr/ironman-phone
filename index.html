@@ -1214,7 +1214,10 @@ body.guide-open{background:
   box-shadow:0 10px 30px rgba(0,0,0,.6),inset 0 0 40px rgba(0,0,0,.7),0 0 0 1px #000;
   animation:vinylSpin 1.8s linear infinite;animation-play-state:paused;}
 .vinyl.spin{animation-play-state:running;}
-@keyframes vinylSpin{to{transform:rotate(360deg)}}
+@keyframes vinylSpin{
+  from{transform:translate(-50%,-50%) rotate(0deg);}
+  to{transform:translate(-50%,-50%) rotate(360deg);}
+}
 .vinyl .label{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
   width:38%;height:38%;border-radius:50%;display:flex;flex-direction:column;align-items:center;
   justify-content:center;gap:2px;text-align:center;padding:6px;
@@ -1255,10 +1258,11 @@ body.guide-open{background:
 .sp-player{display:flex;flex-direction:column;align-items:stretch;height:100%;min-height:0;padding:0;gap:0}
 .sp-top{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
 .sp-bottom{flex:0 0 auto;display:flex;flex-direction:column}
-#appBody.sp-deck-view{overflow:hidden}
-#appBody.sp-deck-view>.pad{height:100%;min-height:0;display:flex;flex-direction:column}
+#appBody.sp-deck-view{overflow-y:auto;-webkit-overflow-scrolling:touch;}
+#appBody.sp-deck-view::-webkit-scrollbar{width:0;}
+#appBody.sp-deck-view>.pad{min-height:100%;display:flex;flex-direction:column;padding-bottom:calc(28px + var(--safe));}
 #appBody.sp-deck-view>.pad>.seg{flex:0 0 auto}
-#appBody.sp-deck-view #mz_body{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+#appBody.sp-deck-view #mz_body{flex:1 1 auto;display:flex;flex-direction:column}
 .sp-cover-wrap{position:relative;width:clamp(132px,min(100%,260px,calc(100dvh - 470px)),260px);aspect-ratio:1/1;margin:0;flex:0 0 auto;background:var(--sp-surface);border-radius:20px;overflow:hidden;box-shadow:0 18px 44px rgba(0,0,0,.45)}
 @media(max-height:720px){.sp-cover-wrap{width:clamp(132px,min(100%,190px),190px)}.sp-vol-row{display:none}}
 @media(max-height:620px){.sp-cover-wrap{width:clamp(120px,min(100%,150px),150px);border-radius:14px}.sp-track-artist,.sp-time-row{display:none}}
@@ -1336,12 +1340,12 @@ body.theme-light .so-err-code{background:#f3f6fa;color:#b3261e;border-color:rgba
 /* ===== 黑胶转盘唱机 ===== */
 .vt-platter{
   position:relative;
-  width:min(72vw,260px);height:min(72vw,260px);
+  width:clamp(170px, 48vw, 220px);
+  height:clamp(170px, 48vw, 220px);
   margin:0 auto;
-  background:linear-gradient(145deg,#2a2a2e,#111114);
-  border-radius:22px;
-  box-shadow:0 24px 64px rgba(0,0,0,.55),
-    inset 0 1px 0 rgba(255,255,255,.07);
+  background:linear-gradient(145deg,#242427,#111113);
+  border-radius:20px;
+  box-shadow:0 16px 40px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.08);
   flex-shrink:0;
 }
 .vt-vinyl{
@@ -4856,8 +4860,9 @@ apps.messages={title:'信息',view:'list',cur:'',last:'',langMode:'zh',
         <div class="hint" style="margin-top:8px">当前宇宙：${esc(eraName())} · 托尼 ${f.tonyAge} 岁 · 好感上限 200</div></div></div>
         ${cs.map(c=>{const last=(chats[c.name]||[]).slice(-1)[0];
           const previewText = last ? (last.content || (last.isGift ? '［礼物］' + (last.giftName||'') : (last.isPay ? '［转账］' : (last.isRedPacket ? '［红包］' : '')))) : (c.desc || '');
+          const displayName = c.remark ? `${c.remark} (${c.name})` : c.name;
           return `<div class="chatrow" data-n="${esc(c.name)}"><div class="av">${esc(c.name[0])}</div>
-          <div style="flex:1;min-width:0"><div class="nm">${esc(c.name)}${c.isTony?' <span class="tag">核心</span>':''}${isAI(c.name)?' <span class="tag gold">保密权限</span>':''}${c.cond==='jarvis'&&f.ultronAfter?' <span class="tag red">幻视代回</span>':''}</div>
+          <div style="flex:1;min-width:0"><div class="nm">${esc(displayName)}${c.isTony?' <span class="tag">核心</span>':''}${isAI(c.name)?' <span class="tag gold">保密权限</span>':''}${c.cond==='jarvis'&&f.ultronAfter?' <span class="tag red">幻视代回</span>':''}</div>
           <div class="ds">${esc(String(previewText).slice(0,42))}</div></div><span style="color:var(--muted)">好感 ${c.affinity||0} ›</span></div>`;}).join('')}`;
       v.querySelectorAll('.chatrow').forEach(r=>r.onclick=()=>{self.cur=r.dataset.n;self.view='chat';self.render(v);});
       v.querySelector('#m_add').onclick=()=>self.addFlow(v);
@@ -4874,18 +4879,24 @@ apps.messages={title:'信息',view:'list',cur:'',last:'',langMode:'zh',
     let responder=self.cur,notice='';
     if(self.cur==='贾维斯'&&f.ultronAfter){responder='幻视';notice='奥创事件后：贾维斯已升格为幻视，不再直接回复。发给贾维斯的消息由幻视代回。';}
 
-    v.innerHTML=`<div style="display:flex;flex-direction:column;height:100%">
-      <div style="flex-shrink:0;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:6px">
-        <button class="back" id="m_bl" style="color:var(--cyan);font-size:24px">‹</button>
-        <div class="av" style="width:28px;height:28px;font-size:12px">${esc(self.cur[0])}</div>
-        <div style="flex:1;min-width:0"><b style="font-size:13px">${esc(self.cur)}</b> <span class="hint" style="font-size:10px">好感 ${c.affinity||0}/200</span></div>
-        <button class="btn ghost sm" id="m_lang" style="padding:3px 8px;font-size:10px">${self.langMode==='zh'?'中 / EN':'EN / 译'}</button>
-        <button class="btn ghost sm" id="m_transall" style="padding:3px 8px;font-size:10px">全屏对照</button>
-        <button class="btn ghost sm" id="m_sum" style="padding:3px 8px;font-size:10px" title="总结聊天记录">📋 总结</button>
-        <button class="back" id="m_clr" style="color:var(--red);font-size:14px" title="清空">🗑</button>
-      </div>
-      ${notice?`<div class="notice">🔒 ${esc(notice)}</div>`:''}
-      <div id="thread" style="flex:1"></div>
+    // 1. 将名字计算提到 v.innerHTML 之前：
+const topDisplayName = c.remark ? `${c.remark} (${c.name})` : c.name;
+
+// 2. 正常拼接进顶栏：
+v.innerHTML=`<div style="display:flex;flex-direction:column;height:100%">
+  <div style="flex-shrink:0;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:6px">
+    <button class="back" id="m_bl" style="color:var(--cyan);font-size:24px">‹</button>
+    <div class="av" style="width:28px;height:28px;font-size:12px">${esc(self.cur[0])}</div>
+    <div style="flex:1;min-width:0;font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+      ${esc(topDisplayName)}
+    </div>
+    <button class="btn ghost sm" id="m_lang" style="padding:3px 8px;font-size:10px">${self.langMode==='zh'?'中 / EN':'EN / 译'}</button>
+    <button class="btn ghost sm" id="m_transall" style="padding:3px 8px;font-size:10px">全屏对照</button>
+    <button class="btn ghost sm" id="m_sum" style="padding:3px 8px;font-size:10px" title="总结聊天记录">📋 总结</button>
+    <button class="back" id="m_clr" style="color:var(--red);font-size:14px" title="清空">🗑</button>
+  </div>
+  ${notice?`<div class="notice">🔒 ${esc(notice)}</div>`:''}
+  <div id="thread" style="flex:1"></div>
             <div style="display:flex;gap:6px;padding:6px 12px;background:var(--panel2);border-top:1px solid var(--line);overflow-x:auto">
         <button class="btn ghost sm" id="m_topics" style="flex:0 0 auto;padding:6px 10px;font-size:11.5px">💡 帮忙起话题</button>
         <button class="btn ghost sm" id="m_truth" style="flex:0 0 auto;padding:6px 10px;font-size:11.5px">🎭 真心话</button>
@@ -5304,81 +5315,95 @@ const sys=buildSystem('chat',`你现在扮演【${who}】。${castText(who)}\n${
   });
   renderPreset();
 },
-  settings(v,c){
-    const proac = c.proactive !== false; // 默认允许主动发
-    const replyCount = c.replyCount || 2; // 默认一次 2 条
-const defaultBday = getContactBirthday(c.name);
-const displayBday = c.birthday || defaultBday || '';
-    const d=modal(`<h2 style="color:var(--cyan);font-size:16px;margin-top:0">${esc(c.name)} · 专属联系人档案</h2>
+  settings(v, c){
+    // 从 store 中获取绝对最新的真实联系人对象，防止闭包脏读
+    const targetName = c.name;
+    const freshC = (store.contacts() || []).find(x => x.name === targetName) || c;
+    const proac = freshC.proactive !== false;
+    const currentTrigger = freshC.proacTrigger || 'immediate';
+    const replyCount = freshC.replyCount || 2;
+    const defaultBday = getContactBirthday(freshC.name);
+    const displayBday = freshC.birthday || defaultBday || '';
+    const currentRemark = freshC.remark || '';
+
+    const d = modal(`<h2 style="color:var(--cyan);font-size:16px;margin-top:0">${esc(freshC.name)} · 专属联系人档案</h2>
       <div class="card">
-        <div class="field"><label>简介</label><textarea id="c_desc" rows="2">${esc(c.desc||'')}</textarea></div>
-        <div class="field"><label>好感度 (0-200)</label><input id="c_aff" type="number" min="0" max="200" value="${c.affinity||0}"></div>
         <div class="field">
-  <label>生日 (MM-DD，用于日历自动触发祝福)</label>
-  <input id="c_birthday" class="inp" placeholder="如 5-29" value="${esc(displayBday)}">
-  ${defaultBday && !c.birthday ? `<div class="hint" style="font-size:10.5px;color:var(--cyan);margin-top:2px">已自动同步日历预设生日：${esc(defaultBday)}</div>` : ''}
-</div>
+          <label>联系人备注名 (Remark)</label>
+          <input id="c_remark" class="inp" placeholder="例如：铁罐 / 托尼 / 斯塔克先生" value="${esc(currentRemark)}">
+        </div>
+        <div class="field"><label>简介</label><textarea id="c_desc" rows="2">${esc(freshC.desc||'')}</textarea></div>
+        <div class="field"><label>好感度 (0-200)</label><input id="c_aff" type="number" min="0" max="200" value="${freshC.affinity||0}"></div>
+        <div class="field">
+          <label>生日 (MM-DD，用于日历自动触发祝福)</label>
+          <input id="c_birthday" class="inp" placeholder="如 5-29" value="${esc(displayBday)}">
+          ${defaultBday && !freshC.birthday ? `<div class="hint" style="font-size:10.5px;color:var(--cyan);margin-top:2px">已自动同步日历预设生日：${esc(defaultBday)}</div>` : ''}
+        </div>
         
         <div class="srow">
-  <div><div class="t">允许该角色主动发消息</div><div class="d">开启后满足下列设定条件时主动搭话</div></div>
-  <label class="switch"><input type="checkbox" id="c_proac" ${proac?'checked':''}><span class="slider"></span></label>
-</div>
+          <div><div class="t">允许该角色主动发消息</div><div class="d">开启后满足下列设定条件时主动搭话</div></div>
+          <label class="switch"><input type="checkbox" id="c_proac" ${proac?'checked':''}><span class="slider"></span></label>
+        </div>
 
-<div class="field" style="margin-top:8px">
-  <label>主动搭话条件设定：</label>
-  <div class="row">
-    <select id="c_proac_trigger" class="inp" style="flex:1">
-      <option value="immediate" ${c.proacTrigger==='immediate'?'selected':''}>即时：打开聊天窗口且无消息时</option>
-      <option value="time" ${c.proacTrigger==='time'?'selected':''}>时间：超过未回复时长后</option>
-      <option value="turn" ${c.proacTrigger==='turn'?'selected':''}>回合：世界线推进指定回合后</option>
-    </select>
-  </div>
-</div>
+        <div class="field" style="margin-top:8px">
+          <label>主动搭话条件设定：</label>
+          <div class="row">
+            <select id="c_proac_trigger" class="inp" style="flex:1">
+              <option value="immediate" ${currentTrigger==='immediate'?'selected':''}>即时：打开聊天窗口且无消息时</option>
+              <option value="time" ${currentTrigger==='time'?'selected':''}>时间：超过未回复时长后</option>
+              <option value="turn" ${currentTrigger==='turn'?'selected':''}>回合：世界线推进指定回合后</option>
+            </select>
+          </div>
+        </div>
 
-<div class="row" style="margin-top:6px" id="c_trigger_detail">
-  <div class="field" style="flex:1">
-    <label>未回复间隔时长(分钟)</label>
-    <input type="number" id="c_idle_min" min="1" max="1440" value="${c.idleMin||30}">
-  </div>
-  <div class="field" style="flex:1">
-    <label>世界线未交流回合</label>
-    <input type="number" id="c_idle_turns" min="1" max="50" value="${c.idleTurns||3}">
-  </div>
-</div>
+        <div class="row" style="margin-top:6px" id="c_trigger_detail">
+          <div class="field" style="flex:1">
+            <label>未回复间隔时长(分钟)</label>
+            <input type="number" id="c_idle_min" min="1" max="1440" value="${freshC.idleMin||30}">
+          </div>
+          <div class="field" style="flex:1">
+            <label>世界线未交流回合</label>
+            <input type="number" id="c_idle_turns" min="1" max="50" value="${freshC.idleTurns||3}">
+          </div>
+        </div>
 
-<div class="field" style="margin-top:6px">
-  <label>单次消息回复条数（1~5 条）: <b id="c_reply_val" style="color:var(--cyan)">${replyCount}</b></label>
-  <input type="range" id="c_reply_cnt" min="1" max="5" value="${replyCount}" style="width:100%">
-</div>
+        <div class="field" style="margin-top:6px">
+          <label>单次消息回复条数（1~5 条）: <b id="c_reply_val" style="color:var(--cyan)">${replyCount}</b></label>
+          <input type="range" id="c_reply_cnt" min="1" max="5" value="${replyCount}" style="width:100%">
+        </div>
         
         <button class="btn" id="c_sv" style="margin-top:8px">保存设置</button>
         <div class="field" style="margin-top:10px">
           <label>💭 心声内容栏（随对话自动生成，最近 5 条）</label>
           <div style="max-height:160px;overflow-y:auto;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px">
-            ${heartVoicesOf(c.name).length?heartVoicesOf(c.name).slice(0,5).map(hv=>`<div class="heart-bub" style="margin:0 0 6px"><div class="h-tag">💭 ${esc(hv.time)}</div>${fmtStory(hv.text)}</div>`).join(''):'<div class="hint">暂无心声 · 与 TA 对话后会自动生成。</div>'}
+            ${heartVoicesOf(freshC.name).length?heartVoicesOf(freshC.name).slice(0,5).map(hv=>`<div class="heart-bub" style="margin:0 0 6px"><div class="h-tag">💭 ${esc(hv.time)}</div>${fmtStory(hv.text)}</div>`).join(''):'<div class="hint">暂无心声 · 与 TA 对话后会自动生成。</div>'}
           </div>
         </div>
-        ${c.isTony?'':'<button class="btn red" id="c_del" style="margin-top:8px">删除联系人</button>'}
+        ${freshC.isTony?'':'<button class="btn red" id="c_del" style="margin-top:8px">删除联系人</button>'}
         <button class="btn ghost" data-close style="margin-top:8px">关闭</button>
       </div>`);
       
     d.querySelector('#c_reply_cnt').oninput=e=>{ d.querySelector('#c_reply_val').textContent = e.target.value; };
     
     d.querySelector('#c_sv').onclick=()=>{
-      const cs=store.contacts();const t=cs.find(x=>x.name===c.name);
+      const cs=store.contacts();
+      const t=cs.find(x=>x.name===targetName);
       if(t){
+        t.remark = d.querySelector('#c_remark').value.trim();
         t.desc = d.querySelector('#c_desc').value;
-t.affinity = Math.max(0, Math.min(200, parseInt(d.querySelector('#c_aff').value)||0));
-t.birthday = d.querySelector('#c_birthday').value.trim();
-t.proactive = d.querySelector('#c_proac').checked;
-t.proacTrigger = d.querySelector('#c_proac_trigger').value;
-t.idleMin = parseInt(d.querySelector('#c_idle_min').value) || 30;
-t.idleTurns = parseInt(d.querySelector('#c_idle_turns').value) || 3;
-t.replyCount = parseInt(d.querySelector('#c_reply_cnt').value) || 2;
-store.setContacts(cs);
-                if(t.isTony)applyAffinity(t.affinity);
+        t.affinity = Math.max(0, Math.min(200, parseInt(d.querySelector('#c_aff').value)||0));
+        t.birthday = d.querySelector('#c_birthday').value.trim();
+        t.proactive = d.querySelector('#c_proac').checked;
+        t.proacTrigger = d.querySelector('#c_proac_trigger').value;
+        t.idleMin = parseInt(d.querySelector('#c_idle_min').value) || 30;
+        t.idleTurns = parseInt(d.querySelector('#c_idle_turns').value) || 3;
+        t.replyCount = parseInt(d.querySelector('#c_reply_cnt').value) || 2;
+        store.setContacts(cs);
+        if(t.isTony) applyAffinity(t.affinity);
       }
-      toast('联系人设置已保存');d.remove();Promise.resolve(this.render($('#appBody'))).catch(e=>showErr('E-RENDER-001',{err:e}));
+      toast('联系人设置与备注已保存');
+      d.remove();
+      Promise.resolve(this.render($('#appBody'))).catch(e=>showErr('E-RENDER-001',{err:e}));
     };
     const del=d.querySelector('#c_del');
     if(del) del.onclick=()=>{
@@ -7937,7 +7962,7 @@ renderDeck(body,v,tracks,cfg){
     :(curTrack||'未装载曲目');
 
   body.innerHTML=`
-    <div style="display:flex;flex-direction:column;align-items:stretch;height:100%;min-height:0;padding:12px 14px 0;gap:0">
+  <div style="display:flex;flex-direction:column;align-items:stretch;min-height:100%;height:auto;padding:12px 14px calc(20px + var(--safe));gap:0">
 
       <!-- 一起听横幅 -->
       <div class="sp-room-banner" ${session?'':'hidden'} style="margin-bottom:8px">
@@ -8012,18 +8037,38 @@ renderDeck(body,v,tracks,cfg){
         <span style="font-size:14px;color:var(--muted)">🔊</span>
       </div>
 
+      <!-- 一起听状态与即时聊天卡片 -->
+      ${session ? `
+        <div class="card" style="padding:10px;margin-bottom:12px;background:var(--panel2);border-color:var(--sp-accent)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span style="font-size:11.5px;font-weight:700;color:var(--cyan)">💬 正在与 ${esc(session.peer)} 边听边聊</span>
+            <span class="chip mini" id="sp_open_full_chat" style="cursor:pointer;margin:0">全屏短信 ›</span>
+          </div>
+          <!-- 实时迷你消息流 -->
+          <div id="sp_mini_chat_box" style="max-height:100px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;font-size:11.5px;padding:4px 0;margin-bottom:6px">
+            ${((store.chats()[session.peer] || []).slice(-3)).map(m => `
+              <div style="line-height:1.4"><b style="color:${m.role==='me'?'var(--cyan)':'var(--gold)'}">${m.role==='me'?'你':esc(session.peer)}:</b> ${esc(m.content)}</div>
+            `).join('')}
+          </div>
+          <div class="row" style="gap:6px">
+            <input id="sp_chat_in" class="inp" placeholder="对 ${esc(session.peer)} 说点什么…" style="padding:6px 10px;font-size:12px">
+            <button class="btn sm" id="sp_chat_send" style="flex:0 0 54px;padding:6px">发送</button>
+          </div>
+        </div>
+      ` : ''}
+
       <!-- 一起听按钮 -->
       <button class="sp-listen-btn ${session?'sp-listen-active':''}" id="sp_listen" type="button">
-        🎧 ${session?'一起听中…':'邀请联系人一起听'}
+        🎧 ${session?'管理当前一起听…':'邀请联系人一起听'}
       </button>
 
       <!-- 底部操作 -->
       ${tracks.length?`
-      <div class="row" style="margin-bottom:12px;gap:8px">
+      <div class="row" style="margin-bottom:14px;gap:8px">
         <button class="btn ghost sm" id="sp_tolib" type="button">📚 曲库 (${tracks.length})</button>
         <button class="btn ghost sm" id="sp_stop" type="button">⏹ 停止</button>
       </div>`:`
-      <button class="btn" id="sp_tolib2" type="button" style="margin-bottom:12px">📥 导入音乐</button>`}
+      <button class="btn" id="sp_tolib2" type="button" style="margin-bottom:14px">📥 导入音乐</button>`}
     </div>`;
 
   // 进度定时器
@@ -8083,6 +8128,55 @@ renderDeck(body,v,tracks,cfg){
   const lv=body.querySelector('#sp_leave_room');
   if(lv)lv.onclick=()=>{ltLeave(true);toast('已退出一起听');syncDeckUI(body);};
   body.querySelector('#sp_listen').onclick=()=>self.openListenTogether(v,tracks,cfg);
+// 绑定边听边聊即时发送
+  const miniSendBtn = body.querySelector('#sp_chat_send');
+  if (miniSendBtn && session) {
+    const doMiniSend = async () => {
+      const inp = body.querySelector('#sp_chat_in');
+      const text = inp.value.trim();
+      if (!text) return;
+      inp.value = '';
+
+      // 写入聊天记录
+      const ch = store.chats();
+      (ch[session.peer] = ch[session.peer] || []).push({
+        role: 'me',
+        content: text,
+        time: storyMsgTime(),
+        read: false
+      });
+      store.setChats(ch);
+      syncDeckUI(body);
+
+      // 对方按人设与当前听歌语境进行秒回
+      try {
+        const sys = buildSystem('chat', `你现在扮演【${session.peer}】。你正在与玩家戴耳机一起听歌《${curTrack||'当前歌曲'}》。
+玩家刚刚对你说：“${text}”。
+请以你的角色口吻回复 1 句话（15~35字），自然、口语化，可以聊音乐、也可以顺着玩家的话吐槽或交流，严禁动作神态描写与英文括号。`);
+        const r = await ai([{ role: 'user', content: '请回复短消息。' }], sys, () => `“还在听呢。这首歌旋律确实不错。”`, 'social');
+        const ch2 = store.chats();
+        (ch2[session.peer] = ch2[session.peer] || []).push({
+          role: 'them',
+          who: session.peer,
+          content: r.replace(/[*"（）()]/g, '').trim(),
+          time: storyMsgTime()
+        });
+        store.setChats(ch2);
+        syncDeckUI(body);
+      } catch (err) {}
+    };
+
+    miniSendBtn.onclick = doMiniSend;
+    body.querySelector('#sp_chat_in').addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); doMiniSend(); }
+    });
+    body.querySelector('#sp_open_full_chat').onclick = () => {
+      openApp('messages');
+      apps.messages.cur = session.peer;
+      apps.messages.view = 'chat';
+      safeRender('messages', $('#appBody'));
+    };
+  }
 },
 
 // 一起听功能：创建 / 加入 / 房主与客端权限 / 请求同步 / 退出
@@ -8120,36 +8214,57 @@ openListenTogether(v,tracks,cfg){
   if(!tracks.length) return toast('请先在曲库导入音乐');
   if(!contacts.length) return toast('还没有好感度 ≥ 31 的联系人，先和他们多聊几句吧');
 
+ const defaultTrack = curTrack || '一首歌';
+  const PRESET_INVITES = [
+    `🎧 戴上耳机，现在在听《${defaultTrack}》，觉得你会喜欢。`,
+    `🎧 刚放了这首《${defaultTrack}》，工作累了过来戴单侧耳机听两分钟？`,
+    `🎧 听到前奏突然想起你。《${defaultTrack}》，来不来？`,
+    `🎧 斯塔克工业实验室精选歌单推荐：《${defaultTrack}》，赏脸一起听？`,
+    `🎧 随便听听，顺便歇口气。正在播放《${defaultTrack}》。`
+  ];
+
   const d=modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:16px">🎧 邀请联系人一起听</h2>
     <div class="card">
-      <div class="hint" style="margin-bottom:10px">
-        邀请后，对方会在聊天里实时发来听歌反馈（由 AI 按其人设生成），就像真的在一起听。
+      <div class="hint" style="margin-bottom:8px">
+        邀请后将发送邀请卡片至对话，对方将戴上耳机与你同步听歌，并在播放器与短信内实时交流。
       </div>
-      <div class="field"><label>邀请谁一起听</label>
+      <div class="field"><label>邀请对象</label>
         <select id="lt_peer" class="inp">
-          ${contacts.map(c=>`<option value="${esc(c.name)}">${esc(c.name)} · 好感 ${c.affinity||0}</option>`).join('')}
+          ${contacts.map(c=>`<option value="${esc(c.name)}">${esc(c.remark ? c.remark + ' ('+c.name+')' : c.name)} · 好感 ${c.affinity||0}</option>`).join('')}
         </select>
       </div>
       <div class="field"><label>当前曲目</label>
-        <div class="hint" style="margin-top:4px">🎵 <b>${esc(curTrack||'(未播放，邀请后可切歌)')}</b></div>
+        <div class="hint" style="margin-top:2px;color:var(--cyan);font-weight:700">🎵 ${esc(curTrack||'(未播放，邀请后自动同步)')}</div>
       </div>
-      <button class="btn gold" id="lt_invite" type="button">📨 发出邀请</button>
+      <div class="field">
+        <label>邀请发送语（点击预设快速填入或自由编辑）：</label>
+        <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:6px">
+          ${PRESET_INVITES.map(txt=>`<button type="button" class="btn ghost sm" data-lt-pre="${esc(txt)}" style="text-align:left;font-size:11.5px;padding:5px 8px;white-space:normal;line-height:1.4">${esc(txt)}</button>`).join('')}
+        </div>
+        <textarea id="lt_msg_in" class="inp" rows="2" style="font-size:12px;padding:7px 9px">${esc(PRESET_INVITES[0])}</textarea>
+      </div>
+      <button class="btn gold" id="lt_invite" type="button">📨 发送邀请并开启一起听</button>
       <button class="btn ghost" data-close style="margin-top:8px">取消</button>
     </div>`);
+
+  d.querySelectorAll('[data-lt-pre]').forEach(btn => {
+    btn.onclick = () => { d.querySelector('#lt_msg_in').value = btn.dataset.ltPre; };
+  });
 
   d.querySelector('#lt_invite').onclick=async()=>{
     const peer=d.querySelector('#lt_peer').value;
     if(!peer)return;
+    const customMsg = d.querySelector('#lt_msg_in').value.trim() || PRESET_INVITES[0];
     d.remove();
 
-    // 建立 session（本地模拟）
+    // 建立 session
     ltSetSession({code:'LC'+Date.now().toString(36).slice(-4).toUpperCase(),peer,host:true,startAt:Date.now()});
 
     // 发送邀请消息到聊天
     const ch=store.chats();
     (ch[peer]=ch[peer]||[]).push({
       role:'me',
-      content:`🎧 邀请你一起听歌～现在在听《${curTrack||'（即将播放）'}》，来不来？`,
+      content: customMsg,
       time:storyMsgTime(),read:false
     });
     store.setChats(ch);
