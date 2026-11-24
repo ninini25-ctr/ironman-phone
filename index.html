@@ -2032,22 +2032,33 @@ function clockMatchesReality(){
 setInterval(syncClock,10000);
 
 /* ---------- 存储层（兼容原 so_ 存档） ---------- */
-const store={
-  g(k,d){try{const v=localStorage.getItem('so_'+k);return v?JSON.parse(v):d;}catch(e){showErr('E-STORE-003');return d;}},
-  s(k,v){try{localStorage.setItem('so_'+k,JSON.stringify(v));}catch(e){toast('本地空间不足');showErr('E-STORE-002');}},
-  get(k,d){return this.g(k,d);},set(k,v){this.s(k,v);},
-  cfg(){const d={
-  story:{baseUrl:'https://api.openai.com/v1',apiKey:'',model:'gpt-4o-mini',temperature:0.85,presets:[]},
-  social:{baseUrl:'',apiKey:'',model:'',presets:[]},
-  image:{baseUrl:'',apiKey:'',model:'',presets:[]},
-  summary:{baseUrl:'',apiKey:'',model:'',presets:[]},
-  vector:{baseUrl:'',apiKey:'',model:'',presets:[]}
-};
-    const c=this.g('cfg',d);
-    if(c&&!c.story&&!c.text){
-      return {...d,story:{baseUrl:c.baseUrl||d.story.baseUrl,apiKey:c.apiKey||'',model:c.model||d.story.model,temperature:c.temperature??d.story.temperature,presets:[]},image:{...d.image,model:c.imgModel||''}};
+const store = {
+  g(k, d) {
+    try { const v = localStorage.getItem('so_' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; }
+  },
+  s(k, v) {
+    try { localStorage.setItem('so_' + k, JSON.stringify(v)); } catch (e) {}
+  },
+  get(k, d) { return this.g(k, d); },
+  set(k, v) { return this.s(k, v); },
+  cfg() {
+    const d = {
+      story: { baseUrl: 'https://api.openai.com/v1', apiKey: '', model: 'gpt-4o-mini', temperature: 0.85, stream: true, presets: [] },
+      social: { baseUrl: '', apiKey: '', model: '', stream: true, presets: [] },
+      image: { baseUrl: '', apiKey: '', model: '', presets: [] },
+      summary: { baseUrl: '', apiKey: '', model: '', stream: false, presets: [] },
+      vector: { baseUrl: '', apiKey: '', model: '', presets: [] }
+    };
+    const c = this.g('cfg', d);
+    if (c && !c.story && !c.text) {
+      return {
+        ...d,
+        story: { baseUrl: c.baseUrl || d.story.baseUrl, apiKey: c.apiKey || '', model: c.model || d.story.model, temperature: c.temperature ?? d.story.temperature, stream: true, presets: [] },
+        image: { ...d.image, model: c.imgModel || '' }
+      };
     }
-    return c;},
+    return c;
+  },  
   setCfg(c){this.s('cfg',c);},
   profile(){return this.g('profile',null);},setProfile(p){this.s('profile',p);},
   state(){return this.g('state',null);},setState(s){this.s('state',s);},
@@ -2646,76 +2657,75 @@ function apiCfg(kind){
   if(!r.model)r.model=t.model;
   return r;
 }
-// ====== 精准错误体系与错误分析器 ======
+// ====== 精准错误诊断分类器 ======
 function classifyAPIError(err, c) {
   const msg = String(err && (err.message || err.name) || err || '');
   let code = 'E-UNKNOWN';
-  let title = '未知异常';
-  let fix = '请复制下方脱敏摘要反馈排查。';
+  let title = '未知请求异常';
+  let fix = '请复制下方脱敏摘要排查。';
 
   if (/TIMEOUT-CLIENT/i.test(msg)) {
     code = 'E-TIMEOUT-CLIENT';
-    title = '客户端请求超时（超出设定时长）';
-    fix = '长篇剧情推理耗时较长。建议：① 将单回合字数设为短篇（1200~1800）；② 更换低延迟模型（如 gpt-4o-mini、claude-3-5-haiku）；③ 检查网络中转站延迟。';
+    title = '客户端请求超时（已超 180 秒）';
+    fix = '模型推理耗时极长。建议：① 在设置中开启「流式传输」；② 将单回合字数区间适当下调；③ 切换高响应速率的模型（如 flash/mini 系列）。';
   } else if (/TIMEOUT-RENDER/i.test(msg)) {
     code = 'E-TIMEOUT-RENDER';
     title = '页面渲染看门狗超时';
-    fix = 'DOM 渲染等待被底层任务阻塞，已自动为你保留当前所有交互框架。';
+    fix = 'DOM 渲染被任务阻塞，已保留可交互骨架。';
   } else if (/401/i.test(msg)) {
     code = 'E-HTTP-401';
     title = 'API Key 无效或未授权';
-    fix = '请前往「设置 → AI接入」，检查长剧情栏的 API Key 是否填错、包含多余空格或已过期。';
+    fix = '请前往「设置 → AI接入」，检查对应的 API Key 是否包含多余空格或已失效。';
   } else if (/404/i.test(msg)) {
     code = 'E-HTTP-404';
     title = 'Base URL 或模型名不存在';
-    fix = '请检查 Base URL 是否正确以 /v1 结尾（不要拼接 /chat/completions），并点击「拉取」核对模型全称。';
+    fix = '请检查 Base URL 是否正确以 /v1 结尾（不要拼接 /chat/completions），并核对模型全称。';
   } else if (/429/i.test(msg)) {
     code = 'E-HTTP-429';
-    title = '触发频率限制（Rate Limit）或额度耗尽';
-    fix = '账户并发超限或余额归零。请稍候 1~2 分钟再试，或登录服务商控制台检查账户额度。';
+    title = '频率超限 (Rate Limit) 或额度用尽';
+    fix = '中转站并发超限或账户余额已归零，请检查中转站后台。';
   } else if (/504|Gateway Timeout/i.test(msg)) {
     code = 'E-HTTP-504';
-    title = '中转站/上游网关响应超时';
-    fix = '中转站与上游大模型之间耗时超时断开。说明当前模型在当前服务商处推理拥堵，请切换其他模型或中转服务。';
+    title = '中转站网关超时';
+    fix = '中转站与上游模型间连接断开。非流式模式下大模型生成超过中转站阈值，强烈建议开启「流式传输」。';
   } else if (/Failed to fetch|Load failed|CORS/i.test(msg)) {
     code = 'E-NET-CORS';
-    title = '网络连接断开或跨域被拦截';
-    fix = '浏览器直接请求 API 时受到同源策略限制，需服务商开启 CORS 允许跨域；或者检查代理网络设置。';
+    title = '网络中断或跨域被拦截 (CORS)';
+    fix = '浏览器直接调用接口被跨域安全策略拦截，中转站需开启 CORS 支持；或检查代理网络。';
   } else if (/EMPTY_RETURN/i.test(msg)) {
     code = 'E-AI-EMPTY';
-    title = '接口成功返回但未输出文字';
-    fix = '模型可能不支持当前提示词指令或内容触发了服务商的内容过滤器。';
+    title = '接口成功响应但文本为空';
+    fix = '模型未输出有效正文，可能触发了服务商的安全审查策略。';
   } else {
     code = 'E-HTTP-ERR';
-    title = '接口请求错误';
-    fix = '接口返回异常，请核对诊断摘要中的原始报错详情。';
+    title = '接口请求报错';
+    fix = '请核对错误摘要中的具体 HTTP 状态码。';
   }
 
   return { code, title, fix, original: msg };
 }
 
-// ====== 彻底解决长剧情超时的 callAI ======
-async function callAI(messages, system, kind) {
+// ====== 支持流式 (Stream) 与传统放宽模式的 callAI ======
+async function callAI(messages, system, kind, onProgress) {
   const c = apiCfg(kind || 'story');
-  if (!c.apiKey) throw new Error('NO_API_KEY: 未配置 API Key，请至「设置」中配置');
+  if (!c.apiKey) throw new Error('NO_API_KEY: 未配置 API Key，请至「设置」中检查');
 
   const url = (c.baseUrl || '').replace(/\/+$/, '') + '/chat/completions';
   const isLong = /世界线深度文学模式|对白语言铁律|字左右/.test(system || '');
 
-  // 1. 给足长文本推理的时间：长剧情给予 110 秒充足时间，其余场景给予 45 秒
-  const timeoutMs = isLong ? 110000 : 45000;
+  const timeoutMs = isLong ? 180000 : 60000;
   const ctrl = new AbortController();
   const to = setTimeout(() => {
     ctrl.abort(new Error(`TIMEOUT-CLIENT: 请求在 ${Math.round(timeoutMs / 1000)} 秒后超时未完成`));
   }, timeoutMs);
 
-  // 2. 动态自适应 Token：根据字数预设动态下发最合理的安全值，避免中转站堵死
+  const fullCfg = store.cfg();
+  const isStreamEnabled = !!(fullCfg[kind || 'story']?.stream ?? (kind === 'story'));
+
   const _wlR = wlWordRange();
-  // 1 中文字符约占用 1.5~1.8 token，给足生成空间又不过度索取导致排队延迟
-  const calculatedTokens = Math.min(4096, Math.max(1500, Math.round(_wlR.max * 1.6) + 400));
+  const calculatedTokens = Math.min(8192, Math.max(1500, Math.round(_wlR.max * 1.8) + 500));
   const safeTokens = isLong ? calculatedTokens : 1200;
 
-  // 严格修剪上下文，只取最后 6 条历史，防止 token 超限
   const safeMessages = messages
     .filter(m => m.content && String(m.content).trim())
     .slice(-6);
@@ -2723,7 +2733,8 @@ async function callAI(messages, system, kind) {
   const body = {
     model: c.model,
     messages: [{ role: 'system', content: system }, ...safeMessages],
-    max_tokens: safeTokens
+    max_tokens: safeTokens,
+    stream: isStreamEnabled
   };
 
   if ((kind || 'story') === 'story') {
@@ -2741,76 +2752,84 @@ async function callAI(messages, system, kind) {
       body: JSON.stringify(body),
       signal: ctrl.signal
     });
-    clearTimeout(to);
 
     if (!r.ok) {
+      clearTimeout(to);
       const tx = await r.text().catch(() => '');
-      throw new Error(`API 报错 ${r.status}: ${tx.slice(0, 200)}`);
+      throw new Error(`API 报错 ${r.status}: ${tx.slice(0, 240)}`);
     }
 
+    if (isStreamEnabled && r.body && typeof r.body.getReader === 'function') {
+      const reader = r.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let fullText = '';
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith(':')) continue;
+          if (trimmed === 'data: [DONE]') continue;
+
+          if (trimmed.startsWith('data:')) {
+            const jsonStr = trimmed.slice(5).trim();
+            try {
+              const parsed = JSON.parse(jsonStr);
+              const deltaContent = parsed.choices?.[0]?.delta?.content || '';
+              if (deltaContent) {
+                fullText += deltaContent;
+                if (typeof onProgress === 'function') {
+                  onProgress(fullText, deltaContent);
+                }
+              }
+            } catch (jsonErr) {}
+          }
+        }
+      }
+
+      clearTimeout(to);
+      if (!fullText.trim()) throw new Error('EMPTY_RETURN: 流式读取完毕但无有效内容返回');
+      return fullText.trim();
+    }
+
+    clearTimeout(to);
     const d = await r.json();
     const content = d.choices?.[0]?.message?.content;
-    if (!content || !content.trim()) throw new Error('EMPTY_RETURN: 接口成功响应但文本为空');
+    if (!content || !content.trim()) throw new Error('EMPTY_RETURN: 接口成功返回但未输出有效文字');
     return content.trim();
+
   } catch (e) {
     clearTimeout(to);
     if (e.name === 'AbortError' || /TIMEOUT-CLIENT/i.test(e.message)) {
-      throw new Error(`TIMEOUT-CLIENT: 等待模型完整生成超时（已超 ${Math.round(timeoutMs / 1000)} 秒）`);
+      throw new Error(`TIMEOUT-CLIENT: 等待模型生成完整文本超时（超过 ${Math.round(timeoutMs / 1000)} 秒）`);
     }
     throw e;
   }
 }
-async function ai(messages,system,fallback,kind){
-  const fb=()=>typeof fallback==='function'?fallback():(fallback||'');
-  if(!apiCfg(kind||'story').apiKey){
+
+// 统一封装透传 onProgress 的 ai() 函数（保留这唯一一份）
+async function ai(messages, system, fallback, kind, onProgress) {
+  const fb = () => typeof fallback === 'function' ? fallback() : (fallback || '');
+  if (!apiCfg(kind || 'story').apiKey) {
     toast('未检测到 API Key，正在呈现本地预设内容');
     return fb();
   }
-  try{
-    const r=await callAI(messages,system,kind);
+  try {
+    const r = await callAI(messages, system, kind, onProgress);
     return r || fb();
-  }catch(e){
-    // 将真实错误直接吐在界面上（如 401 密钥失效、超时、或者 CORS 拦截），不再盲目兜底
+  } catch (e) {
     console.error('AI Call Error:', e);
-        const _h=apiErrorHelp(e.message);
-    toast('⚠️ '+_h.code+' '+_h.title+' · '+_h.fix.slice(0,30)+'…');
-    return fb();
+    const _h = classifyAPIError(e, apiCfg(kind || 'story'));
+    toast(`⚠️ [${_h.code}] ${_h.title}`);
+    throw e;
   }
-}
-/* API 错误码 → 通俗解释与解决办法 */
-function apiErrorHelp(msg){
-  const s=String(msg||'');
-  const code=(s.match(/API 报错 (\d{3})/)||[])[1]||'';
-  const map={
-    '400':['400 请求格式错误','模型名可能填错，或该中转站不支持当前参数。先点「拉取」确认模型名，再重试。'],
-    '401':['401 密钥无错、带余空格，或已被重制一次新限制。换个模型，或在中转站确认已开通该模型。'],
-    '404':['404 地址或模型不存在','Base URL 多半写错。正确格式以 /v1 结尾，例如 https://api.openai.com/v1，不要加 /chat/completions。也可能是模型名拼错。'],
-    '408':['408 请求超时','服务端太慢。把世界线「单回合字数」调小，或换更快的模型。'],
-    '413':['413 内容过长','单次请求太大。把字数调小，或清理一下聊天记录再试。'],
-    '429':['429 频率 / 配额超限','请求太频繁或当日额度用完。等 1~2 分钟再试；若持续报错，去后台查看速率限制与余额。'],
-    '500':['500 服务端内部错误','对方服务器出问题，与你的配置无关。稍后重试或换一个中转站。'],
-    '502':['502 网关错误','中转站与上游断开。换一个 Base URL 或稍后重试。'],
-    '503':['503 服务不可用','模型过载或正在维护。换模型或稍后重试。'],
-    '504':['504 网关超时','上游响应太慢。把字数调小，或换更快的模型。']
-  };
-  if(map[code])return {code,title:map[code][0],fix:map[code][1]};
-  if(/CORS|跨域/.test(s))return {code:'CORS',title:'跨域被浏览器拦截',
-    fix:'该中转站没开启 CORS，浏览器里无法直连。换一个支持浏览器调用的中转站，或让服务商开启跨域。'};
-  if(/failed to fetch|load failed|网络连接中断/i.test(s))return {code:'NETWORK',title:'网络不通或地址无法访问',
-    fix:'检查网络、代理，以及 Base URL 是否拼写正确、是否 https。手机热点与公司网络常会拦截。'};
-  if(/未配置 API Key/.test(s))return {code:'NOKEY',title:'还没填 API Key',
-    fix:'在上方「API Key」里粘贴你的密钥，点「保存配置」后再测试。'};
-  if(/超时/.test(s))return {code:'TIMEOUT',title:'生成超时',
-    fix:'把世界线「单回合字数」调小，或换更快的模型（如 mini / flash 系列）。'};
-  if(/内容为空/.test(s))return {code:'EMPTY',title:'接口通了但没返回内容',
-    fix:'多半是模型名不被该中转站支持。点「拉取」选一个列表里的模型再试。'};
-  return {code:'UNKNOWN',title:'未知错误',fix:'把下方原始信息截图给服务商客服，或换一个中转站 / 模型重试。'};
-}
-async function fetchModels(kind){
-  const c=apiCfg(kind||'story');
-  if(!c.apiKey)throw new Error('未配置 API Key');
-  const r=await fetch((c.baseUrl||'').replace(/\/+$/,'')+'/models',{headers:{'Authorization':'Bearer '+c.apiKey}});
-  if(!r.ok)throw new Error('拉取失败 '+r.status);const d=await r.json();return (d.data||[]).map(m=>m.id).sort();
 }
 /* ============================================================
    增强版生图调度核心：支持 纯文本生图 与 锁脸图(IP-Adapter/图生图)
@@ -3732,13 +3751,13 @@ function hideLayers(){
    safeRender：全站唯一 render 入口（超时 / 异常 / 空 DOM / 骨架兜底）
    ============================================================ */
 const RENDER_TIMEOUT_MS=30000; let __renderSeq=0;
-// 将 30 秒修改为动态判定机制
+// 将 30 秒修改为动态超宽判定
 async function safeRender(id, body) {
   const seq = ++__renderSeq, app = apps[id];
   if (!app || typeof app.render !== 'function') return renderFail('E-RENDER-004', body, id);
 
-  // 世界线推演给予 125 秒宽限，其余轻量应用保持 30 秒看门狗
-  const renderTimeoutLimit = (id === 'worldline') ? 125000 : 30000;
+  // 世界线长文本渲染给予 190 秒安全宽限，传统非流式大段生成绝对不被提前中断
+  const renderTimeoutLimit = (id === 'worldline') ? 190000 : 35000;
 
   const timer = setTimeout(() => {
     if (seq !== __renderSeq) return;
@@ -4035,7 +4054,21 @@ apps.settings={title:'设置',render(v){
       <div class="field"><label>Base URL</label><input id="s_url" value="${esc((c[store.get('cfgTab','story')]||{}).baseUrl)}" placeholder="https://api.openai.com/v1"></div>
       <div class="field"><label>API Key</label><div class="row"><input id="s_key" type="password" value="${esc((c[store.get('cfgTab','story')]||{}).apiKey)}" style="flex:1"><button class="btn ghost sm" id="s_eye" style="flex:0 0 46px">👁</button></div></div>
       <div class="field"><label>模型</label><div class="row"><input id="s_model" value="${esc((c[store.get('cfgTab','story')]||{}).model)}" style="flex:1" placeholder="${store.get('cfgTab','story')==='image'?'dall-e-3 / gpt-image-1':'gpt-4o-mini'}"><button class="btn ghost sm" id="s_fetch" style="flex:0 0 58px">拉取</button></div></div>
-      ${store.get('cfgTab','story')==='story'?`<div class="field"><label>温度（留空＝默认）</label><input id="s_temp" value="${esc((c.story||{}).temperature??'')}"></div>`:''}
+
+<!-- 全文本通道适用的流式输出独立控制开关 -->
+${store.get('cfgTab','story') !== 'image' ? `
+  <div class="srow" style="padding:6px 0;border-bottom:1px dashed var(--line);margin-bottom:8px">
+    <div>
+      <div class="t" style="font-size:12.5px">启用流式传输 (Stream)</div>
+      <div class="d">边缓存边打字输出。首字 1~2 秒即现，彻底根除 30s 扣费但白屏超时问题。</div>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="s_stream" ${((c[store.get('cfgTab','story')]||{}).stream !== false) ? 'checked' : ''}>
+      <span class="slider"></span>
+    </label>
+  </div>` : ''}
+
+${store.get('cfgTab','story')==='story'?`<div class="field"><label>温度（留空＝默认）</label><input id="s_temp" value="${esc((c.story||{}).temperature??'')}"></div>`:''}
       <div class="row"><button class="btn" id="s_save">保存配置</button><button class="btn ghost" id="s_test">🔍 测试连通性</button></div>
       <button class="btn ghost sm" id="s_presetsave" style="margin-top:8px;width:100%">💾 保存为自定义预设（api key / url / 模型）</button>
       <div id="s_pnew" class="s-pres-row" style="display:none">
@@ -4192,12 +4225,22 @@ bindSL('#sl_p','postToDmChance','%');
   const label=()=>({story:'长剧情',social:'社交软件',image:'生图',summary:'总结'}[kind()]||'长剧情');
   const okBox=(msg)=>{const r=q('#s_res');if(r){r.className='so-res-ok';r.textContent=msg;}toast(msg);};
   const readCfg=()=>{
-    const k=kind();
-    const cur=store.cfg();
-    const cc={baseUrl:q('#s_url').value.trim(),apiKey:q('#s_key').value.trim(),model:q('#s_model').value.trim()};
-    if(k==='story'&&q('#s_temp'))cc.temperature=q('#s_temp').value.trim();
-    const old=(cur[k]||{});cur[k]={...cc,presets:old.presets||[],activePreset:(typeof old.activePreset==='number'?old.activePreset:-1)};
-    store.setCfg(cur);return cur;};
+  const k=kind();
+  const cur=store.cfg();
+  const streamEl = q('#s_stream');
+  const isStream = streamEl ? streamEl.checked : true;
+  const cc={
+    baseUrl:q('#s_url').value.trim(),
+    apiKey:q('#s_key').value.trim(),
+    model:q('#s_model').value.trim(),
+    stream: isStream
+  };
+  if(k==='story'&&q('#s_temp')) cc.temperature=q('#s_temp').value.trim();
+  const old=(cur[k]||{});
+  cur[k]={...cc, presets:old.presets||[], activePreset:(typeof old.activePreset==='number'?old.activePreset:-1)};
+  store.setCfg(cur);
+  return cur;
+};
   q('#s_eye').onclick=()=>{const i=q('#s_key');i.type=i.type==='password'?'text':'password';};
   q('#s_save').onclick=()=>{readCfg();okBox('✅ 已保存（'+label()+'栏）· Base URL / API Key / 模型已写入本机存储，刷新后保留。');};
   q('#s_fetch').onclick=async e=>{e.target.textContent='...';readCfg();
@@ -6779,200 +6822,200 @@ const wlKey = 'worldline_turn_' + s.turn;
 // 正常渲染时，localOnly 仅作为「上次失败」的标记，
 // 本次仍然尝试 AI（如果有 Key），失败再降级。
 if (!s.story) {
-  if (window.__soOffscreenRendering) {
-    // 离屏预览（指南页截图）：绝对不发请求
-    const era = WORLD.eras.find(e => e.id === s.era) || WORLD.eras[2];
-    s.story = LOCAL.story(era);
-    s.options = 'A. 把访客徽章别好，先问那行被划掉的数字\nB. 不碰任何东西，只把三份文件按日期理齐\nC. 回一句更快的俏皮话，把节奏抢回来\nD. 走到他身后，看他到底在改什么';
-  } else if (!apiCfg('story').apiKey) {
-    // 没有 API Key：直接用本地，不报错
-    const era = WORLD.eras.find(e => e.id === s.era) || WORLD.eras[2];
-    s.story = LOCAL.story(era);
-    s.options = 'A. 把访客徽章别好，先问那行被划掉的数字\nB. 不碰任何东西，只把三份文件按日期理齐\nC. 回一句更快的俏皮话，把节奏抢回来\nD. 走到他身后，看他到底在改什么';
-    s.localOnly = true;
-    store.setState(s);
-    addHint('未配置 API Key · 当前使用本地预设剧情', 'E-AI-001', true);
-  } else {
-    const safeAnchor = getCurrentAnchor() || { title: '日常技术协同', curTurns: 1, maxTurns: 3, done: false };
-// 当前正在推演的回合序号，取值严格在 1 ~ maxTurns 之间
-const ancStep = Math.max(1, Math.min(safeAnchor.curTurns || 1, safeAnchor.maxTurns || 3));
-const ancMax = safeAnchor.maxTurns || 3;
-
-    // 正在生成中：渲染等待占位状态
-    const st0 = v.querySelector('#wl_story');
-    if (st0) {
-      st0.innerHTML = `<div class="hint" style="line-height:1.8">
-        <div class="spin" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px"></div>
-        贾维斯正在结合事件锚点校准剧情（本锚点第 ${ancStep}/${ancMax} 回合）…
-      </div><div class="card" style="height:64px;margin-top:8px;background:var(--panel2)"></div>`;
-    }
-
-    const sendBtn = v.querySelector('#w_send');
-    const actInput = v.querySelector('#w_act');
-    if (sendBtn) sendBtn.disabled = true;
-    if (actInput) actInput.disabled = true;
-
-    try {
-      // 如果当前已有未完成的请求在跑，复用它；否则新建
-      let resPromise = AIGuard.getPromise(wlKey);
-
-      if (!resPromise) {
+      if (window.__soOffscreenRendering) {
         const era = WORLD.eras.find(e => e.id === s.era) || WORLD.eras[2];
-        const last = s.history.length ? s.history[s.history.length - 1] : null;
+        s.story = LOCAL.story(era);
+        s.options = 'A. 把访客徽章别好，先问那行被划掉的数字\nB. 不碰任何东西，只把三份文件按日期理齐\nC. 回一句更快的俏皮话，把节奏抢回来\nD. 走到他身后，看他到底在改什么';
+      } else if (!apiCfg('story').apiKey) {
+        const era = WORLD.eras.find(e => e.id === s.era) || WORLD.eras[2];
+        s.story = LOCAL.story(era);
+        s.options = 'A. 把访客徽章别好，先问那行被划掉的数字\nB. 不碰任何东西，只把三份文件按日期理齐\nC. 回一句更快的俏皮话，把节奏抢回来\nD. 走到他身后，看他到底在改什么';
+        s.localOnly = true;
+        store.setState(s);
+        addHint('未配置 API Key · 当前使用本地预设剧情', 'E-AI-001', true);
+      } else {
+        const safeAnchor = curAnchor || { title: '日常技术协同', curTurns: 1, maxTurns: 3, done: false };
+        const ancStep = Math.max(1, Math.min(safeAnchor.curTurns || 1, safeAnchor.maxTurns || 3));
+        const ancMax = safeAnchor.maxTurns || 3;
 
-       // 构造 3~4 回合制锚点节奏指引（加入空对象安全防御）
-// 构造 3~4 回合制锚点节奏指引，并精准处理跨锚点转场逻辑
-const safeAnchor = curAnchor || { title: '日常技术协同', curTurns: 1, maxTurns: 3, isBlip: false };
-const safeStep = Math.min(safeAnchor.curTurns || 1, safeAnchor.maxTurns || 3);
-const safeMax = safeAnchor.maxTurns || 3;
+        const st0 = v.querySelector('#wl_story');
+        const optsContainer = v.querySelector('#w_opts');
+        if (st0) {
+          st0.innerHTML = `<div class="hint" style="line-height:1.8">
+            <div class="spin" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px"></div>
+            贾维斯正在解析神经遥测（第 ${ancStep}/${ancMax} 回合，生成中）…
+          </div>`;
+        }
 
-// 判断本回合是否为【新事件锚点开启的第一回合】（即刚从上一个旧事件转场过来）
-const isAnchorTransition = (safeStep === 1 && s.history.length > 0);
+        const sendBtn = v.querySelector('#w_send');
+        const actInput = v.querySelector('#w_act');
+        if (sendBtn) sendBtn.disabled = true;
+        if (actInput) actInput.disabled = true;
 
-let transitionDirective = '';
-if (isAnchorTransition) {
-  // 查找上一个刚刚完结的锚点名称
-  const anchorsList = store.get('wl_anchors', []);
-  const curIdx = anchorsList.findIndex(a => a.id === safeAnchor.id);
-  const prevAnchor = (curIdx > 0) ? anchorsList[curIdx - 1] : null;
-  const prevTitle = prevAnchor ? prevAnchor.title : '上一阶段事件';
+        try {
+          const era = WORLD.eras.find(e => e.id === s.era) || WORLD.eras[2];
+          const last = s.history.length ? s.history[s.history.length - 1] : null;
 
-  transitionDirective = `
+          // 跨锚点自然时空转场协议
+          const isAnchorTransition = (ancStep === 1 && s.history.length > 0);
+          let transitionDirective = '';
+          if (isAnchorTransition) {
+            const anchorsList = store.get('wl_anchors', []);
+            const curIdx = anchorsList.findIndex(a => a.id === safeAnchor.id);
+            const prevAnchor = (curIdx > 0) ? anchorsList[curIdx - 1] : null;
+            const prevTitle = prevAnchor ? prevAnchor.title : '上一阶段事件';
+
+            transitionDirective = `
 【⚡⚡ 核心时空转场铁律 · 最高优先级】
 1. 上一事件【${prevTitle}】已经彻底闭幕收束。本回合是全新事件【${safeAnchor.title}】的【首次揭幕】！
 2. 【绝对严禁原地接续】：严禁在上一场景同一个房间或桌子前无缝继续说话！
 3. 【必须安排明确的时间推移与空间转换】：
    - 时间跨度：剧情必须自然流逝（例如：“数天后”、“三周后的清晨”、“次月深夜”等）；
-   - 场景换新：根据【${safeAnchor.title}】的背景要求，必须彻底切换到全新地点（如：从地下车库转移到马里布停机坪、雷达测试场、高空昆式战机座舱、纽约大厦顶层酒会或某处外景地）；
-   - 镜头开端：开篇必须先用电影镜头刻画全新场景的环境光影、气温、光线、声音底噪（如机翼结冰、荒漠热浪、雨水打在玻璃幕墙上的声响），交代时间推移的痕迹；
-   - 状态变化：角色穿戴与所持器物必须随时间和场景刷新，托尼应处在与新事件相符的全新工作或行动姿态中！
+   - 场景换新：根据【${safeAnchor.title}】的背景要求，必须彻底切换到全新地点；
+   - 镜头开端：开篇必须先用电影镜头刻画全新场景的环境光影、气温、声响底噪，交代时间推移的痕迹；
+   - 状态变化：角色穿戴与所持器物必须随时间和场景刷新！
 `;
-}
+          }
 
-let pacingGuide = '';
-if (safeAnchor.isBlip) {
-  const blipStages = {
-    1: '【烁灭五年 · 当前第 1/3 回合】重点描写归来后的创伤、战甲脱卸后的虚脱与空旷感。',
-    2: '【烁灭五年 · 当前第 2/3 回合】时间跨入烁灭第三年，湖畔木屋的退隐日常，平静下的旧伤。',
-    3: '【烁灭五年 · 当前第 3/3 回合】烁灭第五年，莫比乌斯环时间模型深夜突破的前夜暗涌。'
-  };
-  pacingGuide = '\n' + (blipStages[ancStep] || blipStages[3]);
-} else {
-  if (ancStep === 1) {
-    pacingGuide = `\n【新事件揭幕阶段：第 1/${ancMax} 回合 · 起势】${transitionDirective}\n展开事件【${safeAnchor.title}】的开端情境。`;
-  } else if (ancStep < ancMax) {
-    pacingGuide = `\n【本事件深入推演：第 ${ancStep}/${ancMax} 回合 · 进展】承接前文，紧扣当前事件环境推进【${safeAnchor.title}】的核心冲突。`;
-  } else {
-    pacingGuide = `\n【本事件收官阶段：第 ${ancStep}/${ancMax} 回合 · 终结】这是【${safeAnchor.title}】的最终幕，给出明确的阶段性解决，为后续转场预留余味。`;
-  }
-}
+          let pacingGuide = '';
+          if (safeAnchor.isBlip) {
+            pacingGuide = `\n【烁灭五年专属阶段】：当前第 ${ancStep}/3 回合，重点深化时代情绪与宿命感。`;
+          } else {
+            if (ancStep === 1) {
+              pacingGuide = `\n【新事件揭幕阶段：第 1/${ancMax} 回合 · 起势】${transitionDirective}\n展开事件【${safeAnchor.title}】的开端情境。`;
+            } else if (ancStep < ancMax) {
+              pacingGuide = `\n【本事件深入推演：第 ${ancStep}/${ancMax} 回合 · 进展】承接前文，紧扣当前事件环境推进【${safeAnchor.title}】的核心冲突。`;
+            } else {
+              pacingGuide = `\n【本事件收官阶段：第 ${ancStep}/${ancMax} 回合 · 终结】这是【${safeAnchor.title}】的最终幕，给出明确的阶段性解决，为后续转场预留余味。`;
+            }
+          }
 
-let ctx = last 
-  ? `\n【前情提要】：\n${last.story.slice(-300)}\n【玩家上一轮行动】：${last.choice}\n${pacingGuide}` 
-  : `\n开局第一回合。请写托尼·斯塔克与玩家的初会与磨合，紧扣首个事件锚点【${formatAnchorTitle(safeAnchor)}】。${pacingGuide}`;
-        const sys = buildSystem('worldline');
+          let ctx = last 
+            ? `\n【前情提要】：\n${last.story.slice(-300)}\n【玩家上一轮行动】：${last.choice}\n${pacingGuide}` 
+            : `\n开局第一回合。请写托尼·斯塔克与玩家的初会与磨合，紧扣首个事件锚点【${formatAnchorTitle(safeAnchor)}】。${pacingGuide}`;
 
-        // 发起请求
-        resPromise = ai(
-          [{ role: 'user', content: '请推进剧情：' + ctx }],
-          sys,
-          () => LOCAL.story(era),
-          'story'
-        );
-        AIGuard.lock(wlKey, resPromise);
-      }
+          const sys = buildSystem('worldline');
 
-      let res = await resPromise;
+          // 流式回调渲染：边生成边在界面上打字
+          let lastRenderTime = 0;
+          const onStreamProgress = (textSoFar) => {
+            const now = Date.now();
+            if (now - lastRenderTime > 60 && st0) {
+              lastRenderTime = now;
+              const tempStory = textSoFar.split(/(?:【选项】|\[选项\]|选项[:：])/)[0];
+              st0.innerHTML = fmtStory(tempStory) + '<span class="spin" style="display:inline-block;width:10px;height:10px;border-width:1.5px;margin-left:4px;vertical-align:middle"></span>';
+            }
+          };
 
-      // 无论成功与否，立即释放本回合的锁！
-      AIGuard.unlock(wlKey);
+          let res = await ai(
+            [{ role: 'user', content: '请推进剧情：' + ctx }],
+            sys,
+            () => LOCAL.story(era),
+            'story',
+            onStreamProgress
+          );
 
-      if (!res || typeof res !== 'string' || !res.trim()) {
-        throw new Error('返回内容为空');
-      }
+          AIGuard.unlock(wlKey);
 
-      if (!f.pepperExists) {
-        res = res.replace(/小辣椒/g, '公关部主管')
-                 .replace(/佩珀·波茨/g, '法务部代表')
-                 .replace(/佩珀/g, '秘书处')
-                 .replace(/Pepper/gi, 'Assistant');
-      }
+          if (!res || typeof res !== 'string' || !res.trim()) {
+            throw new Error('EMPTY_RETURN: 返回内容为空');
+          }
 
-      let storyPart = res;
-      let optPart = '';
-      const splitRegex = /(?:【选项】|\[选项\]|选项[:：])/;
-      if (splitRegex.test(res)) {
-        const parts = res.split(splitRegex);
-        storyPart = parts[0];
-        optPart = parts[1] || '';
-      }
+          if (!f.pepperExists) {
+            res = res.replace(/小辣椒/g, '公关部主管')
+                     .replace(/佩珀·波茨/g, '法务部代表')
+                     .replace(/佩珀/g, '秘书处')
+                     .replace(/Pepper/gi, 'Assistant');
+          }
 
-      let affDelta = 0;
-      const m = res.match(/(?:【好感度变动[:：]|好感度[:：])\s*([+-]?\d+)】?/);
-      if (m) {
-        let raw = parseInt(m[1]) || 0;
-        const lastGainTurn = s.lastGainTurn || 0;
-        if (raw > 0 && (s.turn - lastGainTurn < 3) && raw < 4) raw = 0;
-        if (raw > 0) s.lastGainTurn = s.turn;
-        affDelta = Math.max(-20, Math.min(5, raw));
-      }
+          // 正则剥离正文与选项
+          let storyPart = res;
+          let optPart = '';
+          const splitRegex = /(?:【选项】|\[选项\]|选项[:：])/;
+          if (splitRegex.test(res)) {
+            const parts = res.split(splitRegex);
+            storyPart = parts[0];
+            optPart = parts[1] || '';
+          }
 
-      s.story = storyPart.replace(/【剧情】/g, '').replace(/【好感度变动[:：][^】]*】/g, '').trim();
-      s.options = optPart.trim();
+          // 解析好感度
+          let affDelta = 0;
+          const m = res.match(/(?:【好感度变动[:：]|好感度[:：])\s*([+-]?\d+)】?/);
+          if (m) {
+            let raw = parseInt(m[1]) || 0;
+            const lastGainTurn = s.lastGainTurn || 0;
+            if (raw > 0 && (s.turn - lastGainTurn < 3) && raw < 4) raw = 0;
+            if (raw > 0) s.lastGainTurn = s.turn;
+            affDelta = Math.max(-20, Math.min(5, raw));
+          }
 
-      // 解析备选选项
-      if (!s.options) {
-        const optLines = s.story.split('\n').filter(line => /^[A-DＡ-Ｄ][\.、\s]/.test(line.trim()));
-        if (optLines.length >= 2) {
-          s.options = optLines.join('\n');
-          optLines.forEach(l => { s.story = s.story.replace(l, ''); });
-          s.story = s.story.trim();
-        } else {
-          s.options = 'A. 提出完全相反的逆向工程论点\nB. 顺着他刚才没说完的半句话递出扳手\nC. 保持沉默，把冷却的咖啡杯换掉\nD. 转移话题，核实传感器参数';
+          // ✅ 核心修复：先完成清洗，并立刻写入持久化数据库，坚决杜绝被后续逻辑冲刷成空！
+          s.story = storyPart.replace(/【剧情】/g, '').replace(/【好感度变动[:：][^】]*】/g, '').trim();
+          s.options = optPart.trim();
+
+          if (!s.options) {
+            const optLines = s.story.split('\n').filter(line => /^[A-DＡ-Ｄ][\.、\s]/.test(line.trim()));
+            if (optLines.length >= 2) {
+              s.options = optLines.join('\n');
+              optLines.forEach(l => { s.story = s.story.replace(l, ''); });
+              s.story = s.story.trim();
+            } else {
+              s.options = 'A. 提出完全相反的逆向工程论点\nB. 顺着他刚才没说完的半句话递出扳手\nC. 保持沉默，把冷却的咖啡杯换掉\nD. 转移话题，核实传感器参数';
+            }
+          }
+
+          s.lastDelta = affDelta;
+          delete s.localOnly;
+          // 率先持久化 state，锁死刚刚接收到的完整 2000+ 字剧情！
+          store.setState(s);
+
+          // 随后安全结算好感，即使内部有读写也绝不影响已保存的 story
+          if (affDelta !== 0) {
+            applyAffinity((s.affinity || 0) + affDelta);
+            s.affinity = (store.state() || {}).affinity || s.affinity;
+          }
+
+          // 无论流式还是非流式，最终一步确保 DOM 绝对刷新展示出正文与选项按钮
+          if (st0) st0.innerHTML = fmtStory(s.story);
+          if (optsContainer) {
+            const optsArr = s.options.split('\n').filter(l => /^[A-DＡ-Ｄ]\s*[\.\、]/.test(l.trim()));
+            optsContainer.innerHTML = optsArr.map(o => `<button class="opt" data-o="${esc(o).replace(/"/g, '&quot;')}">${fmt(o)}</button>`).join('');
+            optsContainer.querySelectorAll('.opt').forEach(b => b.onclick = () => pick(b.dataset.o));
+          }
+
+        } catch (e) {
+          AIGuard.unlock(wlKey);
+          console.error('Worldline Generation Error:', e);
+          
+          const era = WORLD.eras.find(er => er.id === s.era) || WORLD.eras[2];
+          s.story = LOCAL.story(era);
+          s.options = 'A. 把访客徽章别好，先问那行被划掉的数字\nB. 不碰任何东西，只把三份文件按日期理齐\nC. 回一句更快的俏皮话，把节奏抢回来\nD. 走到他身后，看他到底在改什么';
+          store.setState(s);
+          wlFailed = true;
+
+          const classified = classifyAPIError(e, apiCfg('story'));
+          soLog(classified.code, {
+            message: `${classified.title} · ${classified.original}`,
+            appId: 'worldline',
+            err: e
+          });
+
+          addHint(
+            `<span style="color:var(--red);font-weight:700">[${classified.code}] ${classified.title}</span><br>` +
+            `<span style="font-size:11px;color:var(--text);opacity:0.9"><b>排查方案：</b>${classified.fix}</span><br>` +
+            `<span style="font-size:10px;color:var(--muted);font-family:var(--font-mono);word-break:break-all">底细：${esc(classified.original.slice(0, 160))}</span>`,
+            classified.code,
+            false
+          );
+
+          if (st0) st0.innerHTML = `<div class="card" style="border-left:3px solid var(--gold);background:var(--panel2)"><span class="so-err-code">${classified.code}</span> <b>本回合推演未成功</b><div class="hint" style="margin-top:6px;line-height:1.7">网络中断或服务超时，你可以点击「重试」重新连接，也可以直接输入行动继续推进。</div><button class="btn ghost sm" style="min-height:44px;margin-top:8px" onclick="retryWorldline()">↻ 重新尝试</button></div>`;
+        } finally {
+          AIGuard.unlock(wlKey);
+          if (sendBtn) sendBtn.disabled = false;
+          if (actInput) actInput.disabled = false;
         }
       }
-
-      if (affDelta !== 0) {
-        applyAffinity((s.affinity || 0) + affDelta);
-        s = store.state();
-      }
-      s.lastDelta = affDelta;
-      delete s.localOnly;
-      store.setState(s);
-   // ✅ 修复：catch 时不再设 localOnly（下次渲染仍会重试 AI），
-// 并把真实错误原因写进页面可见的诊断条，不再只用 toast 闪一下
-    } catch (e) {
-  AIGuard.unlock(wlKey);
-  console.error('Worldline Generation Error:', e);
-  
-  const era = WORLD.eras.find(er => er.id === s.era) || WORLD.eras[2];
-  s.story = LOCAL.story(era);
-  s.options = 'A. 把访客徽章别好，先问那行被划掉的数字\nB. 不碰任何东西，只把三份文件按日期理齐\nC. 回一句更快的俏皮话，把节奏抢回来\nD. 走到他身后，看他到底在改什么';
-  store.setState(s);
-  wlFailed = true;
-  
-  // 精准分类错误，杜绝模糊代指
-  const classified = classifyAPIError(e, apiCfg('story'));
-  
-  // 记录到本地脱敏诊断日志中，供设置页和错误条查阅
-  soLog(classified.code, {
-    message: `${classified.title} · ${classified.original}`,
-    appId: 'worldline',
-    err: e
-  });
-
-  // 页面提示条以高对比方式展示具体错误码与解决办法
-  addHint(
-    `<span style="color:var(--red);font-weight:700">[${classified.code}] ${classified.title}</span><br>` +
-    `<span style="font-size:11px;color:var(--text);opacity:0.9"><b>排查方案：</b>${classified.fix}</span><br>` +
-    `<span style="font-size:10px;color:var(--muted);font-family:var(--font-mono);word-break:break-all">底细：${esc(classified.original.slice(0, 160))}</span>`,
-    classified.code,
-    false
-  );
-}
-  }
-}
-
+    }
     // ===== 7. 分区填充 F1~F8 / story / opts：单区抛错只影响该区 =====
     const FB_OPTS='A. 把访客徽章别好，先问那行被划掉的数字\nB. 不碰任何东西，只把三份文件按日期理齐\nC. 回一句更快的俏皮话，把节奏抢回来\nD. 走到他身后，看他到底在改什么';
 
