@@ -2708,7 +2708,60 @@ function classifyAPIError(err, c) {
 
   return { code, title, fix, original: msg };
 }
+// ====== 补全：远程拉取模型列表核心函数 ======
+async function fetchModels(kind) {
+  const c = apiCfg(kind || 'story');
+  if (!c.apiKey) throw new Error('请先填写对应通道的 API Key');
 
+  // 规范化 Base URL，确保拼接 /models
+  const baseUrl = (c.baseUrl || 'https://api.openai.com/v1').replace(/\/+$/, '');
+  const url = baseUrl.endsWith('/models') ? baseUrl : baseUrl + '/models';
+
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), 12000); // 12秒超时
+
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': 'Bearer ' + c.apiKey,
+        'Content-Type': 'application/json'
+      },
+      signal: ctrl.signal
+    });
+
+    clearTimeout(to);
+
+    if (!res.ok) {
+      const tx = await res.text().catch(() => '');
+      throw new Error(`接口报错 ${res.status}: ${tx.slice(0, 100)}`);
+    }
+
+    const data = await res.json();
+    const list = data.data || data.models || [];
+    if (!Array.isArray(list)) return [];
+
+    // 提取所有模型的 ID，并做自然排序
+    const ids = list
+      .map(m => (typeof m === 'string' ? m : m.id))
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b));
+
+    // 如果是生图通道，优先展示含 dall-e / image / sd / flux 的模型
+    if (kind === 'image') {
+      const imgModels = ids.filter(id => /dall|image|flux|sd|midjourney/i.test(id));
+      return imgModels.length ? imgModels : ids;
+    }
+
+    return ids;
+  } catch (err) {
+    clearTimeout(to);
+    if (err.name === 'AbortError') {
+      throw new Error('拉取模型超时，请检查 Base URL 是否正确或网络是否通畅');
+    }
+    throw err;
+  }
+}
 // ====== 支持流式 (Stream) 与传统放宽模式的 callAI ======
 async function callAI(messages, system, kind, onProgress) {
   const c = apiCfg(kind || 'story');
