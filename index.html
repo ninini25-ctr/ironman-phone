@@ -8895,171 +8895,423 @@ const FX={
    V2 · 世界事件引擎 / 好感里程碑 / 语音输入 / 简报与存档数据层
    说明：chainFromNews 与 doTimeJump 的突发简报均已抽成本模块的可配置链
    ============================================================ */
-const EventEngine={
-  /* 可配置：频率、掷骰概率、事件最小间隔、连锁事件各段延迟、突发简报开关 */
-  CONFIG:{
-    enabled:true,
-    tickMs:55000,          // EnvLog.tick 的真实时间间隔（毫秒）
-    rollChance:0.34,       // 每次 tick 命中世界事件的概率
-    minGapMs:120000,       // 两个世界事件之间的最小真实时间间隔
-    chain:{enabled:true,chance:0.25,steps:{mail:18000,tweet:42000,sms:72000}},
-    flash:{enabled:true}
+const EventEngine = {
+  CONFIG: {
+    enabled: true,
+    tickMs: 55000,
+    rollChance: 0.34,
+    minGapMs: 120000,
+    chain: { enabled: true, chance: 0.4, steps: { mail: 15000, tweet: 35000, sms: 60000 } },
+    flash: { enabled: true }
   },
-  init(){const c=store.get('eventCfg',null);if(c&&typeof c==='object')Object.assign(this.CONFIG,{
-    enabled:c.enabled!==false,tickMs:+c.tickMs||55000,rollChance:typeof c.rollChance==='number'?c.rollChance:.34,
-    minGapMs:+c.minGapMs||120000,flash:{enabled:c.flash!==false},
-    chain:{enabled:c.chainEnabled!==false,chance:.5,steps:{mail:18000,tweet:42000,sms:72000}}});},
-  saveCfg(){const c=this.CONFIG;store.set('eventCfg',{enabled:c.enabled,tickMs:c.tickMs,rollChance:c.rollChance,
-    minGapMs:c.minGapMs,chainEnabled:c.chain.enabled,flash:c.flash.enabled});},
-  record(e){
-    const a=store.get('worldEvents',[]);
-    a.unshift({id:'we'+Date.now()+Math.random().toString(36).slice(2,5),ts:Date.now(),time:nowTime(),
-      type:e.type||'event',icon:e.icon||'◉',title:e.title||'',detail:e.detail||'',target:e.target||'briefing'});
-    store.set('worldEvents',a.slice(0,60));
-    EnvLog.push('世界事件 · '+(e.title||'新动态'));
+  init() {
+    const c = store.get('eventCfg', null);
+    if (c && typeof c === 'object') {
+      Object.assign(this.CONFIG, {
+        enabled: c.enabled !== false,
+        tickMs: +c.tickMs || 55000,
+        rollChance: typeof c.rollChance === 'number' ? c.rollChance : 0.34,
+        minGapMs: +c.minGapMs || 120000,
+        flash: { enabled: c.flash !== false },
+        chain: { enabled: c.chainEnabled !== false, chance: 0.4, steps: { mail: 15000, tweet: 35000, sms: 60000 } }
+      });
+    }
   },
-  /* 四类世界事件：股价异动推送 / 复联频道 @ / 公关危机 */
-  EVENTS:[
-    {id:'stockAlert',icon:'📈',cooldownMs:240000,weight:2.2,when(){return true;},
-      build(){
-        const up=Math.random()>=0.5,pct=+(1.2+Math.random()*4.6).toFixed(2);
-        return {up,pct,dir:up?'异动拉升':'盘中跳水'};
+  saveCfg() {
+    const c = this.CONFIG;
+    store.set('eventCfg', {
+      enabled: c.enabled,
+      tickMs: c.tickMs,
+      rollChance: c.rollChance,
+      minGapMs: c.minGapMs,
+      chainEnabled: c.chain.enabled,
+      flash: c.flash.enabled
+    });
+  },
+  record(e) {
+    const a = store.get('worldEvents', []);
+    a.unshift({
+      id: 'we' + Date.now() + Math.random().toString(36).slice(2, 5),
+      ts: Date.now(),
+      time: nowTime(),
+      type: e.type || 'event',
+      icon: e.icon || '◉',
+      title: e.title || '',
+      detail: e.detail || '',
+      target: e.target || 'briefing'
+    });
+    store.set('worldEvents', a.slice(0, 60));
+    EnvLog.push('世界事件 · ' + (e.title || '新动态'));
+  },
+
+  /* 四类世界事件：全走模型实时判定输出，无兜底模板 */
+  EVENTS: [
+    // 1. 托尼深夜消息 / 突发私信（仅在有 Key 时由 AI 判定生成）
+    {
+      id: 'tonyLateMsg',
+      icon: '🌙',
+      cooldownMs: 360000,
+      weight: 2.5,
+      when() {
+        return !!apiCfg('social').apiKey;
       },
-      deliver(p){
-        const s=Stock.d();s.prev=s.p;s.p=+(s.p*(1+(p.up?1:-1)*p.pct/100)).toFixed(2);
-        s.hist.unshift({p:s.p,t:nowTime()});s.hist=s.hist.slice(0,30);s.t=Date.now();store.set('stock',s);
-        const txt=`NYSE: SIK $${s.p.toFixed(2)} · ${p.up?'▲':'▼'} ${p.pct}% · ${p.dir}`;
-// 尝试用 API 补一句分析师口径的一句话摘要
-(async()=>{try{
-  const line=await ai([{role:'user',content:`斯塔克工业股价${p.up?'上涨':'下跌'} ${p.pct}%，以分析师口径写一句 20 字以内的市场点评。只输出一句话。`}],
-    buildSystem('terminal'),'');
-  if(line&&line.trim()){
-    const ev=store.get('worldEvents',[]);const last=ev[0];
-    if(last&&last.type==='stock')last.detail=txt+' · '+line.trim().slice(0,30);
-    store.set('worldEvents',ev);
-  }
-}catch(e){}})();
-        EventEngine.record({type:'stock',icon:p.up?'📈':'📉',title:'斯塔克工业 · 股价异动',detail:txt,target:'briefing'});
-        notifyBanner('斯塔克工业 · 行情推送',txt,()=>openApp('briefing'));
-      }},
-    {id:'prCrisis',icon:'⚠️',cooldownMs:900000,weight:0.5,when(){return true;},
-      build(){
-       const topics=[
-  ['市中心试飞噪音投诉','昨夜 23 时前后，曼哈顿中城多处报告低频爆响。'],
-  ['清洁能源部门预算质疑','多位分析师就清洁能源部门资本开支节奏提出问询。'],
-  ['战甲公开露面争议','一段模糊影像在本地媒体流传，围绕私营企业承担公共安全角色的讨论再度升温。'],
-  ['号角日报头版追问','号角日报以整版篇幅要求「钢铁侠给个说法」。'],
-  ['斯塔克大厦周边交通管制','因不明原因，大厦周边三个街区今晨临时封路 40 分钟。'],
-  ['匿名股东质询函','一封未署名的质询函被送达董事会秘书处，内容涉及研发预算。'],
-  ['清洁能源示范区电压异常','斯塔克工业清洁能源示范区昨日短暂出现电压波动，已恢复。'],
-  ['海外分部人事变动传闻','有媒体报道海外分部高层人事调整，公司尚未确认。'],
-  ['民间组织发起钢铁侠问责请愿','一家民间监督机构在网上发起请愿，要求披露战甲部署记录。'],
-  ['斯塔克工业年度慈善晚宴场地曝光','原定保密的慈善晚宴场地被拍到，公关部正在评估。'],
-];
-        const t=topics[Math.floor(Math.random()*topics.length)];
-        return {title:t[0],desc:t[1],year:flags().year};
+      async deliver() {
+        const f = flags();
+        const p = store.profile() || {};
+        const ch = store.chats();
+        const curAff = (store.contacts().find(x => x.isTony) || {}).affinity || 0;
+        const st = TonyStatus.get();
+        const recent = (ch['托尼·斯塔克'] || []).slice(-4).map(m => (m.role === 'me' ? '我: ' : '托尼: ') + m.content).join('\n');
+
+        const sys = buildSystem('chat', `你现在扮演【托尼·斯塔克】。
+当前是漫威宇宙时间 ${f.year} 年 · ${f.era.name}。
+你此刻的状态：${st.label}（${st.note}）。当前好感度：${curAff}/200。
+【核心指令】：
+根据你此时的疲惫、失眠或正在攻克的技术难题，主动在短信里给玩家（${p.name || '你'}）发一条突发的短信（15~40字）。
+可以是一串代码、对之前争执的反诘、随口的命令、或是掩饰失眠的吐槽。
+严禁动作描写，直接输出简短短信正文。严禁任何模板化套话。`);
+
+        try {
+          const res = await callAI([{ role: 'user', content: `最近交谈：\n${recent || '（暂无）'}\n请按此刻心态发一条消息。` }], sys, 'social');
+          const cleanText = cleanSlur(res || '').replace(/[*"（）()]/g, '').trim();
+          if (!cleanText) return;
+
+          (ch['托尼·斯塔克'] = ch['托尼·斯塔克'] || []).push({
+            role: 'them',
+            who: '托尼·斯塔克',
+            content: cleanText,
+            time: storyMsgTime(),
+            worldEvent: true
+          });
+          store.setChats(ch);
+
+          EventEngine.record({
+            type: 'tony',
+            icon: '🌙',
+            title: '托尼·斯塔克 · 突发消息',
+            detail: cleanText.slice(0, 36) + '…',
+            target: 'messages'
+          });
+
+          notifyBanner('托尼·斯塔克', cleanText, () => {
+            openApp('messages');
+            apps.messages.cur = '托尼·斯塔克';
+            apps.messages.view = 'chat';
+            safeRender('messages', $('#appBody'));
+          });
+        } catch (e) {
+          console.warn('Tony late message AI generation failed, event ignored.');
+        }
+      }
+    },
+
+    // 2. 斯塔克工业股价异动与 AI 研报点评
+    {
+      id: 'stockAlert',
+      icon: '📈',
+      cooldownMs: 240000,
+      weight: 2.0,
+      when() { return true; },
+      async deliver() {
+        const up = Math.random() >= 0.5;
+        const pct = +(1.2 + Math.random() * 4.6).toFixed(2);
+        const s = Stock.d();
+        s.prev = s.p;
+        s.p = +(s.p * (1 + (up ? 1 : -1) * pct / 100)).toFixed(2);
+        s.hist.unshift({ p: s.p, t: nowTime() });
+        s.hist = s.hist.slice(0, 30);
+        s.t = Date.now();
+        store.set('stock', s);
+
+        const txt = `NYSE: SIK $${s.p.toFixed(2)} · ${up ? '▲' : '▼'} ${pct}% · ${up ? '盘中拉升' : '短线跳水'}`;
+        let aiAnalysis = '';
+
+        if (apiCfg('story').apiKey) {
+          try {
+            const f = flags();
+            const sys = buildSystem('terminal', `你是华尔街资深量化分析师。斯塔克工业（SIK）在 ${f.year} 年当前股价${up ? '上涨' : '暴跌'}了 ${pct}%。
+请结合该时期斯塔克工业的主营战略（${f.year <= 2007 ? '军工重组与订单' : '清洁能源转型与公用电网'}），写一句 20 字以内的犀利盘面分析。只输出这一句话。`);
+            aiAnalysis = await callAI([{ role: 'user', content: '输出分析短评。' }], sys, 'summary');
+            aiAnalysis = cleanSlur(aiAnalysis || '').replace(/[*"“”]/g, '').trim();
+          } catch (e) {}
+        }
+
+        const fullDetail = aiAnalysis ? `${txt}（${aiAnalysis}）` : txt;
+        EventEngine.record({ type: 'stock', icon: up ? '📈' : '📉', title: '斯塔克工业 · 股价异动', detail: fullDetail, target: 'briefing' });
+        notifyBanner('斯塔克工业 · 行情推送', fullDetail, () => openApp('briefing'));
+      }
+    },
+
+    // 3. 复仇者频道突发呼叫 / @ 互动
+    {
+      id: 'avengersCall',
+      icon: '🛡️',
+      cooldownMs: 420000,
+      weight: 1.8,
+      when() {
+        return flags().groupUnlocked && !!apiCfg('social').apiKey;
       },
-      deliver(p){
-        const arr=store.get('news',[]);
-        arr.unshift({id:'n'+Math.random().toString(36).slice(2,9),source:'nyt',date:worldDate(),year:p.year,
-          kicker:'WORLD EVENT · 舆情突发',title:'【突发】'+p.title,
-          lead:p.desc,body:p.desc+'\n\n斯塔克工业公关部沿用统一口径：不予置评；如收到媒体求证，请直接转交本部处理。\n\n截至发稿，公司未公布进一步说明。',
-          ednote:'编者按：本条由世界事件引擎生成，仅含可公开信息；受限条目依权限未列出。'});
-        store.set('news',arr);
-        const l=mailAll();l.unshift({id:'m'+Math.random().toString(36).slice(2,9),owner:'user',box:'in',
-          from:'斯塔克工业公关部 <pr@starkindustries.com>',to:'you@starkmail.com',
-          subject:'舆情联动 · '+p.title,body:'您好：\n\n今日出现以下舆情，公关部统一口径如下：不予置评；如收到媒体求证，请直接转交本部处理。\n\n'+p.desc+'\n\n—— 系统自动联动（世界事件引擎）',
-          tag:'媒体',unread:true,star:false,time:nowTime(),quote:''});
-        mailSave(l);
-        const ps=store.posts();ps.twitter=ps.twitter||[];
-        ps.twitter.unshift({name:'斯塔克工业观察',handle:'@si_watch',text:'【'+p.title+'】'+p.desc.slice(0,52)+'… @starkindustries 这次出来说一句吗？',
-          likes:Math.floor(Math.random()*160)+12,comments:[],time:nowTime()});
-        store.setPosts(ps);
-        EventEngine.record({type:'crisis',icon:'⚠️',title:'公关危机 · '+p.title,detail:'归档报纸 + 公关部邮件 + Twitter舆论已同步生成',target:'mail'});
-        notifyBanner('公关部 · 舆情突发',p.title,()=>openApp('briefing'));
-      }}
+      async deliver() {
+        const mem = avengersMembers().filter(m => !m.absent && !avCfg().muted.includes(m.name));
+        if (!mem.length) return;
+        const starter = mem[Math.floor(Math.random() * mem.length)];
+        const p = store.profile() || {};
+        const me = p.name || '你';
+        const f = flags();
+
+        const sys = buildSystem('group', `你是复仇者作战频道系统。
+请以【${starter.name}】的人设口吻，在作战频道中主动发出一条短消息（20~35字），内容关于一次临时的巡视、装备问题、基地状况，或是特意 @ 了玩家【${me}】询问意见。
+格式严格为：${starter.name} ||| 消息内容
+${avNoPlayerRule()}`);
+
+        try {
+          const r = await callAI([{ role: 'user', content: `请以 ${starter.name} 口吻发一条群消息。` }], sys, 'social');
+          const lines = avStripPlayer(String(r || '').split('\n').filter(l => l.includes('|||')));
+          if (!lines.length) return;
+          const [speakerName, content] = lines[0].split('|||').map(x => x.trim());
+          if (!content) return;
+
+          apps.avengers.push(speakerName, content, { auto: true });
+          EventEngine.record({
+            type: 'group',
+            icon: '🛡️',
+            title: `复仇者频道 · ${speakerName} 发言`,
+            detail: content.slice(0, 36) + '…',
+            target: 'avengers'
+          });
+
+          notifyBanner(starter.short, content, () => openApp('avengers'));
+        } catch (e) {}
+      }
+    },
+
+    // 4. 公关危机 / 突发舆情（AI 依据时代生成完整连锁事实，无假预设）
+    {
+      id: 'prCrisis',
+      icon: '⚠️',
+      cooldownMs: 900000,
+      weight: 1.0,
+      when() {
+        return !!apiCfg('story').apiKey;
+      },
+      async deliver() {
+        const f = flags();
+        const timeLock = getNewsTimeLock(f.year);
+
+        const sys = buildSystem('news', `你是纽约媒体突发热点分析机。
+根据当前公元年【${f.year} 年 · ${f.era.name}】的历史约束：
+${timeLock.allowedContext}
+设计一起突发的斯塔克工业舆情或公关争议。
+格式必须严格按三行输出：
+标题 ||| 80字左右详细事件说明 ||| 公关部对内部员工的指示声明`);
+
+        try {
+          const r = await callAI([{ role: 'user', content: `请生成 ${f.year} 年的一起突发公关危机。` }], sys, 'story');
+          const p = String(r || '').split('|||').map(x => cleanSlur(x.trim()));
+          if (p.length < 3) return;
+
+          const [title, desc, prOrder] = p;
+
+          // 同步记入报纸
+          const arr = store.get('news', []);
+          arr.unshift({
+            id: 'n' + Math.random().toString(36).slice(2, 9),
+            source: 'nyt',
+            date: worldDate(),
+            year: f.year,
+            kicker: 'BREAKING · 突发舆情',
+            title: '【突发】' + title,
+            lead: desc,
+            body: desc + '\n\n' + prOrder,
+            ednote: '编者按：本条依据突发事件现场记录归档。'
+          });
+          store.set('news', arr);
+
+          // 同步记入公关邮件
+          const l = mailAll();
+          l.unshift({
+            id: 'm' + Math.random().toString(36).slice(2, 9),
+            owner: 'user',
+            box: 'in',
+            from: '斯塔克工业公关部 <pr@starkindustries.com>',
+            to: 'you@starkmail.com',
+            subject: '【突发舆情通报】' + title,
+            body: `全体知悉：\n\n关于今晨发生的事件（${title}）：\n${desc}\n\n公关部统一指示如下：\n${prOrder}\n\n请严格遵守保密红线，不得擅自对媒体表态。`,
+            tag: '媒体',
+            unread: true,
+            star: true,
+            time: nowTime(),
+            quote: ''
+          });
+          mailSave(l);
+
+          // 记入 Twitter
+          const ps = store.posts();
+          ps.twitter = ps.twitter || [];
+          ps.twitter.unshift({
+            name: '纽约观察',
+            handle: '@ny_observer',
+            text: `【突发关注】${title}。${desc.slice(0, 60)}… @StarkIndustries`,
+            likes: Math.floor(Math.random() * 80) + 10,
+            comments: [],
+            time: nowTime()
+          });
+          store.setPosts(ps);
+
+          EventEngine.record({
+            type: 'crisis',
+            icon: '⚠️',
+            title: '公关危机 · ' + title,
+            detail: desc.slice(0, 40) + '…（已同步生成邮件与报道）',
+            target: 'mail'
+          });
+
+          notifyBanner('公关部 · 突发通报', title, () => openApp('briefing'));
+        } catch (e) {}
+      }
+    }
   ],
-  /* 按真实时间间隔掷骰：由 EnvLog.tick / setInterval 驱动，用户不操作时世界仍运转 */
-  roll(source){
-    try{
-      const c=this.CONFIG;
-      if(!c.enabled||!store.state()||document.hidden)return;
-      const now=Date.now();
-      if(now-(store.get('lastWorldEventAt',0)||0)<c.minGapMs)return;
-      if(Math.random()>c.rollChance)return;
-      const pool=this.EVENTS.filter(e=>{try{return !e.when||e.when();}catch(x){return false;}});
-      if(!pool.length)return;
-      const total=pool.reduce((a,e)=>a+(typeof e.weight==='function'?e.weight():e.weight),0);
-      let r=Math.random()*total,pick=pool[pool.length-1];
-      for(const e of pool){r-=typeof e.weight==='function'?e.weight():e.weight;if(r<=0){pick=e;break;}}
-      const cd=store.get('eventCooldown',{});
-      if(now-(cd[pick.id]||0)<(pick.cooldownMs||c.minGapMs))return;
-      store.set('lastWorldEventAt',now);cd[pick.id]=now;store.set('eventCooldown',cd);
-      this.deliver(pick.id,pick.build());
-    }catch(e){console.warn('EventEngine.roll:',e);}
+
+  /* 引擎心跳周期推进 */
+  roll(source) {
+    try {
+      const c = this.CONFIG;
+      if (!c.enabled || !store.state() || document.hidden) return;
+      const now = Date.now();
+      if (now - (store.get('lastWorldEventAt', 0) || 0) < c.minGapMs) return;
+      if (Math.random() > c.rollChance) return;
+
+      const pool = this.EVENTS.filter(e => {
+        try { return !e.when || e.when(); } catch (x) { return false; }
+      });
+      if (!pool.length) return;
+
+      const total = pool.reduce((a, e) => a + (typeof e.weight === 'function' ? e.weight() : e.weight), 0);
+      let r = Math.random() * total, pick = pool[pool.length - 1];
+      for (const e of pool) {
+        r -= (typeof e.weight === 'function' ? e.weight() : e.weight);
+        if (r <= 0) { pick = e; break; }
+      }
+
+      const cd = store.get('eventCooldown', {});
+      if (now - (cd[pick.id] || 0) < (pick.cooldownMs || c.minGapMs)) return;
+
+      store.set('lastWorldEventAt', now);
+      cd[pick.id] = now;
+      store.set('eventCooldown', cd);
+
+      pick.deliver();
+    } catch (e) {
+      console.warn('EventEngine.roll:', e);
+    }
   },
-  deliver(id,payload){const e=this.EVENTS.find(x=>x.id===id);if(e&&e.deliver)e.deliver(payload);},
-  /* 可配置连锁事件：报纸 → 邮件 → Twitter → 短信（由 chainFromNews 调用） */
-  runChain(key,ctx){
-    const c=this.CONFIG;
-    if(!c.enabled||!c.chain.enabled)return;
-    if(Math.random()>c.chain.chance)return;
-    const n=(ctx&&ctx.news)||{},title=n.title||'该报道',steps=c.chain.steps;
-    const at=(ms,fn)=>{if(ms<0)return;setTimeout(()=>{try{fn();}catch(e){console.warn('EventEngine chain:',e);}},ms);};
-    at(steps.mail,()=>{
-      const l=mailAll();l.unshift({id:'m'+Math.random().toString(36).slice(2,9),owner:'user',box:'in',
-        from:'斯塔克工业公关部 <pr@starkindustries.com>',to:'you@starkmail.com',
-        subject:'舆情联动 · 关于《'+String(title).slice(0,20)+'》',
-        body:['您好：\n\n公关部注意到今日报道。统一口径：不予置评。\n\n—— 公关部',
-  '已收到关于《'+String(title).slice(0,16)+'》的舆情通知。依流程转交处理，无需回复。\n\n—— 公关部',
-  '今日媒体问询已归档。既定口径不变，请勿自行回应。\n\n—— 斯塔克工业 · 公关部'][Math.floor(Math.random()*3)],
-        tag:'媒体',unread:true,star:false,time:nowTime(),quote:''});
-      mailSave(l);
-      this.record({type:'chain',icon:'✉️',title:'连锁事件 · 公关部联动邮件',detail:'关于《'+String(title).slice(0,18)+'…》',target:'mail'});
-      banner('邮件 · 连锁事件','公关部就《'+String(title).slice(0,16)+'…》发出联动通知',()=>openApp('mail'));
-    });
-    at(steps.tweet,()=>{
-      const ps=store.posts();ps.twitter=ps.twitter||[];
-      ps.twitter.unshift({name:'号角日报读者',handle:'@bugle_fan',
-        text:['刚看完《'+String(title).slice(0,20)+'》，这次又是什么情况？@starkindustries',
-  '有人能解释一下《'+String(title).slice(0,18)+'》到底说了什么吗',
-  '看了今天的报道。说真的，每次都是「不予置评」？@starkindustries'][Math.floor(Math.random()*3)],
-        likes:Math.floor(Math.random()*80)+5,comments:[],time:nowTime()});
-      store.setPosts(ps);
-      this.record({type:'chain',icon:'𝕏',title:'连锁事件 · 网友开始转发报道',detail:String(title).slice(0,30),target:'twitter'});
-      banner('Twitter · 连锁事件','网友开始转发这篇报道',()=>openApp('twitter'));
-    });
-    at(steps.sms,()=>{
-      const ch=store.chats(),from=Math.random()<0.5?'哈皮':'罗迪';
-      (ch[from]=ch[from]||[]).push({role:'them',who:from,
-        content:from==='哈皮'?['报纸看了吗。楼下记者又多了。','今天别走正门，换侧门。原因不记录。','车挪到地下了。别问为什么。'][Math.floor(Math.random()*3)]
-  :['看到新闻了。帮我跟他说一声。','这次的报道我要写报告，你提前知会他。','下次试飞前说一声，我这边有程序要走。'][Math.floor(Math.random()*3)],
-        time:nowTime(),worldEvent:true});
-      store.setChats(ch);
-      this.record({type:'chain',icon:'💬',title:'连锁事件 · '+from+' 发来短信',detail:'就今天的报道发来一条消息',target:'messages'});
-      banner('短信 · '+from,'就今天的报道发来一条消息',()=>{openApp('messages');apps.messages.cur=from;apps.messages.view='chat';safeRender('messages', $('#appBody'));});
-    });
-    this.record({type:'chain',icon:'📰',title:'出刊 · '+String(title).slice(0,22),detail:'报纸已生成，连锁事件（邮件 / Twitter / 短信）将在之后陆续抵达',target:'news'});
+
+  /* 真实的连锁推演：必须依赖模型根据报道标题即时撰写公关与推特 */
+  runChain(key, ctx) {
+    const c = this.CONFIG;
+    if (!c.enabled || !c.chain.enabled) return;
+    if (Math.random() > c.chain.chance) return;
+    if (!apiCfg('story').apiKey) return;
+
+    const n = (ctx && ctx.news) || {};
+    const title = n.title || '今日焦点报道';
+    const steps = c.chain.steps;
+
+    // 1. 公关邮件连锁
+    setTimeout(async () => {
+      try {
+        const sys = buildSystem('mail', `你是斯塔克工业公关部。针对报纸今天刊登的头条《${title}》，以公关部的严谨、推诿、官方公文口吻撰写一封对内同步邮件（120~200字）。要求明确重申“不予置评”或公关切割口径。`);
+        const mailContent = await callAI([{ role: 'user', content: '请撰写该邮件。' }], sys, 'story');
+        if (!mailContent) return;
+
+        const l = mailAll();
+        l.unshift({
+          id: 'm' + Math.random().toString(36).slice(2, 9),
+          owner: 'user',
+          box: 'in',
+          from: '斯塔克工业公关部 <pr@starkindustries.com>',
+          to: 'you@starkmail.com',
+          subject: '舆情通告 · 关于《' + title.slice(0, 18) + '》',
+          body: cleanSlur(mailContent),
+          tag: '媒体',
+          unread: true,
+          star: false,
+          time: nowTime(),
+          quote: title
+        });
+        mailSave(l);
+        EventEngine.record({ type: 'chain', icon: '✉️', title: '连锁事件 · 公关部联动邮件', detail: '关于《' + title.slice(0, 18) + '…》', target: 'mail' });
+        notifyBanner('邮件 · 连锁事件', '公关部就最新报道发来内部通报', () => openApp('mail'));
+      } catch (err) {}
+    }, steps.mail);
+
+    // 2. Twitter 讨论连锁
+    setTimeout(async () => {
+      try {
+        const sys = buildSystem('social', `针对媒体报道《${title}》，写一条普通市民或行业分析师的 Twitter 吐槽或质询（40~80字），带符合 ${flags().year} 年的网络质感。只输出推文文本。`);
+        const tweetText = await callAI([{ role: 'user', content: '撰写推文。' }], sys, 'social');
+        if (!tweetText) return;
+
+        const ps = store.posts();
+        ps.twitter = ps.twitter || [];
+        ps.twitter.unshift({
+          name: '曼哈顿早报读者',
+          handle: '@metro_watcher',
+          text: cleanSlur(tweetText).replace(/[*"“”]/g, ''),
+          likes: Math.floor(Math.random() * 60) + 8,
+          comments: [],
+          time: nowTime()
+        });
+        store.setPosts(ps);
+        EventEngine.record({ type: 'chain', icon: '𝕏', title: '连锁事件 · 舆论热议', detail: title.slice(0, 24) + '…', target: 'twitter' });
+      } catch (err) {}
+    }, steps.tweet);
+
+    // 3. 伙伴短信质询
+    setTimeout(async () => {
+      try {
+        const from = Math.random() < 0.5 ? '哈皮' : '罗迪';
+        const sys = buildSystem('chat', `你扮演【${from}】。你看到了今天的新闻头条《${title}》。
+请以你的角色性格，给玩家发 1 条简短私信（15~35字），询问情况或者吐槽这篇报道。严禁动作描写，直接输出消息。`);
+        const smsText = await callAI([{ role: 'user', content: '发私信。' }], sys, 'social');
+        if (!smsText) return;
+
+        const cleanMsg = cleanSlur(smsText).replace(/[*"（）()]/g, '').trim();
+        const ch = store.chats();
+        (ch[from] = ch[from] || []).push({ role: 'them', who: from, content: cleanMsg, time: storyMsgTime(), worldEvent: true });
+        store.setChats(ch);
+
+        EventEngine.record({ type: 'chain', icon: '💬', title: `连锁事件 · ${from} 发来短信`, detail: cleanMsg, target: 'messages' });
+        notifyBanner(`短信 · ${from}`, cleanMsg, () => {
+          openApp('messages');
+          apps.messages.cur = from;
+          apps.messages.view = 'chat';
+          safeRender('messages', $('#appBody'));
+        });
+      } catch (err) {}
+    }, steps.sms);
   },
-  /* 时间跳跃的阶段性世界大事简报（由 doTimeJump 调用）：归档报纸 + 邮件 + 事件日志 */
-  flashBrief(e,ctx){
-    if(!this.CONFIG.flash.enabled)return;
-    const from=ctx.fromYear,to=ctx.toYear,crossed=ctx.crossed||[];
-    const arr=store.get('news',[]);
-    arr.unshift({id:'n'+Math.random().toString(36).slice(2,9),source:'nyt',date:to+' 年 · 归档',year:e.year,
-      kicker:'FLASHBACK · 历史突发简报',title:'【历史突发】'+e.title+'（'+e.year+'）',
-      lead:'本简报为时间跳跃后的阶段性归档：跨越 '+from+' → '+to+' 年间被记入世界线的大事。',
-      body:e.desc+'\n\n同期归档：\n'+crossed.map(x=>'· '+x.year+' '+x.title+'：'+x.desc).join('\n'),
-      ednote:'归档口径：只收录已成为公开历史的事件；受限条目依权限未列出。'});
-    store.set('news',arr);
-    const l=mailAll();l.unshift({id:'m'+Math.random().toString(36).slice(2,9),owner:'user',box:'in',
-      from:'J.A.R.V.I.S. <jarvis@starkindustries.com>',to:'you@starkmail.com',
-      subject:'历史突发简报 · '+e.title+'（'+e.year+'）',
-      body:'先生／女士：\n\n时间校准已完成（'+from+' → '+to+'）。以下为跨越期间的世界大事归档（可公开部分）：\n\n'+e.desc+'\n\n斯塔克先生的适龄状态已重算。其余条目依权限未列出。\n\nJ.A.R.V.I.S.',
-      tag:'简报',unread:true,star:false,time:nowTime(),quote:''});
+
+  flashBrief(e, ctx) {
+    if (!this.CONFIG.flash.enabled) return;
+    const from = ctx.fromYear, to = ctx.toYear;
+    const l = mailAll();
+    l.unshift({
+      id: 'm' + Math.random().toString(36).slice(2, 9),
+      owner: 'user',
+      box: 'in',
+      from: 'J.A.R.V.I.S. <jarvis@starkindustries.com>',
+      to: 'you@starkmail.com',
+      subject: `历史突发简报 · ${e.title}（${e.year}）`,
+      body: `先生／女士：\n\n时间跳跃校准已完成（${from} → ${to}）。\n期间核心历史事件【${e.title}】已完成归档：\n${e.desc}\n\n相关档案已载入报纸与记忆库。`,
+      tag: '简报',
+      unread: true,
+      star: false,
+      time: nowTime(),
+      quote: ''
+    });
     mailSave(l);
-    this.record({type:'brief',icon:'⏩',title:'历史突发简报 · '+e.title+'（'+e.year+'）',
-      detail:'时间校准 '+from+' → '+to+' · 归档报纸与简报邮件已送达',target:'news'});
+    this.record({ type: 'brief', icon: '⏩', title: '历史简报 · ' + e.title, detail: `时间校准 ${from} → ${to}`, target: 'news' });
   }
 };
 EventEngine.init();
@@ -10886,37 +11138,91 @@ apps.mail={title:'邮件',account:'user',folder:'in',cur:null,search:'',
       <button class="btn" id="dr_save">存入托尼的草稿箱</button><button class="btn ghost" data-close style="margin-top:8px">取消</button></div>`);
     d.querySelector('#dr_save').onclick=()=>{const l=mailAll();l.unshift({id:'m'+Math.random().toString(36).slice(2,9),owner:'tony',box:'draft',from:MAIL_ACCOUNTS.tony,to:m.from,subject:'Re: '+m.subject.replace(/^Re:\s*/,''),body:d.querySelector('#dr_b').value,tag:'代拟',unread:false,star:false,time:nowTime(),quote:''});mailSave(l);d.remove();toast('已存入托尼的草稿箱');};
   },
-  async refresh(v){
-    const f=flags();const sys=buildSystem('mail');
-    const n=Math.max(1,Math.min(10,store.get('mailCount',2)));
-    /* 来源池：覆盖我的邮箱 / 托尼邮箱 / 各部门 / 联系人 */
-    const sources=[
-      {ac:'user',from:'斯塔克工业 · 访客事务 <visitor@starkindustries.com>',tag:'系统'},
-      {ac:'user',from:'斯塔克工业 · 公关部 <pr@starkindustries.com>',tag:'媒体'},
-      {ac:'user',from:'J.A.R.V.I.S. <jarvis@starkindustries.com>',tag:'系统'},
-      {ac:'tony',from:'佩珀·波茨 <pepper@starkindustries.com>',tag:'董事会',cond:()=>f.pepperExists},
-      {ac:'tony',from:'詹姆斯·罗德 <j.rhodes@usaf.mil>',tag:'私人'},
-      {ac:'tony',from:'神盾局联络处 <liaison@shield.gov>',tag:'官方'},
-      {ac:'user',from:'托尼·斯塔克 <tony@starkindustries.com>',tag:'私人'},
-      {ac:'tony',from:'号角日报 编辑部 <tips@dailybugle.com>',tag:'媒体'},
-      {ac:'user',from:'彼得·帕克 <p.parker@starkindustries.com>',tag:'实习生',cond:()=>f.year>=2015},
+  async refresh(v) {
+    const f = flags();
+    const c = apiCfg('story');
+    if (!c.apiKey) {
+      toast('未配置 API Key，无法从服务器收取新邮件');
+      return;
+    }
+
+    const n = Math.max(1, Math.min(10, store.get('mailCount', 2)));
+    toast(`正在连线服务器收取 ${n} 封新邮件…`);
+
+    const sources = [
+      { ac: 'user', from: '斯塔克工业 · 访客事务 <visitor@starkindustries.com>', tag: '系统' },
+      { ac: 'user', from: '斯塔克工业 · 公关部 <pr@starkindustries.com>', tag: '媒体' },
+      { ac: 'user', from: `${f.ultronAfter ? 'F.R.I.D.A.Y.' : 'J.A.R.V.I.S.'} <system@starkindustries.com>`, tag: '系统' },
+      { ac: 'tony', from: '佩珀·波茨 <pepper@starkindustries.com>', tag: '董事会', cond: () => f.pepperExists },
+      { ac: 'tony', from: '詹姆斯·罗德 <j.rhodes@usaf.mil>', tag: '私人' },
+      { ac: 'tony', from: '神盾局联络处 <liaison@shield.gov>', tag: '官方' },
+      { ac: 'user', from: '托尼·斯塔克 <tony@starkindustries.com>', tag: '私人' },
+      { ac: 'tony', from: '号角日报 编辑部 <tips@dailybugle.com>', tag: '媒体' },
+      { ac: 'user', from: '彼得·帕克 <p.parker@starkindustries.com>', tag: '实习生', cond: () => f.year >= 2015 }
     ];
-    const promptSources=sources.filter(s=>!s.cond||s.cond()).map((s,i)=>`${i}:账户=${s.ac}/发件人=${s.from}/标签=${s.tag}`).join('\n');
-    const res=await ai([{role:'user',content:`生成 ${n} 封新邮件，分别从下面来源里挑选（可重复，可混搭）。符合 ${f.year} 年的世界状态（小辣椒${f.pepperExists?'存在':'不存在'}、奥创${f.ultronAfter?'事件后':'事件前'}、复联${f.groupUnlocked?'已集结':'未集结'}）。每封内容要符合发件人身份与当前时间点，不得出现未来事件。\n可用来源：\n${promptSources}\n\n格式（每封之间用 ### 分隔）：\n来源序号 ||| 主题 ||| 正文（80~200字，符合发件人语气）`}],sys,
-      ()=>'' /* 取消自动兜底邮件：AI 失败/无 Key 时不生成假邮件 */);
-    const l=mailAll();let cnt=0;
-    res.split('###').forEach(blk=>{const p=blk.trim().split('|||').map(x=>x.trim());
-      if(p.length<3)return;
-      /* 兼容两种格式：① 来源序号|||主题|||正文  ② 账户|||发件人|||标签|||主题|||正文 */
-      let ac,fromAddr,tag,subject,body;
-      if(p.length>=5){ac=p[0].includes('tony')?'tony':'user';fromAddr=p[1];tag=p[2];subject=p[3];body=p[4];}
-      else{
-        const idx=parseInt(p[0]);const s=sources[idx]||sources[0];
-        ac=s.ac;fromAddr=s.from;tag=s.tag;subject=p[1];body=p[2];
+
+    const promptSources = sources.filter(s => !s.cond || s.cond()).map((s, i) => `${i}: 账户=${s.ac}/发件人=${s.from}/标签=${s.tag}`).join('\n');
+    const timeLock = getNewsTimeLock(f.year);
+
+    const sys = buildSystem('mail', `你现在是斯塔克邮件服务器中继网关。
+当前时间锚点：${f.year} 年 · ${f.era.name}。
+历史事实约束：
+${timeLock.allowedContext}
+禁止出现未来事件：${timeLock.forbiddenFuture.join('、')}。
+
+任务：生成 ${n} 封符合收件箱环境的全新真实邮件。
+严格从以下来源中挑选匹配：
+${promptSources}
+
+【输出格式铁律】：
+每封之间严格用 ### 分割，每封内部严格为：
+账户(user或tony) ||| 发件人地址 ||| 标签 ||| 邮件主题 ||| 正文（80~200字，符合发信人专属人设格式，商务/私人/报告风）`);
+
+    try {
+      const res = await callAI([{ role: 'user', content: `请立即生成 ${n} 封符合当前公元年【${f.year} 年】世界状态的邮件，禁止胡编乱造未来事实。` }], sys, 'story');
+      if (!res || !res.trim()) {
+        toast('网络响应为空，未能收取新邮件');
+        return;
       }
-      if(ac==='tony'&&!f.pepperExists&&/佩珀|小辣椒/.test(fromAddr+body))return;
-      l.unshift({id:'m'+Math.random().toString(36).slice(2,9),owner:ac,box:'in',from:fromAddr,to:MAIL_ACCOUNTS[ac],subject,tag,body,unread:true,star:false,time:nowTime(),quote:''});cnt++;});
-    mailSave(l);this.render(v);toast(cnt>0?('收到 '+cnt+' 封新邮件'):'未能收取新邮件 · 请检查 API 配置');
+
+      const l = mailAll();
+      let count = 0;
+
+      res.split('###').forEach(blk => {
+        const pt = blk.trim().split('|||').map(x => cleanSlur(x.trim()));
+        if (pt.length < 5) return;
+        const [ac, fromAddr, tag, subject, body] = pt;
+
+        // 若本宇宙无佩珀，强行拦截任何误生成的佩珀邮件
+        if (!f.pepperExists && /佩珀|小辣椒|波茨|Pepper/i.test(fromAddr + subject + body)) return;
+
+        l.unshift({
+          id: 'm' + Math.random().toString(36).slice(2, 9),
+          owner: ac.includes('tony') ? 'tony' : 'user',
+          box: 'in',
+          from: fromAddr,
+          to: ac.includes('tony') ? MAIL_ACCOUNTS.tony : MAIL_ACCOUNTS.user,
+          subject,
+          tag,
+          body,
+          unread: true,
+          star: false,
+          time: nowTime(),
+          quote: ''
+        });
+        count++;
+      });
+
+      if (count > 0) {
+        mailSave(l);
+        this.render(v);
+        toast(`✅ 成功收取 ${count} 封新邮件`);
+      } else {
+        toast('邮件格式解析失败，未能收取');
+      }
+    } catch (err) {
+      toast('收取邮件请求失败：' + err.message);
+    }
   },
   /* 写一封"我"主动发出的私人邮件（写入已发送，并触发对方回复） */
   seedFromMe(v){
