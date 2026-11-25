@@ -4174,16 +4174,36 @@ ${store.get('cfgTab','story')==='story'?`<div class="field"><label>温度（留�
         <label class="switch"><input type="checkbox" id="s_av1" ${f.groupUnlocked?'checked':''}><span class="slider"></span></label></div>
       <div class="srow"><div><div class="t">AI 主动发消息</div><div class="d">开启后，进入信息 / 群聊时角色会按人设主动发一条短消息。</div></div>
         <label class="switch"><input type="checkbox" id="s_proac" ${store.get('proactive',true)?'checked':''}><span class="slider"></span></label></div>
-        <div class="srow"><div><div class="t">世界事件引擎（真实时间掷骰）</div><div class="d">开启后，托尼深夜消息、股价异动推送、复联频道 @、公关危机会按真实时间间隔在你不操作时继续触发。连锁事件与突发简报同属此引擎。</div></div>
-          <label class="switch"><input type="checkbox" id="s_eveng" ${EventEngine.CONFIG.enabled?'checked':''}><span class="slider"></span></label></div>
-        <div class="srow"><div><div class="t">事件频率</div><div class="d">决定每次掷骰的间隔、命中概率与事件最小间隔；暂停后世界保持静止。</div></div></div>
-        <div class="ev-row"><select id="s_evenfreq" class="inp">
-          <option value="low" ${EventEngine.CONFIG.rollChance<=0.2?'selected':''}>低频 · 90 秒 / 20%</option>
-          <option value="normal" ${EventEngine.CONFIG.rollChance>0.2&&EventEngine.CONFIG.rollChance<0.5?'selected':''}>标准 · 55 秒 / 34%</option>
-          <option value="high" ${EventEngine.CONFIG.rollChance>=0.5?'selected':''}>高频 · 30 秒 / 60%</option>
-        </select></div>
-        <div class="hint" style="margin-top:6px">配置表：EventEngine.CONFIG · 连锁链「报纸 → 邮件 → Twitter → 短信」各段延迟可在其中调整。</div>
+        <div class="card">
+  <h3>◉ 世界随机事件引擎（防扣费护盾）</h3>
+  <div class="srow">
+    <div>
+      <div class="t">启用世界随机事件</div>
+      <div class="d">
+        开启后，托尼突发私信、股价异动、复联频道互动等会随机触发。<br>
+        <b style="color:var(--green)">🛡️ 离线保护机制已启用</b>：切到后台、锁屏、关闭页面或断网时<b>立即物理休眠</b>，绝不在后台暗中消耗 AI Token。
+      </div>
     </div>
+    <label class="switch">
+      <input type="checkbox" id="s_eveng" ${store.get('eventEngineActive', true) ? 'checked' : ''}>
+      <span class="slider"></span>
+    </label>
+  </div>
+  
+  <div class="srow" style="margin-top:6px">
+    <div>
+      <div class="t">事件触发频率（仅在活跃停留在页面时生效）</div>
+      <div class="d">控制前台游玩时的推进速度</div>
+    </div>
+  </div>
+  <div class="ev-row" style="margin-top:6px">
+    <select id="s_evenfreq" class="inp">
+      <option value="low" ${EventEngine.CONFIG.rollChance<=0.2?'selected':''}>低频 · 90 秒 / 20%</option>
+      <option value="normal" ${EventEngine.CONFIG.rollChance>0.2&&EventEngine.CONFIG.rollChance<0.5?'selected':''}>标准 · 55 秒 / 34%</option>
+      <option value="high" ${EventEngine.CONFIG.rollChance>=0.5?'selected':''}>高频 · 30 秒 / 60%</option>
+    </select>
+  </div>
+</div>
 <div class="card"><h3>◉ 世界线叙事人称</h3>
   <div class="hint" style="margin-bottom:8px">控制主线剧情如何指代用户。切换后从下一回合剧情开始生效。</div>
   <div class="seg" id="s_narr" style="flex-wrap:wrap">
@@ -4405,7 +4425,19 @@ bindSL('#sl_p','postToDmChance','%');
   q('#s_ultron').querySelectorAll('[data-u]').forEach(b=>b.onclick=()=>{const st=store.state()||{};st.ultronPhase=b.dataset.u;store.setState(st);renderGrid();toast(b.dataset.u==='after'?'奥创事件后 · 幻视代回已启用':'奥创事件前 · 贾维斯在线');apps.settings.render(v);});
   q('#s_av1').onchange=e=>{const st=store.state()||{};st.forceAvengers1=e.target.checked;store.setState(st);renderGrid();apps.settings.render(v);};
   q('#s_proac').onchange=e=>store.set('proactive',e.target.checked);
-  q('#s_eveng').onchange=e=>{EventEngine.CONFIG.enabled=e.target.checked;EventEngine.saveCfg();toast(e.target.checked?'世界事件引擎已开启':'世界事件引擎已暂停');};
+  q('#s_eveng').onchange = e => {
+  const active = e.target.checked;
+  store.set('eventEngineActive', active);
+  EventEngine.CONFIG.enabled = active;
+  EventEngine.saveCfg();
+  if (active) {
+    startEnvTimer();
+    toast('✅ 世界事件已开启（仅在活跃浏览时运行）');
+  } else {
+    stopEnvTimer();
+    toast('🛑 世界事件已彻底关闭');
+  }
+};
   q('#s_evenfreq').onchange=e=>{const m={low:{tickMs:90000,rollChance:0.2,minGapMs:180000},normal:{tickMs:55000,rollChance:0.34,minGapMs:120000},high:{tickMs:30000,rollChance:0.6,minGapMs:60000}}[e.target.value]||{};
     Object.assign(EventEngine.CONFIG,m);EventEngine.saveCfg();startEnvTimer();apps.settings.render(v);toast('事件频率已更新');};
   q('#s_theme').onclick=()=>applyTheme(currentThemeId()==='mist'||currentThemeId()==='malibu'?'graphite':'mist');
@@ -10087,12 +10119,54 @@ const EnvLog={list:[],_i:0,
     try{EventEngine.roll('tick');}catch(e){console.warn('EventEngine.roll',e);}
   },
 };
-let _envTimer=null;
-function startEnvTimer(){
-  clearInterval(_envTimer);
-  _envTimer=setInterval(()=>{if(!document.hidden&&store.state())EnvLog.tick();},EventEngine.CONFIG.tickMs);
+// ====== 替换原来的 startEnvTimer 相关代码 ======
+let _envTimer = null;
+
+function stopEnvTimer() {
+  if (_envTimer) {
+    clearInterval(_envTimer);
+    _envTimer = null;
+  }
 }
-startEnvTimer();
+
+function startEnvTimer() {
+  stopEnvTimer();
+  
+  // 如果用户手动关闭了世界事件，或者当前不在活跃前台，不启动定时器
+  const isEnabled = EventEngine.CONFIG.enabled && store.get('eventEngineActive', true) !== false;
+  if (!isEnabled) return;
+  if (document.hidden || document.visibilityState !== 'visible') return;
+
+  _envTimer = setInterval(() => {
+    // 双重安全防线：只有在可见、聚焦、有状态时才执行
+    if (!document.hidden && document.visibilityState === 'visible' && document.hasFocus() && store.state()) {
+      EnvLog.tick();
+    }
+  }, EventEngine.CONFIG.tickMs);
+}
+
+// 绑定浏览器生命周期事件：切走立即销毁定时器，切回重新激活
+if (!window._envVisibilityBound) {
+  window._envVisibilityBound = true;
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden || document.visibilityState !== 'visible') {
+      stopEnvTimer(); // 用户切走了，物理销毁定时器，100% 杜绝扣费
+    } else {
+      startEnvTimer(); // 用户切回来了，恢复心跳
+    }
+  });
+
+  window.addEventListener('blur', () => {
+    // 窗口失去焦点（切换到其他软件或屏幕暗下）
+    stopEnvTimer();
+  });
+
+  window.addEventListener('focus', () => {
+    // 窗口重新获得焦点
+    startEnvTimer();
+  });
+}
 
 /* 斯塔克工业股价（SIK · 本机模拟行情，涨红跌绿） */
 const Stock={
