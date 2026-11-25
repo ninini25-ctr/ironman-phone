@@ -2884,6 +2884,8 @@ async function ai(messages, system, fallback, kind, onProgress) {
     console.error('AI Call Error:', e);
     const _h = classifyAPIError(e, apiCfg(kind || 'story'));
     toast(`⚠️ [${_h.code}] ${_h.title}`);
+    // 如果存在兜底内容，则优雅回退，避免未捕获异常使整个应用界面卡死
+    if (fallback) return fb();
     throw e;
   }
 }
@@ -11172,20 +11174,20 @@ apps.mail={title:'邮件',account:'user',folder:'in',cur:null,search:'',
             ${m.tag?`<span class="tag">${esc(m.tag)}</span>`:''}
             <div style="margin-top:6px"><span class="chip" data-quick="${m.id}" style="margin:0">⇄ 转给托尼</span></div></div></div>`).join(''):'<div class="empty">此文件夹暂无邮件。<br>点右上角「写邮件」或下方「刷新」。</div>'}</div>
       <div class="card" style="margin-top:12px"><h3>◉ 收取新邮件</h3>
-        <div class="row" style="align-items:center;margin-bottom:8px">
-          <span class="hint" style="flex:0 0 auto">每次生成</span>
-          <select id="ml_count" class="inp" style="flex:1">
-            ${[1,2,3,5,8,10].map(n=>`<option value="${n}" ${n===store.get('mailCount',2)?'selected':''}>${n} 封</option>`).join('')}
-          </select>
-        </div>
-        <div class="row"><button class="btn" id="ml_rf">📨 收取新邮件</button><button class="btn ghost sm" id="ml_seed_me">✉️ 写一封我的私人邮件</button></div>
-        <div class="hint" style="margin-top:8px">来源覆盖：我的邮箱、托尼邮箱、斯塔克工业各部门、神盾局、号角日报、佩珀、罗迪、贾维斯/星期五等。<br>回复某封邮件后，对应发件人会在数秒内自动追加一条后续回复（邮件链式对话）。</div></div>
-      <div class="hint" style="text-align:center;margin-top:10px">${en('\'Inbox zero\' is a myth.')} · 任意邮件都可像Twitter一样转载，随时转给托尼并附言。</div>
-    </div>`;
-    v.querySelectorAll('[data-ac]').forEach(b=>b.onclick=()=>{self.account=b.dataset.ac;self.cur=null;self.render(v);});
-    v.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{self.folder=b.dataset.f;self.cur=null;self.render(v);});
-    v.querySelector('#ml_search').oninput=e=>{self.search=e.target.value;const pos=e.target.selectionStart;self.render(v);const i=v.querySelector('#ml_search');i.focus();try{i.setSelectionRange(pos,pos);}catch(_){}};
-    v.querySelector('#ml_rf').onclick=()=>self.refresh(v);
+    <div class="row" style="align-items:center;margin-bottom:8px">
+      <span class="hint" style="flex:0 0 auto">每次生成</span>
+      <select id="ml_count" class="inp" style="flex:1">
+        ${[1,2,3,5,8,10].map(n=>`<option value="${n}" ${n===store.get('mailCount',2)?'selected':''}>${n} 封</option>`).join('')}
+      </select>
+    </div>
+    <div class="row"><button class="btn" id="ml_fetch_new">📨 收取新邮件</button><button class="btn ghost sm" id="ml_seed_me">✉️ 写一封我的私人邮件</button></div>
+    <div class="hint" style="margin-top:8px">来源覆盖：我的邮箱、托尼邮箱、斯塔克工业各部门、神盾局、号角日报、佩珀、罗迪、贾维斯/星期五等。<br>回复某封邮件后，对应发件人会在数秒内自动追加一条后续回复（邮件链式对话）。</div></div>
+  <div class="hint" style="text-align:center;margin-top:10px">${en('\'Inbox zero\' is a myth.')} · 任意邮件都可像Twitter一样转载，随时转给托尼并附言。</div>
+</div>`;
+v.querySelectorAll('[data-ac]').forEach(b=>b.onclick=()=>{self.account=b.dataset.ac;self.cur=null;self.render(v);});
+v.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{self.folder=b.dataset.f;self.cur=null;self.render(v);});
+v.querySelector('#ml_search').oninput=e=>{self.search=e.target.value;const pos=e.target.selectionStart;self.render(v);const i=v.querySelector('#ml_search');i.focus();try{i.setSelectionRange(pos,pos);}catch(_){}};
+v.querySelectorAll('#ml_rf, #ml_fetch_new').forEach(btn => { btn.onclick = () => self.refresh(v); });
     v.querySelector('#ml_count').onchange=e=>{store.set('mailCount',+e.target.value||2);};
     v.querySelector('#ml_seed_me').onclick=()=>self.seedFromMe(v);
     v.querySelector('#ml_fts').onclick=()=>{ftIndexAll();openFTSearch();};
