@@ -1668,19 +1668,17 @@ function setLicenseCode(c) {
     (document.body||document.documentElement).appendChild(box);
     setTimeout(function(){box.remove();},8000);
   }
-  function ignored(msg,err){
-    var s=String(msg||'')+' '+String((err&&err.message)||'')+' '+String((err&&err.name)||'');
-    if(/AbortError|NotAllowedError|ResizeObserver loop|chrome-extension|moz-extension|__soHandled/i.test(s))return true;
-    return !!(err&&err.__soHandled);
-  }
+  function ignored(msg, err) {
+  var s = String(msg || '') + ' ' + String((err && err.message) || '') + ' ' + String((err && err.name) || '');
+  // 屏蔽接口业务报错（401、404、429、网络错误等），让其由业务层 toast 显示，绝不触发 E-BOOT-003
+  if (/AbortError|NotAllowedError|ResizeObserver loop|chrome-extension|moz-extension|Failed to fetch|NetworkError|CORS|__soHandled|401|404|429|500|502|504|无效的令牌|API 报错/i.test(s)) return true;
+  return !!(err && err.__soHandled);
+}
   window.onerror=function(msg,src,line,col,err){
-    var s=String(msg||'');
-    if(ignored(s,err)||/chrome-extension|moz-extension|extension:\/\//i.test(String(src||'')))return true;
-    if(/QuotaExceeded/i.test(s+' '+String((err&&err.name)||''))){report('E-STORE-002','本地存储空间不足，部分设置可能未保存');return true;}
-    if(s==='Script error.'&&!src){report('E-BOOT-001','脚本解析失败 · JS 未执行，请重载页面并复制上方错误码');return true;}
-    report('E-BOOT-003','脚本运行出错，已为你保留可操作界面');
-    return true;
-  };
+  console.error('【未捕获运行时异常】', msg, src, line, col, err);
+  // 不返回 true，让控制台与用户能直接捕获真实报错堆栈
+  return false;
+};
   window.addEventListener('unhandledrejection',function(ev){
     var r=ev.reason||{};
     if(ignored('',r)||r.__soHandled)return;
@@ -2182,17 +2180,18 @@ ${recent||'（刚打开对话，还没说什么）'}
 8. 不得出现当前时间点之后才知道的事。`);
 
   try{
-    const r=await callAI(
-      [{role:'user',content:`请写${name}此刻的心声。${context?'情境补充：'+String(context).slice(0,200):''}`}],
-      sys,'social');
-    const txt=cleanSlur(String(r||'')).replace(/^["'「『]|["'」』]$/g,'').trim();
-    if(!txt)return;
-    addHeartVoice(name,txt,context);
-    return txt;
-  }catch(e){
-    // 失败就安静跳过，不产生任何假心声
-    return;
-  }
+  const r=await callAI(
+    [{role:'user',content:`请写${name}此刻的心声。${context?'情境补充：'+String(context).slice(0,200):''}`}],
+    sys,'social');
+  const txt=cleanSlur(String(r||'')).replace(/^["'「『]|["'」』]$/g,'').trim();
+  if(!txt)return;
+  addHeartVoice(name,txt,context);
+  return txt;
+}catch(e){
+  console.error(`[心声生成失败: ${name}]`, e);
+  // 如果是网络或者API错误，直接在控制台输出真实错误，不静默挂起
+  return;
+ }
 }
 /* 心声弹窗：随对话自动生成时浮层显示 */
 function showHeartPopup(name,text){
@@ -4312,31 +4311,60 @@ bindSL('#sl_p','postToDmChance','%');
 };
   q('#s_eye').onclick=()=>{const i=q('#s_key');i.type=i.type==='password'?'text':'password';};
   q('#s_save').onclick=()=>{readCfg();okBox('✅ 已保存（'+label()+'栏）· Base URL / API Key / 模型已写入本机存储，刷新后保留。');};
-  q('#s_fetch').onclick=async e=>{e.target.textContent='...';readCfg();
-    try{const m=await fetchModels(kind());
-      if(!m.length){toast('接口可达，但未返回模型列表');}
-      else{const sel=document.createElement('select');sel.id='s_model';sel.className='inp';sel.style.flex='1';
-        sel.innerHTML=m.map(x=>`<option${x===(store.cfg()[kind()]||{}).model?' selected':''}>${esc(x)}</option>`).join('');
-        q('#s_model').replaceWith(sel);toast('拉取成功 '+m.length+' 个模型');}
-    }catch(err){toast(err.message);}
-    e.target.textContent='拉取';};
-    q('#s_test').onclick=async e=>{const r=q('#s_res');r.className='hint';r.textContent='测试中…';readCfg();
-    try{
-      if(kind()==='image'){const ms=await fetchModels('image');
-        r.className='so-res-ok';
-        r.textContent='✅ 生图通道连通 · 可用模型 '+ms.length+' 个'+(ms.length?'（如 '+ms[0]+'）':'');}
-      else{const res=await callAI([{role:'user',content:'只回复两个字：在线'}],'你是测试助手',kind());
-        r.className='so-res-ok';
-        r.textContent='✅ 连通成功（'+label()+'通道）· AI 回复：'+res.slice(0,40);}
-    }catch(err){
-      const h=apiErrorHelp(err.message);
-      r.className='hint';
-      r.innerHTML='<div style="background:rgba(226,54,54,.1);border:1px solid var(--red);border-radius:10px;padding:10px 11px">'
-        +'<div style="color:var(--red);font-weight:700;font-size:12.5px">❌ '+esc(h.code)+' · '+esc(h.title)+'</div>'
-        +'<div style="color:var(--text);font-size:12px;line-height:1.8;margin-top:6px"><b>怎么解决：</b>'+esc(h.fix)+'</div>'
-        +'<div style="color:var(--muted);font-size:10.5px;line-height:1.6;margin-top:7px;word-break:break-all">原始信息：'+esc(err.message)+'</div>'
-        +'</div>';
-    }};
+  q('#s_fetch').onclick = async e => {
+  e.target.textContent = '...';
+  e.target.disabled = true;
+  try {
+    readCfg();
+    const m = await fetchModels(kind());
+    if (!m.length) {
+      toast('接口可达，但未返回模型列表');
+    } else {
+      const sel = document.createElement('select');
+      sel.id = 's_model';
+      sel.className = 'inp';
+      sel.style.flex = '1';
+      sel.innerHTML = m.map(x => `<option${x === (store.cfg()[kind()] || {}).model ? ' selected' : ''}>${esc(x)}</option>`).join('');
+      q('#s_model').replaceWith(sel);
+      toast('拉取成功 ' + m.length + ' 个模型');
+    }
+  } catch (err) {
+    if (err) err.__soHandled = true;
+    toast('拉取失败: ' + (err.message || '网络异常'));
+  } finally {
+    const btn = q('#s_fetch');
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '拉取';
+    }
+  }
+};
+    q('#s_test').onclick = async e => {
+  const r = q('#s_res');
+  r.className = 'hint';
+  r.textContent = '测试中…';
+  try {
+    readCfg();
+    if (kind() === 'image') {
+      const ms = await fetchModels('image');
+      r.className = 'so-res-ok';
+      r.textContent = '✅ 生图通道连通 · 可用模型 ' + ms.length + ' 个' + (ms.length ? '（如 ' + ms[0] + '）' : '');
+    } else {
+      const res = await callAI([{ role: 'user', content: '只回复两个字：在线' }], '你是测试助手', kind());
+      r.className = 'so-res-ok';
+      r.textContent = '✅ 连通成功（' + label() + '通道）· AI 回复：' + res.slice(0, 40);
+    }
+  } catch (err) {
+    if (err) err.__soHandled = true;
+    const h = classifyAPIError(err, apiCfg(kind()));
+    r.className = 'hint';
+    r.innerHTML = '<div style="background:rgba(226,54,54,.1);border:1px solid var(--red);border-radius:10px;padding:10px 11px">'
+      + '<div style="color:var(--red);font-weight:700;font-size:12.5px">❌ [' + esc(h.code) + '] ' + esc(h.title) + '</div>'
+      + '<div style="color:var(--text);font-size:12px;line-height:1.8;margin-top:6px"><b>解决方案：</b>' + esc(h.fix) + '</div>'
+      + '<div style="color:var(--muted);font-size:10.5px;line-height:1.6;margin-top:7px;word-break:break-all">原始报错：' + esc(err.message) + '</div>'
+      + '</div>';
+  }
+};
   // 预设命名改用页内输入框：避免浏览器 prompt() 被拦截或返回 null，导致「点保存却没存」
   const applyPreset=(i)=>{
     const k=kind(),p=((store.cfg()[k]||{}).presets||[])[i];if(!p)return;
@@ -5207,20 +5235,26 @@ if (isPeerBirthdayToday) {
     });
 
 // 检查该角色是否满足主动搭话规则
-const contactObj = store.contacts().find(x=>x.name===self.cur) || {};
+const contactObj = store.contacts().find(x => x.name === self.cur) || {};
 const isProactiveEnabled = (contactObj.proactive !== false) && store.get('proactive', true);
 
 if (isProactiveEnabled && apiCfg('story').apiKey) {
   let shouldTrigger = false;
+  let elapsedMinutes = 0;
   const triggerType = contactObj.proacTrigger || 'immediate';
   const lastMsg = arr[arr.length - 1];
 
   if (!arr.length) {
     shouldTrigger = true;
   } else if (triggerType === 'time' && lastMsg) {
-    const lastTime = new Date(lastMsg.timestamp || Date.now()).getTime();
-    const diffMinutes = (Date.now() - lastTime) / (1000 * 60);
-    if (diffMinutes >= (contactObj.idleMin || 30)) shouldTrigger = true;
+    // 读取真实存储的时间戳；若老数据没有，尝试解析字符串日期
+    const lastTime = lastMsg.timestamp || (lastMsg.time ? new Date(lastMsg.time).getTime() : 0);
+    if (lastTime > 0) {
+      elapsedMinutes = Math.floor((Date.now() - lastTime) / (1000 * 60));
+      if (elapsedMinutes >= (contactObj.idleMin || 30)) {
+        shouldTrigger = true;
+      }
+    }
   } else if (triggerType === 'turn') {
     const curTurn = (store.state() || {}).turn || 1;
     const lastTurn = contactObj.lastChatTurn || 0;
@@ -5230,28 +5264,57 @@ if (isProactiveEnabled && apiCfg('story').apiKey) {
   if (shouldTrigger && !self._triggering) {
     self._triggering = true;
     setTimeout(() => {
-      self.autoHello(v);
+      // 传入已过去的时长，让 AI 模型在开场白中真实提及并吐槽
+      self.autoHello(v, elapsedMinutes);
       self._triggering = false;
-      // 记录当前交谈的世界线回合
       const csList = store.contacts();
-      const targetC = csList.find(x=>x.name===self.cur);
-      if (targetC) { targetC.lastChatTurn = (store.state()||{}).turn || 1; store.setContacts(csList); }
+      const targetC = csList.find(x => x.name === self.cur);
+      if (targetC) { 
+        targetC.lastChatTurn = (store.state() || {}).turn || 1; 
+        store.setContacts(csList); 
+      }
     }, 600);
   }
 }
 },
-  async autoHello(v){
-    const self=this,f=flags();let who=self.cur;
-    if(self.cur==='贾维斯'&&f.ultronAfter)who='幻视';
-    const ch0=store.chats()[self.cur]||[];
-const lastLines=ch0.slice(-4).map(m=>m.content).join(' ║ ');
-const sys=buildSystem('chat',`你现在扮演【${who}】。${castText(who)}\n${isAI(who)?'严守保密铁律。':''}
+  async autoHello(v, elapsedMinutes) {
+  const self = this, f = flags(); let who = self.cur;
+  if (self.cur === '贾维斯' && f.ultronAfter) who = '幻视';
+  const ch0 = store.chats()[self.cur] || [];
+  const lastLines = ch0.slice(-4).map(m => m.content).join(' ║ ');
+
+  // 格式化时间差提示
+  let timeGapPrompt = '';
+  if (elapsedMinutes && elapsedMinutes >= 60) {
+    const hours = (elapsedMinutes / 60).toFixed(1);
+    timeGapPrompt = `【现实时间感知】：距离玩家上次在短信里跟你说话已经过去了整整 ${hours} 个小时（约 ${elapsedMinutes} 分钟）。请在你的简短发言中自然地带出对这段长时间不见/不回复的吐槽、挑刺或关切（例如“失踪人口回归了？”、“你消失了整整 ${hours} 个小时去哪了？”）。`;
+  } else if (elapsedMinutes && elapsedMinutes >= 15) {
+    timeGapPrompt = `【现实时间感知】：距离上次发消息已经过去了 ${elapsedMinutes} 分钟。`;
+  }
+
+  const sys = buildSystem('chat', `你现在扮演【${who}】。${castText(who)}\n${isAI(who) ? '严守保密铁律。' : ''}
+${timeGapPrompt}
 【反重复】最近说过：${lastLines}。本次开场必须用【完全不同】的话题切入，禁止再提实验室/工作台/咖啡/焊点/参数之类已用意象。
-用 1 条短消息自然地主动起话头（不要解释为什么主动发消息）。`);
-    const res=await ai([{role:'user',content:'（玩家刚打开与你的对话，请按人设主动发一条短消息）'}],sys,()=>localReply(who,''),'social');
-    const ch=store.chats();(ch[self.cur]=ch[self.cur]||[]).push({role:'them',who:who==='幻视'?'幻视（代回）':'',content:res.replace(/\*/g,'').trim(),time:nowTime()});store.setChats(ch);
-    if(currentApp==='messages'&&this.view==='chat')Promise.resolve(this.render($('#appBody'))).catch(e=>showErr('E-RENDER-001',{err:e}));
-  },
+用 1 条短消息自然地主动起话头（15~35字，不要解释为什么主动发消息，严禁动作神态描写）。`);
+
+  const res = await ai([{ role: 'user', content: '（玩家刚打开与你的对话，请按人设主动发一条短消息）' }], sys, () => {
+    if (elapsedMinutes >= 60) return `你倒是舍得出现。整整 ${(elapsedMinutes/60).toFixed(1)} 个小时，我还以为你的通讯模块烧坏了。`;
+    return localReply(who, '');
+  }, 'social');
+
+  const ch = store.chats();
+  (ch[self.cur] = ch[self.cur] || []).push({
+    role: 'them',
+    who: who === '幻视' ? '幻视（代回）' : '',
+    content: res.replace(/\*/g, '').trim(),
+    time: storyMsgTime(),
+    timestamp: Date.now()
+  });
+  store.setChats(ch);
+  if (currentApp === 'messages' && this.view === 'chat') {
+    Promise.resolve(this.render($('#appBody'))).catch(e => showErr('E-RENDER-001', { err: e }));
+  }
+},
   addFlow(v){
   const self=this;
   const d=modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:16px">＋ 添加联系人</h2>
@@ -5391,6 +5454,7 @@ const proxyFreq = (typeof freshC.proxyFreq === 'number') ? freshC.proxyFreq : 35
     const defaultBday = getContactBirthday(freshC.name);
     const displayBday = freshC.birthday || defaultBday || '';
     const currentRemark = freshC.remark || '';
+    const proac = freshC.proactive !== false;
 
     const d = modal(`<h2 style="color:var(--cyan);font-size:16px;margin-top:0">${esc(freshC.name)} · 专属联系人档案</h2>
       <div class="card">
@@ -5507,98 +5571,100 @@ d.querySelector('#c_sv').onclick=()=>{
       d.remove();this.view='list';Promise.resolve(this.render($('#appBody'))).catch(e=>showErr('E-RENDER-001',{err:e}));
     };
   },
-      async send(v,text){
-    const self=this,f=flags();self.last=text;
-    let responder=self.cur;
-    const chats=store.chats();const arr=chats[self.cur]||[];
-    arr.push({role:'me',content:text,time:storyMsgTime(),read:false,delivered:true});
-    chats[self.cur]=arr;store.setChats(chats);
-    self.render(v);
-    const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+      async send(v, text) {
+  const self = this, f = flags();
+  self.last = text;
+  let responder = self.cur;
 
-    /* V2 拟真节奏：已读 → 正在输入 → 回复。
-       好感度决定回复延迟：低好感慢回（约 6 秒），高好感秒回（约 0.6 秒）。 */
-    const c0=(store.contacts().find(x=>x.name===self.cur)||{affinity:0});
-    const aff=Math.max(0,Math.min(200,c0.affinity||0));
-    const readDelay=600+Math.round((200-aff)/200*1400);
-    const replyDelay=Math.max(400,Math.round(6200-aff*28));
+  // 立即强制落库玩家发送的消息
+  let chats = store.chats();
+  chats[self.cur] = chats[self.cur] || [];
+  chats[self.cur].push({
+    role: 'me',
+    content: text,
+    time: storyMsgTime(),
+    timestamp: Date.now(),
+    read: false,
+    delivered: true
+  });
+  store.setChats(chats);
+  self.render(v);
 
-    let isTonyProxy=false,proxyAI=f.ultronAfter?'星期五':'贾维斯';
-    let replyPromise;
-    try{
-      const cs=store.contacts();const c=cs.find(x=>x.name===self.cur)||{affinity:0};
-      const recent=arr.slice(-14).map(m=>({role:m.role==='me'?'user':'assistant',content:String(m.content||'')}));
-      let promptExtra=`你现在扮演【${responder}】。${castText(responder)}`;
-      const targetCount=c.replyCount||2;
-      promptExtra+=`\n【回复条数要求】：请务必输出刚好 ${targetCount} 条简短消息，每条之间必须严格用 || 隔开！`;
-     // 动态读取设置中的代回概率（未设置时默认 35%）
-const proxyChance = (typeof c.proxyFreq === 'number' ? c.proxyFreq : 35) / 100;
-isTonyProxy = (self.cur === '托尼·斯塔克') && (Math.random() < proxyChance);
-      if(isTonyProxy){
-        promptExtra+=`\n【重要形式要求】：托尼此时正在忙或者没空打字，由【${proxyAI}】进行语音转文字代录发送！
-代发格式必须严格遵循："｛语音转文字｝……" 的格式。托尼语气带疲惫、自大或吐槽。`;
-      }else if(self.langMode==='zh'){
-        promptExtra+=`\n【当前处于纯中文模式】：严禁输出任何英文句子、英文单词或括号双语！必须全篇输出纯正、地道、带托尼口吻的纯中文短消息！`;
-      }else{
-        promptExtra+=`\n【当前处于英文模式】：原句写成地道简短的英文原句，中文翻译放在后面，格式如：*"English"*（中文解释）。`;
-      }
-// 反重复：把最近 6 条他说过的话扔进 prompt，禁止再提
-const recentThem = arr.filter(m=>m.role==='them' && typeof m.content === 'string' && m.content.trim()).slice(-6).map(m=>m.content).join(' ║ ');
-const bannedTopics = [];
-if(/工作台|车库|咖啡|焊点|参数|扳手|杯沿|实验室|4\s*号台/.test(recentThem))bannedTopics.push('工作台/车库/咖啡/焊点/扳手/4号台/杯沿');
-promptExtra += `\n【严格反重复铁律】你最近已经说过：${recentThem.slice(0,300)}。
-本次回复禁止再用相同话题/物件/比喻。${bannedTopics.length?'尤其禁止再提：'+bannedTopics.join('、')+'。':''}
-话题池（任选一个尚未用过的方向展开）：天气与窗外城市、新闻头条、音乐、电影、刚看到的书、吃的、睡眠、旧回忆、童年、斯塔克工业的某个员工、某次采访、对方的衣服/发型/状态、未来的某个小计划、一个随口想到的问题、刚才的沉默、梦、某个远方的人。
-严禁回合与回合之间复读同一意象。`;
-      promptExtra+=`\n当前好感度：${c.affinity||0}/200。只输出短信内容，严禁动作神态描写，2~3 条可用 || 分隔。`;
-// 向量记忆注入：检索与当前对话相关的往事，防止长对话后 AI 遗忘关键细节
-try{
-  const q=text+' '+recent.slice(-3).map(m=>m.content||'').join(' ');
-  const hits=hybridMemorySearch(q,{finalTop:8,contact:self.cur});
-  if(hits.length){
-        promptExtra+=`\n【向量+关键字混合记忆检索 · 与「${self.cur}」的相关往事】\n`
-      +hits.map((h,i)=>`${i+1}. [${h.item._type} · 评分${h.rating}/5] ${String(h.item.text).slice(0,220).replace(/\s+/g,' ')}`).join('\n')
-      +`\n【绝对隔离铁律】你只知道你和玩家之间发生过的事；严禁提及、暗示、复述玩家与其他任何联系人的聊天内容、细节或关键词。若 prompt 中出现了跨人物信息，视为系统泄漏，必须忽略。`;
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const c0 = (store.contacts().find(x => x.name === self.cur) || { affinity: 0 });
+  const aff = Math.max(0, Math.min(200, c0.affinity || 0));
+  const readDelay = 400;
+  const replyDelay = 600;
+
+  let isTonyProxy = false, proxyAI = f.ultronAfter ? '星期五' : '贾维斯';
+  const proxyChance = (typeof c0.proxyFreq === 'number' ? c0.proxyFreq : 35) / 100;
+  isTonyProxy = (self.cur === '托尼·斯塔克') && (Math.random() < proxyChance);
+
+  const recent = chats[self.cur].slice(-14).map(m => ({
+    role: m.role === 'me' ? 'user' : 'assistant',
+    content: String(m.content || '')
+  }));
+
+  let promptExtra = `你现在扮演【${responder}】。${castText(responder)}`;
+  promptExtra += `\n【回复条数要求】：请务必输出刚好 ${c0.replyCount || 2} 条简短消息，每条之间必须严格用 || 隔开！`;
+  if (isTonyProxy) {
+    promptExtra += `\n【重要形式要求】：由【${proxyAI}】进行语音转文字代录发送！代发格式必须严格遵循："｛语音转文字｝……"`;
+  } else if (self.langMode === 'zh') {
+    promptExtra += `\n【当前处于纯中文模式】：严禁输出任何英文字符，输出纯中文短消息！`;
   }
-}catch(e){}
-      const sys=buildSystem('chat',promptExtra);
-      replyPromise=ai(recent,sys,()=>{
-        if(isTonyProxy)return `｛语音转文字｝好得很，根本没睡。幸好${proxyAI}能打字，否则你话多到斯塔克工业科研部要停工了，你付得起这个吗？`;
-        return localReply(responder,text);
-      },'social');
-    }catch(e){replyPromise=Promise.resolve(null);}
 
-    // ① 已读回执：局部更新，不整块重绘，避免打断输入态
-    await sleep(readDelay);
-    const cc=store.chats(),a0=cc[self.cur]||[];
-    const last=a0.length?a0[a0.length-1]:null;
-    if(last&&last.role==='me'){last.read=true;store.setChats(cc);}
-    const th0=v.querySelector('#thread');
-    if(th0){
-      const marks=th0.querySelectorAll('.read-tick');
-      const mk=marks.length?marks[marks.length-1]:null;
-      if(mk){mk.textContent='已读';mk.classList.remove('pending');}
-      // ② 正在输入（带三点动画）
-      const typing=document.createElement('div');
-      typing.className='bub them typing-bub';typing.id='typing';
-      typing.innerHTML='<i></i><i></i><i></i> 正在输入…';
-      th0.appendChild(typing);th0.scrollTop=th0.scrollHeight;
-    }
+  const sys = buildSystem('chat', promptExtra);
 
-    // ③ 按好感度延迟后落回复
-    await sleep(replyDelay);
-    let res=null;
-    try{res=await replyPromise;}catch(e){res=null;}
-    const t=v.querySelector('#typing');if(t)t.remove();
-    if(!res||!String(res).trim())res=localReply(responder,text);
-        const msgs=cleanSlur(String(res)).split('||').map(x=>x.trim()).filter(Boolean);
-    for(let i=0;i<msgs.length;i++){
-      const ch=store.chats();const a2=ch[self.cur]||[];
-      a2.push({role:'them',who:isTonyProxy?`${proxyAI}代录`:responder,content:msgs[i],time:storyMsgTime()});
-      ch[self.cur]=a2;store.setChats(ch);
-      self.render(v);
-      if(i<msgs.length-1)await sleep(600);
-    }
+  // 显示正在输入状态
+  await sleep(readDelay);
+  chats = store.chats();
+  const curList = chats[self.cur] || [];
+  if (curList.length && curList[curList.length - 1].role === 'me') {
+    curList[curList.length - 1].read = true;
+    store.setChats(chats);
+  }
+  const th0 = v.querySelector('#thread');
+  let typing = null;
+  if (th0) {
+    typing = document.createElement('div');
+    typing.className = 'bub them typing-bub';
+    typing.id = 'typing';
+    typing.innerHTML = '<i></i><i></i><i></i> 正在输入…';
+    th0.appendChild(typing);
+    th0.scrollTop = th0.scrollHeight;
+  }
+
+  // 执行 AI 调用，不加任何兜底，有错立刻 alert
+  let res = '';
+  try {
+    res = await callAI(recent, sys, 'social');
+  } catch (err) {
+    if (typing) typing.remove();
+    alert(`【信息发送失败 · API 直接报错】\n错误原因: ${err.message}\n请检查网络、Base URL 或 API Key。`);
+    throw err; // 直接中断，不吞错、不伪造假回复
+  }
+
+  if (typing) typing.remove();
+  if (!res || !String(res).trim()) {
+    alert('【错误】API 返回文本为空！');
+    return;
+  }
+
+  const msgs = cleanSlur(String(res)).split('||').map(x => x.trim()).filter(Boolean);
+  for (let i = 0; i < msgs.length; i++) {
+    const freshChats = store.chats();
+    freshChats[self.cur] = freshChats[self.cur] || [];
+    freshChats[self.cur].push({
+      role: 'them',
+      who: isTonyProxy ? `${proxyAI}代录` : responder,
+      content: msgs[i],
+      time: storyMsgTime(),
+      timestamp: Date.now()
+    });
+    store.setChats(freshChats);
+    self.render(v);
+    if (i < msgs.length - 1) await sleep(400);
+  }
 
     // ④ 偶发撤回：复用现有撤回 UI（.bub.recalled + 受限日志入口 data-restr）
     if(Math.random()<0.12&&msgs.length){
@@ -9238,10 +9304,25 @@ ${timeLock.allowedContext}
   ],
 
   /* 引擎心跳周期推进 */
+  // ====== 修改后：标准对象方法声明 ======
   roll(source) {
     try {
       const c = this.CONFIG;
-      if (!c.enabled || !store.state() || document.hidden) return;
+      
+      // 1. 全局开关校验（支持用户在设置中一键彻底关闭）
+      if (!c.enabled || store.get('eventEngineActive', true) === false) return;
+
+      // 2. 核心：必须处于登录状态且已完成世界线校时
+      if (!store.state() || !store.profile()) return;
+
+      // 3. 核心：离线与后台检测（标签页离开、浏览器最小化、手机锁屏）
+      if (document.hidden || document.visibilityState !== 'visible' || (typeof document.hasFocus === 'function' && !document.hasFocus())) {
+        return; // 只要用户没有看着当前页面，立刻退出，绝不调用任何 AI 模型！
+      }
+
+      // 4. 网络离线状态检测（断网时不空转请求）
+      if (typeof navigator.onLine === 'boolean' && !navigator.onLine) return;
+
       const now = Date.now();
       if (now - (store.get('lastWorldEventAt', 0) || 0) < c.minGapMs) return;
       if (Math.random() > c.rollChance) return;
@@ -9269,7 +9350,7 @@ ${timeLock.allowedContext}
     } catch (e) {
       console.warn('EventEngine.roll:', e);
     }
-  },
+  }, // 注意末尾逗号，保证下一项 runChain 能正常连接
 
   /* 真实的连锁推演：必须依赖模型根据报道标题即时撰写公关与推特 */
   runChain(key, ctx) {
@@ -14917,7 +14998,7 @@ apps.dating={title:'约饭',_view:'setup',city:0,spot:null,people:[],
     const self=this,f=flags();
     if(!session.story){
       v.innerHTML='<div class="loader"><div class="spin"></div>正在安排席位…</div>';
-            const sys=buildSystem('worldline',`这是一场「约饭」场景。地点：${session.place} / ${session.spot}。同行：${session.people.join('、')}。\n写 ${Math.round(store.get('wlWords',3500)*0.3)} 字左右的场景，符合所有角色人设与当前时间点。托尼迟到八分钟、不道歉、用技术细节岔开话题。地点必须是高端场所或托尼的住宅。\n【对白铁律】每句出声台词必须写成 "English"（中文翻译），旁白用纯中文。\n末尾输出【选项】A. … B. … C. …`);
+            const sys=buildSystem('worldline',`这是一场「约饭」场景。地点：${session.place} / ${session.spot}。同行：${session.people.join('、')}。\n写 ${Math.round(wlWordRange().max*0.3)} 字左右的场景，符合所有角色人设与当前时间点。托尼迟到八分钟、不道歉、用技术细节岔开话题。地点必须是高端场所或托尼的住宅。\n【对白铁律】每句出声台词必须写成 "English"（中文翻译），旁白用纯中文。\n末尾输出【选项】A. … B. … C. …`);
       const r=await ai([{role:'user',content:'请写这场约会的开场。'}],sys,()=>{
         const lead=session.people[0]||'托尼·斯塔克';
         const line=localReply(lead,'');
@@ -14955,7 +15036,7 @@ apps.dating={title:'约饭',_view:'setup',city:0,spot:null,people:[],
     const pick=async(choice)=>{
       const s=store.get('dateSession',session);
       v.innerHTML='<div class="loader"><div class="spin"></div>场景推进中…</div>';
-           const sys=buildSystem('worldline',`继续这场约会。地点：${s.place}/${s.spot}。同行：${s.people.join('、')}。玩家选择：${choice}。写 ${Math.round(store.get('wlWords',3500)*0.25)} 字左右。\n【对白铁律】每句出声台词必须写成 "English"（中文翻译），旁白用纯中文。\n末尾输出【选项】A. … B. … C. …`);
+           const sys=buildSystem('worldline',`继续这场约会。地点：${s.place}/${s.spot}。同行：${s.people.join('、')}。玩家选择：${choice}。写 ${Math.round(wlWordRange().max*0.25)} 字左右。\n【对白铁律】每句出声台词必须写成 "English"（中文翻译），旁白用纯中文。\n末尾输出【选项】A. … B. … C. …`);
       // 如果未配置 API Key，明确弹出提示，而不是直接悄悄进兜底
 if (!apiCfg('story').apiKey) {
   toast('未配置文本 API Key · 正在使用本地默认剧情');
