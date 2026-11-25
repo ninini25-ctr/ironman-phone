@@ -5314,43 +5314,79 @@ if (isProactiveEnabled && apiCfg('story').apiKey) {
 }
 },
   async autoHello(v, elapsedMinutes) {
-  const self = this, f = flags(); let who = self.cur;
-  if (self.cur === '贾维斯' && f.ultronAfter) who = '幻视';
-  const ch0 = store.chats()[self.cur] || [];
-  const lastLines = ch0.slice(-4).map(m => m.content).join(' ║ ');
+    const self = this, f = flags();
+    let who = self.cur;
+    if (self.cur === '贾维斯' && f.ultronAfter) who = '幻视';
+    const ch0 = store.chats()[self.cur] || [];
+    const lastLines = ch0.slice(-4).map(m => m.content).join(' ║ ');
 
-  // 格式化时间差提示
-  let timeGapPrompt = '';
-  if (elapsedMinutes && elapsedMinutes >= 60) {
-    const hours = (elapsedMinutes / 60).toFixed(1);
-    timeGapPrompt = `【现实时间感知】：距离玩家上次在短信里跟你说话已经过去了整整 ${hours} 个小时（约 ${elapsedMinutes} 分钟）。请在你的简短发言中自然地带出对这段长时间不见/不回复的吐槽、挑刺或关切（例如“失踪人口回归了？”、“你消失了整整 ${hours} 个小时去哪了？”）。`;
-  } else if (elapsedMinutes && elapsedMinutes >= 15) {
-    timeGapPrompt = `【现实时间感知】：距离上次发消息已经过去了 ${elapsedMinutes} 分钟。`;
-  }
+    let timeGapPrompt = '';
+    if (elapsedMinutes && elapsedMinutes >= 60) {
+      const hours = (elapsedMinutes / 60).toFixed(1);
+      timeGapPrompt = `【现实时间感知】：距离玩家上次在短信里跟你说话已经过去了整整 ${hours} 个小时（约 ${elapsedMinutes} 分钟）。请在你的简短发言中自然地带出对这段长时间不见/不回复的吐槽、挑刺或关切。`;
+    } else if (elapsedMinutes && elapsedMinutes >= 15) {
+      timeGapPrompt = `【现实时间感知】：距离上次发消息已经过去了 ${elapsedMinutes} 分钟。`;
+    }
 
-  const sys = buildSystem('chat', `你现在扮演【${who}】。${castText(who)}\n${isAI(who) ? '严守保密铁律。' : ''}
+    const sys = buildSystem('chat', `你现在扮演【${who}】。${castText(who)}\n${isAI(who) ? '严守保密铁律。' : ''}
 ${timeGapPrompt}
 【反重复】最近说过：${lastLines}。本次开场必须用【完全不同】的话题切入，禁止再提实验室/工作台/咖啡/焊点/参数之类已用意象。
-用 1 条短消息自然地主动起话头（15~35字，不要解释为什么主动发消息，严禁动作神态描写）。`);
+用 1~2 条短消息自然地主动起话头（每条 15~35 字，多条用 || 分隔，不要解释为什么主动发消息，严禁动作神态描写）。`);
 
-  const res = await ai([{ role: 'user', content: '（玩家刚打开与你的对话，请按人设主动发一条短消息）' }], sys, () => {
-    if (elapsedMinutes >= 60) return `你倒是舍得出现。整整 ${(elapsedMinutes/60).toFixed(1)} 个小时，我还以为你的通讯模块烧坏了。`;
-    return localReply(who, '');
-  }, 'social');
+    let res = '';
+    try {
+      res = await ai(
+        [{ role: 'user', content: '（玩家刚打开与你的对话，请按人设主动发一条短消息）' }],
+        sys,
+        () => {
+          if (elapsedMinutes >= 60) return `你倒是舍得出现。整整 ${(elapsedMinutes/60).toFixed(1)} 个小时，我还以为你的通讯模块烧坏了。`;
+          return localReply(who, '');
+        },
+        'social'
+      );
+    } catch (e) {
+      console.error('[autoHello AI fail]', e);
+      res = localReply(who, '');
+    }
 
-  const ch = store.chats();
-  (ch[self.cur] = ch[self.cur] || []).push({
-    role: 'them',
-    who: who === '幻视' ? '幻视（代回）' : '',
-    content: res.replace(/\*/g, '').trim(),
-    time: storyMsgTime(),
-    timestamp: Date.now()
-  });
-  store.setChats(ch);
-  if (currentApp === 'messages' && this.view === 'chat') {
-    Promise.resolve(this.render($('#appBody'))).catch(e => showErr('E-RENDER-001', { err: e }));
-  }
-},
+    // ===== 三层兜底解析，保证至少有一条非空消息入库 =====
+    const cleaned = cleanSlur(String(res || '')).replace(/\*/g, '').trim();
+    let msgs = cleaned.split('||').map(x => x.trim()).filter(Boolean);
+    if (!msgs.length) {
+      msgs = cleaned.split(/\r?\n/).map(x => x.replace(/^[\-·•\d\.\)\s]+/, '').trim()).filter(Boolean);
+    }
+    if (!msgs.length) {
+      const fb = localReply(who, '') || '…';
+      msgs = [String(fb).replace(/\*/g, '').trim() || '…'];
+    }
+
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    for (let i = 0; i < msgs.length; i++) {
+      const ch = store.chats();
+      ch[self.cur] = ch[self.cur] || [];
+      ch[self.cur].push({
+        role: 'them',
+        who: who === '幻视' ? '幻视（代回）' : who,
+        content: msgs[i],
+        time: storyMsgTime(),
+        timestamp: Date.now()
+      });
+      store.setChats(ch);
+      // 强制渲染：不再被 currentApp / this.view 条件拦住；异常用 try 吞掉不影响下一条
+      try {
+        if (currentApp === 'messages') self.render($('#appBody'));
+      } catch (err) {
+        console.error('[autoHello render fail]', err);
+      }
+      if (i < msgs.length - 1) await sleep(450);
+    }
+    // 兜底再 render 一次，彻底杜绝"入库了但界面未同步"
+    try {
+      if (currentApp === 'messages') self.render($('#appBody'));
+    } catch (err) {
+      console.error('[autoHello final render fail]', err);
+    }
+  },
   addFlow(v){
   const self=this;
   const d=modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:16px">＋ 添加联系人</h2>
@@ -14970,11 +15006,37 @@ function datePlacesFor(){
 }
 apps.dating={title:'约饭',_view:'setup',city:0,spot:null,people:[],
   onBack(){const s=store.get('dateSession',null);if(s&&this._view!=='setup'){this._view='setup';Promise.resolve(this.render(document.getElementById('appBody'))).catch(e=>showErr('E-RENDER-001',{err:e}));return true;}return false;},
+  _safeSession(s){
+    if(!s||typeof s!=='object')return null;
+    if(!Array.isArray(s.history))s.history=[];
+    if(!Array.isArray(s._turnStories))s._turnStories=[];
+    if(!Array.isArray(s.people))s.people=[];
+    if(typeof s.turn!=='number'||s.turn<1)s.turn=1;
+    if(typeof s.story!=='string')s.story='';
+    if(typeof s.options!=='string')s.options='';
+    return s;
+  },
   render(v){
-    const self=this,f=flags();const session=store.get('dateSession',null);
+    const self=this,f=flags();
+    let session=self._safeSession(store.get('dateSession',null));
+    if(session)store.set('dateSession',session);
     $('#actBtn').style.display='none';
-    if(this._view==='date'&&session){this.renderDate(v,session);return;}
-    if(this._view==='result'&&session){this.renderResult(v,session);return;}
+    if(this._view==='date'&&session){
+      Promise.resolve(this.renderDate(v,session)).catch(e=>{
+        console.error('[dating.renderDate fail]',e);
+        showErr('E-RENDER-001',{err:e});
+        self._view='setup';self.render(v);
+      });
+      return;
+    }
+    if(this._view==='result'&&session){
+      Promise.resolve(this.renderResult(v,session)).catch(e=>{
+        console.error('[dating.renderResult fail]',e);
+        showErr('E-RENDER-001',{err:e});
+        self._view='setup';self.render(v);
+      });
+      return;
+    }
     const places=datePlacesFor();
     if(this.city>=places.length)this.city=0;
     const city=places[this.city]||places[0];
@@ -15179,7 +15241,17 @@ if (dtInp && dtInp.value === '（）') {
     setTimeout(() => dtInp.setSelectionRange(1, 1), 10);
   }, { once: true });
 }
-    v.querySelector('#dt_end').onclick=()=>{self._view='result';self.render(v);};
+    v.querySelector('#dt_end').onclick=()=>{
+  const cur=self._safeSession(store.get('dateSession',null));
+  if(!cur){toast('会话已失效');self._view='setup';self.render(v);return;}
+  store.set('dateSession',cur);
+  self._view='result';
+  Promise.resolve(self.renderResult(v,cur)).catch(e=>{
+    console.error('[dating end fail]',e);
+    showErr('E-RENDER-001',{err:e});
+    self._view='setup';self.render(v);
+  });
+};
         // 剧情内独立 5 槽位存读档管理器
     const slotMgrBtn=v.querySelector('#dt_slot_manager');
     if(slotMgrBtn){
@@ -15234,18 +15306,24 @@ if (dtInp && dtInp.value === '（）') {
 
           // 读取
           d.querySelectorAll('[data-dtload]').forEach(b=>{
-            b.onclick=()=>{
-              const idx=+b.dataset.dtload;
-              const target=slots[idx];
-              if(!target||!target.session) return;
-              if(!confirm(`确定读取约饭槽位 ${idx+1}？当前未保存的约会进展将被完全覆盖！`)) return;
-              
-              store.set('dateSession',JSON.parse(JSON.stringify(target.session)));
-              d.remove();
-              toast(`已载入槽位 ${idx+1} · 继续约会`);
-              self.renderDate(v,target.session);
-            };
-          });
+  b.onclick=()=>{
+    const idx=+b.dataset.dtload;
+    const target=slots[idx];
+    if(!target||!target.session) return;
+    if(!confirm(`确定读取约饭槽位 ${idx+1}？当前未保存的约会进展将被完全覆盖！`)) return;
+    const restored=self._safeSession(JSON.parse(JSON.stringify(target.session)));
+    if(!restored){toast('存档已损坏');return;}
+    store.set('dateSession',restored);
+    d.remove();
+    toast(`已载入槽位 ${idx+1} · 继续约会`);
+    self._view='date';
+    Promise.resolve(self.renderDate(v,restored)).catch(e=>{
+      console.error('[dating load fail]',e);
+      showErr('E-RENDER-001',{err:e});
+      self._view='setup';self.render(v);
+    });
+  };
+});
 
           // 删除
           d.querySelectorAll('[data-dtdel]').forEach(b=>{
@@ -15285,10 +15363,12 @@ if (dtInp && dtInp.value === '（）') {
     };
   },
   async renderResult(v,session){
-  const self=this;
-  // 组装完整约会剧情（所有回合）
-  const fullStory=(session._turnStories||[]).map((t,i)=>`【第${i+1}回合】\n${t.story||''}`).join('\n\n');
-  const storyForAI=fullStory||session.story||'';
+const self=this;
+session=self._safeSession(session)||self._safeSession(store.get('dateSession',null));
+if(!session){toast('会话已丢失，返回选择');self._view='setup';self.render(v);return;}
+// 组装完整约会剧情（所有回合）
+const fullStory=(session._turnStories||[]).map((t,i)=>`【第${i+1}回合】\n${t.story||''}`).join('\n\n');
+const storyForAI=fullStory||session.story||'';
   
   v.innerHTML=`<div class="pad">
     <div class="card" style="text-align:center;padding:24px"><div style="font-size:38px">${esc(session.emoji)}</div>
@@ -15329,9 +15409,11 @@ ${storyForAI.slice(0,3500)}
   const comment=parts[2]||'这场约会按部就班地结束了。';
   const moodEmoji=/愉快|好|融洽|亲密/.test(mood)?'☺️':/不愉快|糟|冷|尴尬|踩雷/.test(mood)?'😔':'🙂';
   
-  v.querySelector('#dt_judge_loading').style.display='none';
-  const box=v.querySelector('#dt_judge_result');
-  box.style.display='block';
+  const loading=v.querySelector('#dt_judge_loading');
+if(loading)loading.style.display='none';
+const box=v.querySelector('#dt_judge_result');
+if(!box){console.warn('[dating result DOM gone]');return;}
+box.style.display='block';
   box.innerHTML=`<div style="text-align:center;margin:8px 0 14px">
       <div style="font-size:32px">${moodEmoji}</div>
       <div style="font-family:var(--font-serif);font-size:15px;font-weight:700;margin-top:4px">${esc(mood)}</div>
