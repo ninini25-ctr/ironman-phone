@@ -5680,27 +5680,40 @@ d.querySelector('#c_sv').onclick=()=>{
     throw err; // 直接中断，不吞错、不伪造假回复
   }
 
-  if (typing) typing.remove();
-  if (!res || !String(res).trim()) {
-    alert('【错误】API 返回文本为空！');
-    return;
-  }
+ if (typing) typing.remove();
+if (!res || !String(res).trim()) {
+  alert('【错误】API 返回文本为空！');
+  return;
+}
 
-  const msgs = cleanSlur(String(res)).split('||').map(x => x.trim()).filter(Boolean);
-  for (let i = 0; i < msgs.length; i++) {
-    const freshChats = store.chats();
-    freshChats[self.cur] = freshChats[self.cur] || [];
-    freshChats[self.cur].push({
-      role: 'them',
-      who: isTonyProxy ? `${proxyAI}代录` : responder,
-      content: msgs[i],
-      time: storyMsgTime(),
-      timestamp: Date.now()
-    });
-    store.setChats(freshChats);
-    self.render(v);
-    if (i < msgs.length - 1) await sleep(400);
-  }
+// 清洗后按 || 切分；若切分后全空，则把整段当作一条消息兜底，绝不丢回复
+const cleaned = cleanSlur(String(res)).trim();
+let msgs = cleaned.split('||').map(x => x.trim()).filter(Boolean);
+if (!msgs.length) {
+  // 兜底1：尝试换行切分（有些模型会用换行而非 ||）
+  msgs = cleaned.split(/\r?\n/).map(x => x.replace(/^[\-·•\d\.\)\s]+/, '').trim()).filter(Boolean);
+}
+if (!msgs.length) {
+  // 兜底2：实在切不出来，就整段作为一条
+  msgs = [cleaned];
+}
+
+for (let i = 0; i < msgs.length; i++) {
+  const freshChats = store.chats();
+  freshChats[self.cur] = freshChats[self.cur] || [];
+  freshChats[self.cur].push({
+    role: 'them',
+    who: isTonyProxy ? `${proxyAI}代录` : responder,
+    content: msgs[i],
+    time: storyMsgTime(),
+    timestamp: Date.now()
+  });
+  store.setChats(freshChats);
+  try { self.render(v); } catch (e) { console.error('[chat render fail]', e); }
+  if (i < msgs.length - 1) await sleep(400);
+}
+// 循环结束兜底再渲染一次，杜绝中途 render 异常导致界面未同步
+try { self.render(v); } catch (e) { console.error('[chat final render fail]', e); }
 
     // ④ 偶发撤回：复用现有撤回 UI（.bub.recalled + 受限日志入口 data-restr）
     if(Math.random()<0.12&&msgs.length){
