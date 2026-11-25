@@ -5924,20 +5924,85 @@ try { self.render(v); } catch (e) { console.error('[chat final render fail]', e)
         if(currentApp==='messages'&&self.view==='chat')self.render(v);
       }
     }catch(e){}
-// ★ 社交联动 · 聊天后角色可能顺手发条动态
+// ★ 社交联动 · 聊天后角色可能顺手发条动态（含全套互评评论与点赞）
 try{
   const slc=socialLinkCfg();
   if(slc.enabled&&!isAI(self.cur)&&Math.random()*100<slc.chatToPostChance){
     setTimeout(async()=>{
-      const sys2=buildSystem('social',`你扮演【${self.cur}】，刚和玩家聊过天。顺手在 Twitter 发一条与刚才聊天氛围相关但不直接复述对话的短动态（30~80字，口语化，符合 ${flags().year} 年的网络语境）。只输出推文正文，不要引号。`);
-      const tx=await ai([{role:'user',content:`刚才聊了：${text.slice(0,80)}\n对方回复氛围：${self.cur}`}],sys2,
+      const posterName = self.cur;
+      const sys2=buildSystem('social',`你扮演【${posterName}】，刚和玩家聊过天。顺手在 Twitter 发一条与刚才聊天氛围相关但不直接复述对话的短动态（30~80字，口语化，符合 ${flags().year} 年的网络语境）。只输出推文正文，不要引号。`);
+      const tx=await ai([{role:'user',content:`刚才聊了：${text.slice(0,80)}\n发帖人：${posterName}`}],sys2,
         ()=>'今晚的实验室比平时安静一档。没什么特别的——只是记一下。','social');
-      const ps=store.posts();ps.twitter=ps.twitter||[];
-      ps.twitter.unshift({name:self.cur,handle:'@'+self.cur.replace(/[·\s]/g,'').slice(0,10),
-        text:tx.replace(/^["'"']|["'"']$/g,'').trim(),likes:Math.floor(Math.random()*80)+10,comments:[],time:nowTime()});
+      
+      const cleanPostText = tx.replace(/^["'“‘]|["'”’]$/g,'').trim();
+      const meName = store.profile().name || '我';
+      const otherContacts = visibleContacts().map(c=>c.name).filter(n=>n !== posterName && n !== meName);
+      
+      // 1. 先生成动态并推入库
+      const postObj = {
+        name: posterName,
+        handle: '@' + posterName.replace(/[·\s]/g,'').toLowerCase().slice(0,10),
+        text: cleanPostText,
+        likes: Math.floor(Math.random() * 80) + 18,
+        liked: false,
+        comments: [],
+        time: nowTime()
+      };
+
+      const ps=store.posts();
+      ps.twitter=ps.twitter||[];
+      ps.twitter.unshift(postObj);
       store.setPosts(ps);
-      banner('𝕏 社交联动',self.cur+' 顺手发了一条动态',()=>openApp('twitter'));
-    },4000+Math.random()*6000);
+
+      banner('𝕏 社交联动', posterName + ' 顺手发了一条动态', ()=>openApp('twitter'));
+
+      // 2. 紧接着驱动 AI 生成 3~5 条评论（包含具名英雄之间的互评）
+      try {
+        const commentCount = Math.floor(Math.random() * 3) + 3; // 3~5 条
+        const sysComments = buildSystem('social', `社交平台 Twitter 上，【${posterName}】发了一条新推文：“${cleanPostText}”。
+请生成 ${commentCount} 条评论。
+【互评要求】：
+1. 评论者主要从以下在册英雄角色中挑选：${otherContacts.slice(0, 6).join('、')}，以及 1~2 位带有真实网感英文 ID 的普通网友（如 @arc_reactor_stan、@queens_guy）；
+2. 其中至少有 2 条必须是具名英雄之间的直接互评对话（例如角色 A 调侃/质问发帖人，角色 B 紧接着回复角色 A 拆台）；
+3. 严格遵循每行一条格式：发件人 ||| 内容（15~35字）；
+4. 评论者绝对不能包含玩家本人「${meName}」。`);
+
+        const commentRes = await ai(
+          [{ role: 'user', content: `请为【${posterName}】的这条动态生成评论区互评互动。` }],
+          sysComments,
+          () => {
+            const c1 = otherContacts[0] || '托尼·斯塔克';
+            const c2 = otherContacts[1] || '史蒂夫·罗杰斯';
+            return `${c1} ||| 看来有人终于愿意离开通讯界面了？\n${c2} ||| 我们刚才在简报室说的事情你还没签字。\n${c1} ||| @${c2} 别扫兴，队长，他难得发一次动态。\n@ny_watcher_99 ||| 前排围观复联日常打卡！`;
+          },
+          'social'
+        );
+
+        const newComments = [];
+        String(commentRes).split('\n').filter(l => l.includes('|||')).slice(0, commentCount).forEach(l => {
+          const [u, ctext] = l.split('|||').map(x => x.trim());
+          if (u && ctext && u !== meName) {
+            newComments.push({ user: u, text: ctext });
+          }
+        });
+
+        // 写入评论并持久化
+        if (newComments.length) {
+          const freshPosts = store.posts();
+          if (freshPosts.twitter && freshPosts.twitter[0] && freshPosts.twitter[0].text === cleanPostText) {
+            freshPosts.twitter[0].comments = newComments;
+            store.setPosts(freshPosts);
+            // 若用户此时正在看 Twitter，即时刷新界面
+            if (currentApp === 'twitter') {
+              try { apps.twitter.render($('#appBody')); } catch(e){}
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[社交联动生成评论失败]', err);
+      }
+
+    }, 4000 + Math.random() * 4000);
   }
 }catch(e){}
   },
