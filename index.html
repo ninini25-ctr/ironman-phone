@@ -9174,49 +9174,67 @@ const EventEngine = {
       async deliver() {
         const f = flags();
         const p = store.profile() || {};
-        const ch = store.chats();
+        const getRecent = () => (store.chats()['托尼·斯塔克'] || []).slice(-4).map(m => (m.role === 'me' ? '我: ' : '托尼: ') + m.content).join('\n');
         const curAff = (store.contacts().find(x => x.isTony) || {}).affinity || 0;
         const st = TonyStatus.get();
-        const recent = (ch['托尼·斯塔克'] || []).slice(-4).map(m => (m.role === 'me' ? '我: ' : '托尼: ') + m.content).join('\n');
 
         const sys = buildSystem('chat', `你现在扮演【托尼·斯塔克】。
 当前是漫威宇宙时间 ${f.year} 年 · ${f.era.name}。
 你此刻的状态：${st.label}（${st.note}）。当前好感度：${curAff}/200。
 【核心指令】：
-根据你此时的疲惫、失眠或正在攻克的技术难题，主动在短信里给玩家（${p.name || '你'}）发一条突发的短信（15~40字）。
+根据你此时的疲惫、失眠或正在攻克的技术难题，主动在短信里给玩家（${p.name || '你'}）发一条突发的短信（15~40字）。若有多句话可用 || 分隔。
 可以是一串代码、对之前争执的反诘、随口的命令、或是掩饰失眠的吐槽。
 严禁动作描写，直接输出简短短信正文。严禁任何模板化套话。`);
 
         try {
-          const res = await callAI([{ role: 'user', content: `最近交谈：\n${recent || '（暂无）'}\n请按此刻心态发一条消息。` }], sys, 'social');
+          const res = await callAI([{ role: 'user', content: `最近交谈：\n${getRecent() || '（暂无）'}\n请按此刻心态发一条消息。` }], sys, 'social');
           const cleanText = cleanSlur(res || '').replace(/[*"（）()]/g, '').trim();
           if (!cleanText) return;
 
-          (ch['托尼·斯塔克'] = ch['托尼·斯塔克'] || []).push({
-            role: 'them',
-            who: '托尼·斯塔克',
-            content: cleanText,
-            time: storyMsgTime(),
-            worldEvent: true
+          // 核心修复1：必须像短信发送一样，按 || 切分成真实单条气泡
+          let msgs = cleanText.split('||').map(x => x.trim()).filter(Boolean);
+          if (!msgs.length) msgs = [cleanText];
+
+          // 核心修复2：严格原子化重新读取与写入最新存储
+          const freshChats = store.chats();
+          freshChats['托尼·斯塔克'] = freshChats['托尼·斯塔克'] || [];
+          
+          msgs.forEach((mText, mIdx) => {
+            freshChats['托尼·斯塔克'].push({
+              role: 'them',
+              who: '托尼·斯塔克',
+              content: mText,
+              time: storyMsgTime(),
+              timestamp: Date.now() + mIdx * 10,
+              worldEvent: true
+            });
           });
-          store.setChats(ch);
+          store.setChats(freshChats);
 
           EventEngine.record({
             type: 'tony',
             icon: '🌙',
             title: '托尼·斯塔克 · 突发消息',
-            detail: cleanText.slice(0, 36) + '…',
+            detail: msgs[0].slice(0, 36) + (msgs[0].length > 36 ? '…' : ''),
             target: 'messages'
           });
 
-          notifyBanner('托尼·斯塔克', cleanText, () => {
+          // 若当前正好开着托尼的聊天界面，立即渲染并滚到底部
+          if (currentApp === 'messages' && apps.messages.view === 'chat' && apps.messages.cur === '托尼·斯塔克') {
+            try { 
+              apps.messages.render($('#appBody')); 
+              const th = $('#thread'); if(th) th.scrollTop = th.scrollHeight;
+            } catch (e) {}
+          }
+
+          notifyBanner('托尼·斯塔克', msgs[0], () => {
             openApp('messages');
             apps.messages.cur = '托尼·斯塔克';
             apps.messages.view = 'chat';
             safeRender('messages', $('#appBody'));
           });
         } catch (e) {
-          console.warn('Tony late message AI generation failed, event ignored.');
+          console.warn('Tony late message AI generation failed, event ignored.', e);
         }
       }
     },
@@ -17358,12 +17376,22 @@ apps.briefing={title:'今日简报',render(v){
     <div class="hint" style="text-align:center">${en('The world keeps turning.')} · 事件频率可在「设置 → 世界事件引擎」调整</div>
   </div>`;
   v.querySelectorAll('[data-go]').forEach(el=>el.onclick=()=>{
-    const g=el.dataset.go;
-    if(g==='notes'){apps.notes.kind='capsule';}
-    if(g==='messages'){apps.messages.cur='托尼·斯塔克';apps.messages.view='chat';}
-    if(g==='theater'){apps.theater.cur=null;}
-    openApp(g);
-  });
+  const g=el.dataset.go;
+  if(g==='notes'){apps.notes.kind='capsule';}
+  if(g==='messages'){
+    apps.messages.cur='托尼·斯塔克';
+    apps.messages.view='chat';
+    openApp('messages');
+    // 延迟确保DOM挂载后滚到最新消息
+    setTimeout(()=>{
+      const th = document.querySelector('#thread');
+      if(th) th.scrollTop = th.scrollHeight;
+    }, 150);
+    return;
+  }
+  if(g==='theater'){apps.theater.cur=null;}
+  openApp(g);
+});
   v.querySelector('#br_world').onclick=()=>openApp('worldline');
   v.querySelector('#br_parallel').onclick=()=>openApp('parallel');
   v.querySelector('#br_notify').onchange=e=>{store.set('briefNotify',e.target.checked);toast(e.target.checked?'通知已开启':'通知已关闭 · 仅保留红点');};
