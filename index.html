@@ -2090,11 +2090,11 @@ const store = {
       localStorage.setItem('so_chats', JSON.stringify(ch));
     } catch (_) {}
     try {
-      const dh = JSON.parse(localStorage.getItem('so_dateHistory') || '[]');
-      if (Array.isArray(dh) && dh.length > 20) {
-        localStorage.setItem('so_dateHistory', JSON.stringify(dh.slice(0, 20).map(x => ({ ...x, fullStory: (x.fullStory || '').slice(0, 800) }))));
-      }
-    } catch (_) {}
+  const dh = JSON.parse(localStorage.getItem('so_dateHistory') || '[]');
+  if (Array.isArray(dh) && dh.length > 50) {
+    localStorage.setItem('so_dateHistory', JSON.stringify(dh.slice(0, 50)));
+  }
+} catch (_) {}
   },
   s(k, v) {
     try { this._mem[k] = JSON.parse(JSON.stringify(v)); } catch (_) { this._mem[k] = v; }
@@ -17006,27 +17006,7 @@ apps.dating = {
       toast('已取消当前约会');
     };
 
-    v.querySelector('#dt_hist_btn').onclick = () => {
-      const allHist = store.get('dateHistory', []);
-      modal(`
-        <h2 style="color:var(--cyan);margin-top:0;font-size:16px">📜 约饭历史档案 · 共 ${allHist.length} 次</h2>
-        <div style="max-height:60vh;overflow-y:auto;padding-right:2px">
-          ${allHist.length ? allHist.map((h, i) => `
-            <div class="card" style="padding:10px;margin-bottom:8px">
-              <div style="display:flex;justify-content:space-between;align-items:center">
-                <span class="hint" style="font-size:10.5px">${esc(h.time || '—')}</span>
-                <span class="tag gold" style="font-size:9.5px">${h.mood || '完成'}</span>
-              </div>
-              <div style="font-family:var(--font-serif);font-size:13px;font-weight:700;margin:3px 0">
-                ${esc(h.emoji || '🍷')} ${esc(h.place)} · ${esc(h.spot)}
-              </div>
-              <div class="hint" style="font-size:11px">同行人：<b>${esc((h.people || []).join('、'))}</b> · 好感变动 ${h.aff > 0 ? '+' : ''}${h.aff || 0}</div>
-            </div>
-          `).join('') : '<div class="empty">暂无约会记录</div>'}
-        </div>
-        <button class="btn ghost sm" data-close style="margin-top:10px">关闭</button>
-      `);
-    };
+   v.querySelector('#dt_hist_btn').onclick = () => self.openHistoryModal(v);
   },
 
   // ====== 约会推演主界面：彻底消除嵌套、全控制按钮归位、防丢骨架 ======
@@ -17360,18 +17340,363 @@ D. ...`);
     };
   },
 
+  // ====== 约饭历史档案：完整列表 + 逐幕完整剧情详情 + 导出/复制/入库/删除 ======
+  openHistoryModal(v) {
+    const self = this;
+    let filterPeer = 'ALL';
+    let keyword = '';
+    let activeIdx = null; // null = 列表视图；数字 = 查看第 N 条完整详情
+
+    const d = modal(`
+      <div id="dt_hist_host"></div>
+    `);
+
+    const host = d.querySelector('#dt_hist_host');
+
+    // 组装某一场约会的完整分幕数组（兼容旧存档与新存档）
+    const buildTurns = (h) => {
+      if (Array.isArray(h.turns) && h.turns.length) return h.turns;
+      const ts = Array.isArray(h._turnStories) ? h._turnStories : [];
+      const hs = Array.isArray(h.history) ? h.history : [];
+      if (ts.length || hs.length) {
+        const len = Math.max(ts.length, hs.length);
+        const arr = [];
+        for (let i = 0; i < len; i++) {
+          arr.push({
+            turn: i + 1,
+            story: (ts[i] && ts[i].story) || (hs[i] && hs[i].story) || '',
+            choice: (hs[i] && hs[i].choice) || (i === len - 1 ? '（收束结算）' : '')
+          });
+        }
+        return arr.filter(x => x.story);
+      }
+      if (h.fullStory || h.story) {
+        return [{ turn: 1, story: h.fullStory || h.story, choice: '' }];
+      }
+      return [];
+    };
+
+    // 生成纯文本（用于复制或导出 TXT）
+    const formatRecordTxt = (h, idxNum) => {
+      const turns = buildTurns(h);
+      let txt = `=================================================================\r\n`;
+      txt += `  STARK OS · 约饭完整档案 #${idxNum}\r\n`;
+      txt += `  时间：${h.time || '—'}\r\n`;
+      txt += `  地点：${h.emoji || '🍷'} ${h.place || ''} · ${h.spot || ''}\r\n`;
+      txt += `  同行：${(h.people || []).join('、') || '—'}\r\n`;
+      txt += `  氛围：${h.mood || '愉快'}（好感变动 ${h.aff >= 0 ? '+' : ''}${h.aff || 0}）\r\n`;
+      if (h.comment) txt += `  评语：${h.comment}\r\n`;
+      txt += `=================================================================\r\n\r\n`;
+      turns.forEach((t, i) => {
+        txt += `【第 ${t.turn || (i + 1)} 幕】\r\n${(t.story || '').trim()}\r\n`;
+        if (t.choice) txt += `\r\n➤ 你的行动：${t.choice}\r\n`;
+        txt += `\r\n-----------------------------------------------------------------\r\n\r\n`;
+      });
+      return txt;
+    };
+
+    const renderModalView = () => {
+      const allHist = store.get('dateHistory', []);
+
+      // ---------- 视图 A：单场约会完整详情 ----------
+      if (activeIdx !== null && allHist[activeIdx]) {
+        const h = allHist[activeIdx];
+        const turns = buildTurns(h);
+        const totalWords = turns.reduce((acc, t) => acc + (t.story || '').length, 0);
+
+        host.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <button class="btn ghost sm" id="dth_back_list" style="width:auto;padding:5px 10px">← 返回全部列表 (${allHist.length})</button>
+            <div style="display:flex;gap:5px">
+              <button class="btn ghost sm" id="dth_prev" ${activeIdx <= 0 ? 'disabled' : ''} style="width:auto;padding:5px 9px" title="上一条">‹</button>
+              <button class="btn ghost sm" id="dth_next" ${activeIdx >= allHist.length - 1 ? 'disabled' : ''} style="width:auto;padding:5px 9px" title="下一条">›</button>
+            </div>
+          </div>
+
+          <div class="card" style="padding:12px;border-color:var(--gold);margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+              <span class="eyebrow" style="color:var(--gold)">ARCHIVE #${allHist.length - activeIdx} · ${esc(h.time || '—')}</span>
+              <span class="tag gold">${esc(h.mood || '愉快')} · 好感 ${h.aff >= 0 ? '+' : ''}${h.aff || 0}</span>
+            </div>
+            <div style="font-family:var(--font-serif);font-size:15px;font-weight:700;margin:6px 0 4px;color:var(--text)">
+              ${esc(h.emoji || '🍷')} ${esc(h.place)} · ${esc(h.spot)}
+            </div>
+            <div class="hint" style="font-size:11.5px">
+              同行伙伴：<b style="color:var(--cyan)">${esc((h.people || []).join('、'))}</b> · 共 ${turns.length} 幕 · 约 ${totalWords} 字
+            </div>
+            ${h.comment ? `<div style="margin-top:8px;padding:7px 10px;background:var(--panel2);border-left:2px solid var(--gold);border-radius:0 8px 8px 0;font-size:11.5px;color:var(--text)">💬 <b>结算评语：</b>${fmtStory(h.comment)}</div>` : ''}
+          </div>
+
+          <!-- 逐幕完整剧情区 -->
+          <div style="max-height:52vh;overflow-y:auto;padding-right:3px;margin-bottom:10px">
+            ${turns.length ? turns.map((t, i) => `
+              <div class="card" style="padding:12px;margin-bottom:8px;background:var(--panel)">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                  <b style="color:var(--cyan);font-size:12px">◉ 第 ${t.turn || (i + 1)} 幕</b>
+                  <span class="hint" style="font-size:10px">${(t.story || '').length} 字</span>
+                </div>
+                <div class="story" style="font-size:13px;line-height:1.85;margin:4px 0 8px">${fmtStory(t.story || '')}</div>
+                ${t.choice ? `
+                  <div style="padding:6px 10px;background:rgba(53,208,255,0.08);border-left:2px solid var(--cyan);border-radius:0 8px 8px 0;font-size:11.5px;color:var(--gold)">
+                    ➤ <b>你的抉择：</b>${esc(t.choice)}
+                  </div>
+                ` : ''}
+              </div>
+            `).join('') : '<div class="empty">该记录暂无正文内容</div>'}
+          </div>
+
+          <!-- 操作按钮组 -->
+          <div class="row" style="gap:6px;margin-bottom:6px">
+            <button class="btn sm" id="dth_copy">📋 复制全文</button>
+            <button class="btn ghost sm" id="dth_export_one">📥 导出 TXT</button>
+            <button class="btn ghost sm" id="dth_to_mem">🧠 存入记忆</button>
+          </div>
+          <div class="row" style="gap:6px">
+            <button class="btn gold sm" id="dth_replay">▶️ 同地点同伙伴再约一次</button>
+            <button class="btn ghost sm" id="dth_del_one" style="flex:0 0 64px;color:var(--red)">🗑 删除</button>
+          </div>
+        `;
+
+        host.querySelector('#dth_back_list').onclick = () => { activeIdx = null; renderModalView(); };
+        const prevBtn = host.querySelector('#dth_prev');
+        if (prevBtn) prevBtn.onclick = () => { if (activeIdx > 0) { activeIdx--; renderModalView(); } };
+        const nextBtn = host.querySelector('#dth_next');
+        if (nextBtn) nextBtn.onclick = () => { if (activeIdx < allHist.length - 1) { activeIdx++; renderModalView(); } };
+
+        host.querySelector('#dth_copy').onclick = () => {
+          const txt = formatRecordTxt(h, allHist.length - activeIdx);
+          if (navigator.clipboard) {
+            navigator.clipboard.writeText(txt).then(() => toast('✅ 已复制本场完整约会记录')).catch(() => toast('复制失败'));
+          } else toast('当前环境不支持剪贴板');
+        };
+
+        host.querySelector('#dth_export_one').onclick = () => {
+          const txt = formatRecordTxt(h, allHist.length - activeIdx);
+          const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = `StarkOS_Date_${(h.place || 'Date').replace(/\s+/g, '')}_${Date.now()}.txt`;
+          a.click();
+          toast('已导出本场约会 TXT');
+        };
+
+        host.querySelector('#dth_to_mem').onclick = () => {
+          const mems = store.get('memories', []);
+          const summaryTxt = `【约饭回忆 · ${h.place}（${h.spot}）】与 ${(h.people || []).join('、')} 同行（氛围：${h.mood || '愉快'}）。${h.comment || ''}\n` +
+            turns.map((t, i) => `第${i + 1}幕：${(t.story || '').slice(0, 180)}…（选择：${t.choice || '—'}）`).join('\n');
+          mems.unshift({ id: 'mm' + Date.now(), text: summaryTxt, time: nowTime(), source: 'dating', contact: (h.people || [])[0] || '托尼·斯塔克', rating: 4 });
+          store.set('memories', mems.slice(0, 100));
+          toast('🧠 已存入「记忆 → 对话记忆」');
+        };
+
+        host.querySelector('#dth_replay').onclick = () => {
+          const newSession = {
+            id: 'dt' + Date.now(),
+            place: h.place,
+            spot: h.spot,
+            emoji: h.emoji || '🍷',
+            people: Array.isArray(h.people) && h.people.length ? h.people.slice() : ['托尼·斯塔克'],
+            turn: 1,
+            story: '',
+            options: '',
+            history: [],
+            _turnStories: [],
+            time: nowTime()
+          };
+          store.set('dateSession', newSession);
+          d.remove();
+          self._view = 'date';
+          self.render(v);
+        };
+
+        host.querySelector('#dth_del_one').onclick = () => {
+          if (!confirm('确定删除这条约会历史记录？不可恢复。')) return;
+          allHist.splice(activeIdx, 1);
+          store.set('dateHistory', allHist);
+          activeIdx = null;
+          toast('已删除该条记录');
+          renderModalView();
+        };
+        return;
+      }
+
+      // ---------- 视图 B：所有约会历史总表 ----------
+      const allPeers = [...new Set(allHist.flatMap(h => h.people || []))];
+      const filtered = allHist.map((h, idx) => ({ h, idx })).filter(({ h }) => {
+        if (filterPeer !== 'ALL' && !(h.people || []).includes(filterPeer)) return false;
+        if (keyword) {
+          const hay = `${h.place || ''} ${h.spot || ''} ${(h.people || []).join(' ')} ${h.mood || ''} ${h.comment || ''} ${h.fullStory || ''} ${h.story || ''}`.toLowerCase();
+          if (!hay.includes(keyword.toLowerCase())) return false;
+        }
+        return true;
+      });
+
+      host.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <h2 style="color:var(--cyan);margin:0;font-size:16px">📜 约饭历史档案 · 共 ${allHist.length} 场</h2>
+          <div style="display:flex;gap:5px">
+            ${allHist.length ? `<button class="btn ghost sm" id="dth_export_all" style="width:auto;padding:4px 9px;font-size:11px">📥 导出全部</button>` : ''}
+            <button class="btn ghost sm" id="dth_close_top" style="width:auto;padding:4px 9px;font-size:11px">关闭</button>
+          </div>
+        </div>
+
+        <!-- 筛选与搜索栏 -->
+        ${allHist.length ? `
+          <div class="card" style="padding:9px 10px;margin-bottom:10px;background:var(--panel2)">
+            <input id="dth_search" class="inp" placeholder="🔍 搜索地点、同行人、剧情台词…" value="${esc(keyword)}" style="padding:6px 10px;font-size:12px;margin-bottom:6px">
+            <div style="display:flex;flex-wrap:wrap;gap:4px">
+              <span class="chip mini ${filterPeer === 'ALL' ? 'on' : ''}" data-dth-peer="ALL">全部 (${allHist.length})</span>
+              ${allPeers.map(p => `<span class="chip mini ${filterPeer === p ? 'on' : ''}" data-dth-peer="${esc(p)}">${esc(p)}</span>`).join('')}
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- 约会历史卡片列表 -->
+        <div style="max-height:58vh;overflow-y:auto;padding-right:2px">
+          ${filtered.length ? filtered.map(({ h, idx }) => {
+            const turns = buildTurns(h);
+            const preview = (turns[0] && turns[0].story) || h.fullStory || h.story || '';
+            const totalWords = turns.reduce((acc, t) => acc + (t.story || '').length, 0);
+            return `
+              <div class="card" data-dth-open="${idx}" style="padding:11px 12px;margin-bottom:8px;cursor:pointer;border-left:3px solid var(--gold);transition:.15s">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+                  <span class="hint" style="font-size:10.5px">#${allHist.length - idx} · ${esc(h.time || '—')}</span>
+                  <div>
+                    <span class="tag">${turns.length} 幕 · ${totalWords} 字</span>
+                    <span class="tag gold">${esc(h.mood || '完成')} ${h.aff >= 0 ? '+' : ''}${h.aff || 0}</span>
+                  </div>
+                </div>
+                <div style="font-family:var(--font-serif);font-size:13.5px;font-weight:700;margin:5px 0 3px;color:var(--text)">
+                  ${esc(h.emoji || '🍷')} ${esc(h.place)} · ${esc(h.spot)}
+                </div>
+                <div class="hint" style="font-size:11px;color:var(--cyan);margin-bottom:5px">
+                  👥 同行：<b>${esc((h.people || []).join('、'))}</b>
+                </div>
+                ${h.comment ? `<div class="hint" style="font-size:11px;color:var(--gold);margin-bottom:4px">💬 “${esc(h.comment)}”</div>` : ''}
+                <div class="hint" style="font-size:11.5px;color:var(--text);opacity:0.82;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.55">
+                  ${esc(preview.replace(/\s+/g, ' ').slice(0, 110))}…
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:6px;border-top:1px dashed var(--line)">
+                  <span style="font-size:11px;color:var(--cyan);font-weight:600">📖 点击查看完整 ${turns.length} 幕剧情 ›</span>
+                  <span data-dth-del="${idx}" style="font-size:11px;color:var(--red);padding:2px 6px" title="删除此条">🗑 删除</span>
+                </div>
+              </div>
+            `;
+          }).join('') : `<div class="empty">${allHist.length ? '没有匹配筛选条件的约会记录' : '暂无约会记录。开启一场约会并在结束时点击「结算并保存归档」，每次约会的全部幕次与完整正文都会永久保存在这里。'}</div>`}
+        </div>
+
+        <button class="btn ghost sm" id="dth_close_bot" style="margin-top:10px;width:100%">关闭</button>
+      `;
+
+      host.querySelector('#dth_close_top').onclick = () => d.remove();
+      host.querySelector('#dth_close_bot').onclick = () => d.remove();
+
+      const searchInp = host.querySelector('#dth_search');
+      if (searchInp) {
+        searchInp.oninput = (e) => {
+          keyword = e.target.value;
+          const pos = e.target.selectionStart;
+          renderModalView();
+          const newInp = host.querySelector('#dth_search');
+          if (newInp) { newInp.focus(); try { newInp.setSelectionRange(pos, pos); } catch (_) {} }
+        };
+      }
+
+      host.querySelectorAll('[data-dth-peer]').forEach(chip => {
+        chip.onclick = () => {
+          filterPeer = chip.dataset.dthPeer;
+          renderModalView();
+        };
+      });
+
+      host.querySelectorAll('[data-dth-open]').forEach(card => {
+        card.onclick = (e) => {
+          if (e.target.closest('[data-dth-del]')) return;
+          activeIdx = +card.dataset.dthOpen;
+          renderModalView();
+        };
+      });
+
+      host.querySelectorAll('[data-dth-del]').forEach(btn => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          const idx = +btn.dataset.dthDel;
+          if (!confirm('确定删除这条约会记录？')) return;
+          allHist.splice(idx, 1);
+          store.set('dateHistory', allHist);
+          toast('已删除');
+          renderModalView();
+        };
+      });
+
+      const expAllBtn = host.querySelector('#dth_export_all');
+      if (expAllBtn) {
+        expAllBtn.onclick = () => {
+          const fullTxt = allHist.map((h, i) => formatRecordTxt(h, allHist.length - i)).join('\r\n\r\n');
+          const blob = new Blob([fullTxt], { type: 'text/plain;charset=utf-8' });
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = `StarkOS_All_Dates_${allHist.length}_${Date.now()}.txt`;
+          a.click();
+          toast(`已导出全部 ${allHist.length} 场约会完整记录`);
+        };
+      }
+    };
+
+    renderModalView();
+  },
+
+  // ====== 约饭结算页：完整封存每一幕的正文、玩家抉择与全文，支持继续加回合 ======
   async renderResult(v, session) {
     const self = this;
-    const fullStory = (session._turnStories || []).map((t, i) => `【第${i + 1}幕】\n${t.story || ''}`).join('\n\n') || session.story || '';
+
+    // 整理本次约会的完整分幕档案（确保不论走哪条路径，每一幕正文和选择都不丢）
+    const buildSessionTurns = () => {
+      const hist = Array.isArray(session.history) ? session.history : [];
+      const turns = hist.map((h, idx) => ({
+        turn: h.turn || (idx + 1),
+        story: h.story || '',
+        options: h.options || '',
+        choice: h.choice || ''
+      }));
+      // 如果当前最后一幕还没有推进到 history（用户直接点了「结算并结束」），把当前幕也补进完整档案
+      const lastInHist = turns[turns.length - 1];
+      if (session.story && (!lastInHist || lastInHist.story !== session.story)) {
+        turns.push({
+          turn: session.turn || (turns.length + 1),
+          story: session.story,
+          options: session.options || '',
+          choice: '（在此幕收束约会）'
+        });
+      }
+      return turns;
+    };
+
+    const turns = buildSessionTurns();
+    const fullStory = turns.map((t, i) => `【第 ${t.turn || (i + 1)} 幕】\n${t.story || ''}${t.choice ? '\n➤ 你的行动：' + t.choice : ''}`).join('\n\n');
 
     v.innerHTML = `
-      <div class="pad" style="text-align:center">
-        <div class="card" style="padding:20px 14px">
+      <div class="pad">
+        <div class="card" style="padding:18px 14px;text-align:center">
           <div style="font-size:36px;margin-bottom:6px">${session.emoji || '🍷'}</div>
           <h2 style="font-family:var(--font-serif);font-size:16px;margin:0 0 6px">这场聚会圆满收束</h2>
-          <div class="hint" style="font-size:11.5px">${esc(session.place)} · ${esc(session.spot)}<br>同行伙伴：${esc((session.people || []).join('、'))}</div>
+          <div class="hint" style="font-size:11.5px">${esc(session.place)} · ${esc(session.spot)}<br>同行伙伴：${esc((session.people || []).join('、'))} · 共 ${turns.length} 幕</div>
           <div class="divider"></div>
           <div id="dt_result_eval" class="hint">正在进行情感共鸣结算…</div>
+        </div>
+
+        <!-- 本场完整剧情预览（结算页即可直接通读全篇） -->
+        <div class="card" style="padding:12px">
+          <h3 style="margin:0 0 8px;font-size:13px">◉ 本场完整记录（共 ${turns.length} 幕 · 将完整归档）</h3>
+          <div style="max-height:42vh;overflow-y:auto;padding-right:3px">
+            ${turns.map((t, i) => `
+              <div style="padding:8px 0;border-bottom:1px dashed var(--line)">
+                <div class="hint" style="color:var(--cyan);font-weight:700;margin-bottom:4px">第 ${t.turn || (i + 1)} 幕</div>
+                <div class="story" style="font-size:12.5px;line-height:1.8;margin:0">${fmtStory(t.story || '')}</div>
+                ${t.choice ? `<div style="margin-top:6px;font-size:11.5px;color:var(--gold)">➤ 你的行动：${esc(t.choice)}</div>` : ''}
+              </div>
+            `).join('')}
+          </div>
         </div>
       </div>
     `;
@@ -17383,7 +17708,7 @@ D. ...`);
 3. 50字内走心评语。
 格式严格为：氛围 ||| 整数数字 ||| 评语`);
       const r = await ai(
-        [{ role: 'user', content: `约会地点：${session.place} · ${session.spot}\n同行：${(session.people || []).join('、')}\n剧情回顾：\n${fullStory.slice(0, 1800)}` }],
+        [{ role: 'user', content: `约会地点：${session.place} · ${session.spot}\n同行：${(session.people || []).join('、')}\n剧情回顾：\n${fullStory.slice(0, 2400)}` }],
         sys,
         () => '愉快 ||| 2 ||| 彼此在不被打扰的时光里卸下了防备。',
         'summary'
@@ -17398,22 +17723,43 @@ D. ...`);
           <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px">氛围感受：${esc(mood || '温馨')}</div>
           <div style="font-size:18px;font-weight:800;color:var(--gold);margin-bottom:8px">好感变动 ${aff >= 0 ? '+' : ''}${aff}</div>
           <div class="story" style="font-size:12px;background:var(--panel2);padding:8px 10px;border-radius:8px;text-align:left">${fmtStory(comment || '美好的相聚')}</div>
-          <button class="btn gold sm" id="dt_res_save_btn" style="width:100%;margin-top:12px">💾 结算并保存归档</button>
+          <div class="row" style="margin-top:12px;gap:8px">
+            <button class="btn gold sm" id="dt_res_save_btn" style="flex:1">💾 保存记录并结算好感</button>
+            <button class="btn ghost sm" id="dt_res_cont_btn" style="flex:0 0 110px">↩ 再续一回合</button>
+          </div>
         `;
 
+        // 返回继续推进这场的下一回合
+        v.querySelector('#dt_res_cont_btn').onclick = () => {
+          self._view = 'date';
+          self.renderDate(v, session);
+        };
+
+        // 保存完整归档并结算
         v.querySelector('#dt_res_save_btn').onclick = () => {
           const h = store.get('dateHistory', []);
           h.unshift({
             ...session,
-            mood,
+            turns,       // 完整分幕结构（每幕含 story + options + choice）
+            fullStory,   // 完整不截断全文
+            mood: mood || '愉快',
             aff,
-            comment,
-            fullStory,
+            comment: comment || '美好的相聚',
             time: nowTime()
           });
           store.set('dateHistory', h);
 
-          applyAffinity(((store.state() || {}).affinity || 0) + aff);
+          // 同步好感度给所有同行人（含托尼）
+          const cs = store.contacts();
+          (session.people || []).forEach(pName => {
+            const c = cs.find(x => x.name === pName);
+            if (c) c.affinity = Math.max(0, Math.min(200, (c.affinity || 0) + aff));
+          });
+          store.setContacts(cs);
+          if ((session.people || []).includes('托尼·斯塔克')) {
+            applyAffinity(((store.state() || {}).affinity || 0) + aff);
+          }
+
           store.set('dateSession', null);
 
           if (dtAutoMsgOn() && session.people && session.people.length) {
@@ -17436,6 +17782,7 @@ D. ...`);
                   who: mainPeer,
                   content: cleanSms,
                   time: storyMsgTime(),
+                  timestamp: Date.now(),
                   worldEvent: true
                 });
                 store.setChats(ch);
@@ -17450,7 +17797,7 @@ D. ...`);
             }, 3500);
           }
 
-          toast(`约会已归档！好感变动 ${aff >= 0 ? '+' : ''}${aff}`);
+          toast(`✅ 完整约会已归档（共 ${turns.length} 幕）！好感变动 ${aff >= 0 ? '+' : ''}${aff}`);
           self._view = 'setup';
           self.render(v);
         };
