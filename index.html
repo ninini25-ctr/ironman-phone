@@ -13194,20 +13194,24 @@ apps.facetime={
 
   resetSilenceTimer(v){
     clearTimeout(this._silenceTimer);
-    if(!this.inCall) return;
-    // 5秒用户未操作，联系人主动开口
+    if(!this.inCall || this._busy) return; // ✅ 如果正在请求中，绝不触发倒计时
     this._silenceTimer = setTimeout(async ()=>{
-      if(!this.inCall) return;
+      if(!this.inCall || this._busy) return;
+      this._busy = true;
       const f=flags();let who=this.peer;if(who==='贾维斯'&&f.ultronAfter)who='幻视';
       const recent = this.log.slice(-6).map(l=>`${l.who}: ${l.text}`).join('\n');
       const sys = buildSystem('chat', `你现在是【${who}】正在和玩家进行 FaceTime 视频通话。玩家沉默了5秒没有说话。请你按人设主动追问或吐槽一句（15~30字），极具口语感，严禁括号描写。`);
-      const line = await ai([{role:'user',content:`【通话记录】\n${recent}\n\n玩家沉默了5秒，请主动说一句话：`}], sys, ()=>{
-        if(who==='托尼·斯塔克') return '“喂？卡住了还是被我的全息屏震撼到了？说话。”';
-        return '“先生/女士，您还在听吗？”';
-      },'social');
-      this.log.push({who, text: line.replace(/[*"（）()]/g,'').trim()});
-      this.updateSuggestions(recent);
+      try {
+        const line = await ai([{role:'user',content:`【通话记录】\n${recent}\n\n玩家沉默了5秒，请主动说一句话：`}], sys, ()=>{
+          if(who==='托尼·斯塔克') return '“喂？卡住了还是被我的全息屏震撼到了？说话。”';
+          return '“先生/女士，您还在听吗？”';
+        },'social');
+        this.log.push({who, text: line.replace(/[*"（）()]/g,'').trim()});
+        await this.updateSuggestions(recent + `\n${who}: ${line}`);
+      } catch(e) {}
+      this._busy = false;
       this.render(v);
+      this.resetSilenceTimer(v);
     }, 5000);
   },
 
@@ -13256,19 +13260,42 @@ apps.facetime={
   },
 
   async userSpeak(v, text){
-    if(!this.inCall) return toast('电话未接通');
+    if(!this.inCall || this._busy) return; // ✅ 防连击、防盲选
+    this._busy = true;
     clearTimeout(this._silenceTimer);
+
+    // 1. 立即记录并先上屏玩家本人的发言
     this.log.push({who:'你', text});
     this.render(v);
+
+    // 2. 将下方的回复选项区立即换成 Loading 骨架，彻底阻止玩家在等待时误触上一轮旧选项
+    const optCard = v.querySelector('#ft_custom_in')?.closest('.card');
+    if (optCard) {
+      optCard.innerHTML = `<div class="hint" style="text-align:center;padding:14px;color:var(--cyan)">
+        <div class="spin" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px"></div>
+        ${esc(this.peer)} 正在回应并思考…
+      </div>`;
+    }
 
     const f=flags();let who=this.peer;if(who==='贾维斯'&&f.ultronAfter)who='幻视';
     const recent = this.log.slice(-6).map(l=>`${l.who}: ${l.text}`).join('\n');
     const sys=buildSystem('chat',`你现在扮演【${who}】。${castText(who)}\n正在 FaceTime 视频通话中。请针对玩家说的话回复一句（20~40字）。纯中文口语，贴近电影节奏，严禁动作神态描写与英文括号。`);
-    const line=await ai([{role:'user',content:`【前文对话】\n${recent}\n\n玩家刚刚说：“${text}”，请回复：`}],sys,()=>localReply(who,text),'social');
-    this.log.push({who, text: line.replace(/[*"（）()]/g,'').trim()});
-    this.render(v);
-    this.resetSilenceTimer(v);
-    this.updateSuggestions(recent + `\n${who}: ${line}`);
+
+    try {
+      // 3. 等待对方回答
+      const line = await ai([{role:'user',content:`【前文对话】\n${recent}\n\n玩家刚刚说：“${text}”，请回复：`}],sys,()=>localReply(who,text),'social');
+      this.log.push({who, text: line.replace(/[*"（）()]/g,'').trim()});
+
+      // 4. ✅ 核心顺序修复：必须先生成【下一轮全新的备选建议词】，生成完毕后才一次性渲染新界面
+      await this.updateSuggestions(recent + `\n${who}: ${line}`);
+    } catch(err) {
+      this.log.push({who, text: localReply(who, text)});
+    } finally {
+      this._busy = false;
+      // 5. 此时字幕和新选项已完全同步，刷新界面并恢复 5 秒倒计时
+      this.render(v);
+      this.resetSilenceTimer(v);
+    }
   },
 
   render(v){
@@ -19022,6 +19049,7 @@ self._livePaint = paint; // 挂载到实例上，供任何异步回调随时刷�
         inp.value = '@' + el.dataset.avat + ' ' + inp.value; inp.focus(); d.remove();
       });
     };
+  paint();
   },
 
   /* ---------- ② 场景开场话题库界面 ---------- */
