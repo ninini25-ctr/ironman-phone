@@ -13193,110 +13193,167 @@ apps.facetime={
   _timer:null,_silenceTimer:null,_seconds:0,
 
   resetSilenceTimer(v){
-    clearTimeout(this._silenceTimer);
-    if(!this.inCall || this._busy) return; // ✅ 如果正在请求中，绝不触发倒计时
-    this._silenceTimer = setTimeout(async ()=>{
-      if(!this.inCall || this._busy) return;
-      this._busy = true;
-      const f=flags();let who=this.peer;if(who==='贾维斯'&&f.ultronAfter)who='幻视';
-      const recent = this.log.slice(-6).map(l=>`${l.who}: ${l.text}`).join('\n');
-      const sys = buildSystem('chat', `你现在是【${who}】正在和玩家进行 FaceTime 视频通话。玩家沉默了5秒没有说话。请你按人设主动追问或吐槽一句（15~30字），极具口语感，严禁括号描写。`);
-      try {
-        const line = await ai([{role:'user',content:`【通话记录】\n${recent}\n\n玩家沉默了5秒，请主动说一句话：`}], sys, ()=>{
-          if(who==='托尼·斯塔克') return '“喂？卡住了还是被我的全息屏震撼到了？说话。”';
-          return '“先生/女士，您还在听吗？”';
-        },'social');
-        this.log.push({who, text: line.replace(/[*"（）()]/g,'').trim()});
-        await this.updateSuggestions(recent + `\n${who}: ${line}`);
-      } catch(e) {}
-      this._busy = false;
-      this.render(v);
-      this.resetSilenceTimer(v);
-    }, 5000);
-  },
-
-  async updateSuggestions(context){
-    const f=flags();
-    const sys = `你是 FaceTime 对话辅助系统。根据当前与【${this.peer}】的视频通话内容，生成 3 个玩家可以直接点击回复的备选简短台词/动作。每行一个，不要序号，不要引号，每句15字以内。`;
-    const r = await ai([{role:'user',content:`【当前对话】\n${context}\n\n请生成3条玩家备选回复：`}], sys, ()=>{
-      return '你在实验室呆了多久？\n看看这个设计图\n没什么，就想确认你活着';
-    }, 'social');
-    const opts = r.split('\n').map(s=>s.replace(/^[0-9A-Za-z\.\、\s"“”]+/, '').trim()).filter(Boolean).slice(0,3);
-    if(opts.length) this.options = opts;
-  },
-
-  async startCall(v){
-    this.inCall = true;
-    this._seconds = 0;
-    this.log = [];
-    clearInterval(this._timer);
-    this._timer = setInterval(()=>{
-      this._seconds++;
-      const el = document.querySelector('#ft_state');
-      if(el) el.textContent = 'CONNECTED · ' + String(Math.floor(this._seconds/60)).padStart(2,'0') + ':' + String(this._seconds%60).padStart(2,'0');
-    }, 1000);
-
-    const f=flags();let who=this.peer;if(who==='贾维斯'&&f.ultronAfter)who='幻视';
-    const sys=buildSystem('chat',`你现在扮演【${who}】。${castText(who)}\n你刚刚接通了玩家打来的 FaceTime 视频电话，请以极其地道自然的人设说出开场第一句话（20字以内）。纯中文口语，严禁任何括号、神态动作描写。`);
-    const line=await ai([{role:'user',content:'（视频通话刚接通，请说第一句话）'}],sys,()=>localReply(who,''),'social');
-    this.log.push({who,text:line.replace(/[*"（）()]/g,'').trim()});
-    this.render(v);
-    this.resetSilenceTimer(v);
-    this.updateSuggestions(`${who}: ${line}`);
-  },
-
-  endCall(v){
-    this.inCall = false;
-    clearInterval(this._timer);
-    clearTimeout(this._silenceTimer);
-    this._timer = null;
-    this._silenceTimer = null;
-    this._seconds = 0;
-    const h = store.get('ftHistory',[]);
-    h.push(nowTime() + ' 与 ' + this.peer + ' 视频通话结束');
-    store.set('ftHistory',h);
-    toast('通话已挂断');
-    this.render(v);
-  },
-
-  async userSpeak(v, text){
-    if(!this.inCall || this._busy) return; // ✅ 防连击、防盲选
-    this._busy = true;
-    clearTimeout(this._silenceTimer);
-
-    // 1. 立即记录并先上屏玩家本人的发言
-    this.log.push({who:'你', text});
-    this.render(v);
-
-    // 2. 将下方的回复选项区立即换成 Loading 骨架，彻底阻止玩家在等待时误触上一轮旧选项
-    const optCard = v.querySelector('#ft_custom_in')?.closest('.card');
-    if (optCard) {
-      optCard.innerHTML = `<div class="hint" style="text-align:center;padding:14px;color:var(--cyan)">
-        <div class="spin" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px"></div>
-        ${esc(this.peer)} 正在回应并思考…
-      </div>`;
-    }
-
+  clearTimeout(this._silenceTimer);
+  if(!this.inCall || this._busy) return;
+  // 延长至 15 秒无操作才触发对方主动追问，且用独立的 _silenceSeq 防止阻塞玩家点击
+  this._silenceTimer = setTimeout(async ()=>{
+    if(!this.inCall || this._busy) return;
+    const seq = (this._speakSeq = (this._speakSeq || 0) + 1);
     const f=flags();let who=this.peer;if(who==='贾维斯'&&f.ultronAfter)who='幻视';
     const recent = this.log.slice(-6).map(l=>`${l.who}: ${l.text}`).join('\n');
-    const sys=buildSystem('chat',`你现在扮演【${who}】。${castText(who)}\n正在 FaceTime 视频通话中。请针对玩家说的话回复一句（20~40字）。纯中文口语，贴近电影节奏，严禁动作神态描写与英文括号。`);
-
+    const sys = buildSystem('chat', `你现在是【${who}】正在和玩家进行 FaceTime 视频通话。玩家沉默了一会儿没有说话。请你按人设主动追问或吐槽一句（15~30字），极具口语感，严禁括号描写。`);
     try {
-      // 3. 等待对方回答
-      const line = await ai([{role:'user',content:`【前文对话】\n${recent}\n\n玩家刚刚说：“${text}”，请回复：`}],sys,()=>localReply(who,text),'social');
-      this.log.push({who, text: line.replace(/[*"（）()]/g,'').trim()});
+      const line = await ai([{role:'user',content:`【通话记录】\n${recent}\n\n玩家沉默了一会儿，请主动说一句话：`}], sys, ()=>{
+        if(who==='托尼·斯塔克') return '“喂？卡住了还是被我的全息屏震撼到了？说话。”';
+        return '“先生/女士，您还在听吗？”';
+      },'social');
+      // 如果在等待期间玩家已经点击了发言，直接丢弃这次后台追问，绝不冲突！
+      if(!this.inCall || this._busy || this._speakSeq !== seq) return;
+      const cleanLine = String(line || '').replace(/[*"（）()]/g,'').trim();
+      if(cleanLine){
+        this.log.push({who, text: cleanLine});
+        this.render(v);
+        this.updateSuggestions(recent + `\n${who}: ${cleanLine}`, v);
+      }
+    } catch(e) {}
+    if(this.inCall && !this._busy) this.resetSilenceTimer(v);
+  }, 15000);
+},
 
-      // 4. ✅ 核心顺序修复：必须先生成【下一轮全新的备选建议词】，生成完毕后才一次性渲染新界面
-      await this.updateSuggestions(recent + `\n${who}: ${line}`);
-    } catch(err) {
-      this.log.push({who, text: localReply(who, text)});
-    } finally {
-      this._busy = false;
-      // 5. 此时字幕和新选项已完全同步，刷新界面并恢复 5 秒倒计时
-      this.render(v);
-      this.resetSilenceTimer(v);
+async updateSuggestions(context, v){
+  const seq = this._speakSeq;
+  const sys = `你是 FaceTime 对话辅助系统。根据当前与【${this.peer}】的视频通话内容，生成 3 个玩家可以直接点击回复的备选简短台词/动作。每行一个，不要序号，不要引号，每句15字以内。`;
+  let r = '';
+  try {
+    r = await ai([{role:'user',content:`【当前对话】\n${context}\n\n请生成3条玩家备选回复：`}], sys, ()=>{
+      return '你在实验室呆了多久？\n看看这个设计图\n没什么，就想确认你活着';
+    }, 'social');
+  } catch(err) {
+    const fallbackMap = {
+      '托尼·斯塔克': '你又几天没睡了？\n那杯咖啡是第几杯\n别转移话题',
+      '史蒂夫·罗杰斯': '你今天还好吗\n下次一起训练\n我听你的',
+      '娜塔莎·罗曼诺夫': '你观察到什么了\n说重点\n我不信',
+    };
+    r = fallbackMap[this.peer] || '嗯，我在听\n继续说\n然后呢？';
+  }
+  const opts = String(r || '').split('\n')
+    .map(s=>s.replace(/^[0-9A-Za-z\.\、\s"“”]+/, '').trim())
+    .filter(Boolean)
+    .slice(0,3);
+  if(opts.length) {
+    this.options = opts;
+    // 仅当玩家没有在进行新一轮输入、且没在打字时，无感刷新快捷按钮文字
+    if(v && this.inCall && !this._busy && this._speakSeq === seq){
+      const activeEl = document.activeElement;
+      if(!activeEl || activeEl.id !== 'ft_custom_in'){
+        this.render(v);
+      }
     }
-  },
+  }
+},
+
+async startCall(v){
+  this.inCall = true;
+  this._seconds = 0;
+  this._busy = false;
+  this._speakSeq = (this._speakSeq || 0) + 1;
+  const seq = this._speakSeq;
+  this.log = [];
+  clearInterval(this._timer);
+  clearTimeout(this._silenceTimer);
+  this._timer = setInterval(()=>{
+    this._seconds++;
+    const el = document.querySelector('#ft_state');
+    if(el) el.textContent = 'CONNECTED · ' + String(Math.floor(this._seconds/60)).padStart(2,'0') + ':' + String(this._seconds%60).padStart(2,'0');
+  }, 1000);
+
+  const f=flags();let who=this.peer;if(who==='贾维斯'&&f.ultronAfter)who='幻视';
+  
+  // 1. 接通瞬间立刻渲染画面和可点击的快捷按钮，0秒等待
+  this.render(v);
+  
+  let line = '';
+  try {
+    const sys=buildSystem('chat',`你现在扮演【${who}】。${castText(who)}\n你刚刚接通了玩家打来的 FaceTime 视频电话，请以极其地道自然的人设说出开场第一句话（20字以内）。纯中文口语，严禁任何括号、神态动作描写。`);
+    line = await ai([{role:'user',content:'（视频通话刚接通，请说第一句话）'}],sys,()=>localReply(who,''),'social');
+  } catch(err) {
+    line = localReply(who, '') || '喂，听得到吗？';
+  }
+  // 如果等待开场白期间玩家已经抢先点了快捷回复，就不覆盖玩家的对话流
+  if(!this.inCall || this._speakSeq !== seq) return;
+
+  const cleanLine = String(line || '喂？').replace(/[*"（）()]/g,'').trim() || '喂？';
+  this.log.push({who, text: cleanLine});
+  this.render(v);
+  this.resetSilenceTimer(v);
+  
+  // 后台静默刷新建议词，不阻塞当前点击
+  this.updateSuggestions(`${who}: ${cleanLine}`, v);
+},
+
+endCall(v){
+  this.inCall = false;
+  this._busy = false;
+  this._speakSeq = (this._speakSeq || 0) + 1;
+  clearInterval(this._timer);
+  clearTimeout(this._silenceTimer);
+  this._timer = null;
+  this._silenceTimer = null;
+  this._seconds = 0;
+  const h = store.get('ftHistory',[]);
+  h.push(nowTime() + ' 与 ' + this.peer + ' 视频通话结束');
+  store.set('ftHistory',h);
+  toast('通话已挂断');
+  this.render(v);
+},
+
+async userSpeak(v, text){
+  if(!this.inCall || this._busy) return;
+  this._busy = true;
+  this._speakSeq = (this._speakSeq || 0) + 1;
+  const seq = this._speakSeq;
+  clearTimeout(this._silenceTimer);
+
+  // 1. 立即记录并上屏玩家本人的发言
+  this.log.push({who:'你', text});
+  this.render(v);
+
+  // 2. 等待对方回答期间显示 Loading 提示
+  const optCard = v.querySelector('#ft_custom_in')?.closest('.card');
+  if (optCard) {
+    optCard.innerHTML = `<div class="hint" style="text-align:center;padding:14px;color:var(--cyan)">
+      <div class="spin" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px"></div>
+      ${esc(this.peer)} 正在回应…
+    </div>`;
+  }
+
+  const f=flags();let who=this.peer;if(who==='贾维斯'&&f.ultronAfter)who='幻视';
+  const recent = this.log.slice(-6).map(l=>`${l.who}: ${l.text}`).join('\n');
+  const sys=buildSystem('chat',`你现在扮演【${who}】。${castText(who)}\n正在 FaceTime 视频通话中。请针对玩家说的话回复一句（20~40字）。纯中文口语，贴近电影节奏，严禁动作神态描写与英文括号。`);
+
+  let cleanReply = '';
+  try {
+    const line = await ai([{role:'user',content:`【前文对话】\n${recent}\n\n玩家刚刚说：“${text}”，请回复：`}],sys,()=>localReply(who,text),'social');
+    cleanReply = String(line || '').replace(/[*"（）()]/g,'').trim() || localReply(who, text);
+  } catch(err) {
+    cleanReply = localReply(who, text);
+  }
+
+  if(!this.inCall || this._speakSeq !== seq) {
+    this._busy = false;
+    return;
+  }
+
+  // 3. ✅ 核心修复：对方一回答完，立刻入库、立刻释放 _busy 锁、立刻渲染按钮！
+  // 玩家此时 0 延迟即可马上点击快捷回复或打字，完全不用等建议词生成！
+  this.log.push({who, text: cleanReply});
+  this._busy = false;
+  this.render(v);
+  this.resetSilenceTimer(v);
+
+  // 4. ✅ 后台异步刷出新一轮建议词（刷出来后自动替换按钮文字，不阻塞点击）
+  this.updateSuggestions(recent + `\n${who}: ${cleanReply}`, v);
+},
 
   render(v){
     const self=this,f=flags(),names=activeNames();
@@ -17758,39 +17815,68 @@ D. ...`);
 
           store.set('dateSession', null);
 
-          if (dtAutoMsgOn() && session.people && session.people.length) {
-            const mainPeer = session.people[0];
+         // ✅ 修复后：提前克隆锁定同行人名单、地点与剧情摘要，防止 session 销毁后异步丢失
+          constpeerList = Array.isArray(session.people) ? session.people.filter(Boolean) : [];
+          const placeSnap = `${session.place || '餐厅'} · ${session.spot || ''}`;
+          const storySnap = String(fullStory || session.story || '').slice(-300);
+
+          if (dtAutoMsgOn() && constpeerList.length > 0) {
+            const mainPeer = constpeerList[0];
+            toast(`📩 ${mainPeer} 稍后会给你发来短信…`);
+
             setTimeout(async () => {
+              let cleanSms = '';
               try {
-                const smsSys = buildSystem('chat', `你扮演【${mainPeer}】。你刚刚和玩家结束了一场在【${session.place} · ${session.spot}】的聚餐/相聚。
-请发一条短消息（15~35字），自然提起刚才的小插曲，表达意犹未尽或随口吐槽。严禁动作神态描写，纯口语短信。`);
+                const smsSys = buildSystem('chat', `你现在扮演【${mainPeer}】。${castText(mainPeer)}
+你刚刚和玩家结束了一场在【${placeSnap}】的约会/聚餐。
+刚发生的事：${storySnap}
+请立刻给玩家发一条回味或报平安的短消息（15~38字），自然提起刚才在【${placeSnap}】的细节，符合你的人设口吻。严禁动作神态描写，直接输出纯口语短信正文。`);
+
                 const sms = await ai(
-                  [{ role: 'user', content: '发一条约饭结束后的随笔短信。' }],
+                  [{ role: 'user', content: `刚在 ${placeSnap} 结束约饭，请发一条短信给玩家。` }],
                   smsSys,
-                  () => `“到家了？刚才聊得不错，下次再聚。”`,
+                  () => mainPeer === '托尼·斯塔克'
+                    ? `到实验室了。刚才在${session.spot || session.place}那杯东西还凑合，下次换我挑地方。`
+                    : `我到家了。今天在${session.spot || session.place}聊得很开心，下次再一起出来。`,
                   'social'
                 );
-                const cleanSms = cleanSlur(sms).replace(/[*"（）()]/g, '').trim();
+                cleanSms = cleanSlur(String(sms || '')).replace(/^\s*[*"“”‘’（）()]+|[*"“”‘’（）()]+\s*$/g, '').split('||')[0].trim();
+              } catch (err) {
+                console.warn('[约饭自动短信 AI 降级]', err);
+              }
 
-                const ch = store.chats();
-                (ch[mainPeer] = ch[mainPeer] || []).push({
-                  role: 'them',
-                  who: mainPeer,
-                  content: cleanSms,
-                  time: storyMsgTime(),
-                  timestamp: Date.now(),
-                  worldEvent: true
-                });
-                store.setChats(ch);
+              // 保底：无论 AI 是否报错或返回空，100% 确保生成一条符合人设的短信
+              if (!cleanSms) {
+                cleanSms = mainPeer === '托尼·斯塔克'
+                  ? `安全抵达。顺便说一句，刚才在${session.spot || session.place}你点的那道菜品味勉强及格。`
+                  : `刚回去，今天在${session.spot || session.place}度过了很棒的时间，早点休息。`;
+              }
 
-                notifyBanner(`💬 ${mainPeer}`, cleanSms, () => {
-                  openApp('messages');
-                  apps.messages.cur = mainPeer;
-                  apps.messages.view = 'chat';
-                  safeRender('messages', $('#appBody'));
-                });
-              } catch (err) {}
-            }, 3500);
+              // 原子化写入聊天记录数据库
+              const ch = store.chats();
+              ch[mainPeer] = Array.isArray(ch[mainPeer]) ? ch[mainPeer] : [];
+              ch[mainPeer].push({
+                role: 'them',
+                who: mainPeer,
+                content: cleanSms,
+                time: storyMsgTime(),
+                timestamp: Date.now(),
+                worldEvent: true
+              });
+              store.setChats(ch);
+
+              // 若玩家此时正停留在「信息」App，立即刷新界面把新消息顶上来
+              if (currentApp === 'messages') {
+                try { apps.messages.render($('#appBody')); } catch (_) {}
+              }
+
+              // 直接调用 banner 强提醒（不受简报静默开关拦截），点击横幅直达该联系人聊天窗
+              banner(`💬 ${mainPeer} · 约饭后消息`, cleanSms, () => {
+                apps.messages.cur = mainPeer;
+                apps.messages.view = 'chat';
+                openApp('messages');
+              });
+            }, 1200);
           }
 
           toast(`✅ 已存入约饭历史档案（共 ${turns.length} 幕完整记录）`);
