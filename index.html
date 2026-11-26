@@ -15023,7 +15023,6 @@ D. 向${s.dept}负责人提出一个尖锐的反问`,'story');
       store.set('academySession',s);
     }
 
-if (session.story) { const _p = self._parseStoryAndOptions(session.story + '\n' + (session.options || '')); session.story = _p.story; session.options = _p.options; }
     const opts=(s.options||'').split('\n').filter(l=>/^[A-DＡ-Ｄ]\s*[\.、]/.test(l.trim()));
     v.innerHTML=`<div class="pad">
       <div class="statbar">
@@ -16401,18 +16400,6 @@ function datePlacesFor(){
    - 丰富全球地标与每城不少于9个专属点位
    - 支持在已有城市下添加自定义地点 / 新增自定义城市并置顶固化
    ============================================================ */
-function dtCustomPlaces() { return store.get('dt_custom_places', []); }
-function dtSaveCustomPlaces(list) { store.set('dt_custom_places', list); }
-function dtAutoMsgOn() { return store.get('dt_auto_msg', true) !== false; }
-function dtSetAutoMsg(b) { store.set('dt_auto_msg', !!b); }
-
-// 动态合并预设城市与玩家自定义的城市（自定义可置顶）
-function dtGetAllPlaces() {
-  const f = flags();
-  const presets = datePlacesFor();
-  const customs = dtCustomPlaces();
-  const map = new Map();
-
   // 1. 先加入预设
   presets.forEach(p => {
     map.set(p.key, { ...p, spots: [...p.spots], isCustom: false });
@@ -16463,6 +16450,130 @@ function dtGetAllPlaces() {
     }
   });
   return Array.from(map.values()).sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+}
+function dtGetHomeProfile(ownerName) {
+  const p = store.profile() || {};
+  const myName = p.name || '我';
+  const f = flags();
+ 
+  // 1. 用户自己的家
+  if (!ownerName || ownerName === 'me' || ownerName === myName) {
+    return {
+      placeName: `${myName}的家`,
+      emoji: '🏡',
+      desc: '属于你自己的私密空间，门一关就是只属于彼此的惬意时光。',
+      spots: [
+        { name: '下沉式客厅温暖布艺沙发', emoji: '🛋️' },
+        { name: '开放式小厨房料理吧台', emoji: '🍳' },
+        { name: '主卧落地窗飘窗前', emoji: '🌅' },
+        { name: '整洁的书桌工作台旁', emoji: '📖' },
+        { name: '放满绿植的微风阳台', emoji: '🌿' },
+        { name: '地毯上围坐的茶几边', emoji: '☕' },
+        { name: '放着轻柔音乐的私人小房间', emoji: '📻' },
+        { name: '玄关处微黄暖光灯下', emoji: '💡' },
+        { name: '深夜安静的餐桌旁', emoji: '🍷' }
+      ]
+    };
+  }
+
+  // 2. 托尼·斯塔克的家（自动识别所处时间线：2018年后为湖边小屋，此前为马里布海崖豪宅）
+  if (ownerName === '托尼·斯塔克') {
+    const isLake = f.year >= 2018;
+    return {
+      placeName: isLake ? '托尼·斯塔克的湖畔木屋' : '托尼·斯塔克的马里布海崖豪宅',
+      emoji: '🏡',
+      desc: isLake ? '避开所有镁光灯与喧嚣的湖畔木屋，静谧、水波与生活气。' : '马里布悬崖顶端高科技海景豪宅，全景玻璃窗与地下私人车库。',
+      spots: [
+        { name: '地下私人车库4号工作台旁', emoji: '🔬' },
+        { name: '悬崖无边泳池看太平洋日落', emoji: '🏊' },
+        { name: '下沉式智能壁炉客厅软座', emoji: '🛋️' },
+        { name: '私人酒窖深夜长木吧台', emoji: '🍷' },
+        { name: '主卧外挑全景星空露台', emoji: '🌌' },
+        { name: '古董跑车引擎盖边喝咖啡', emoji: '🏎️' },
+        { name: '私人放映厅深陷式皮质沙发', emoji: '🎬' },
+        { name: '清晨海风轻拂的木质门廊', emoji: '☕' },
+        { name: '陈列装甲幽蓝微光流转的走廊拐角', emoji: '🤖' }
+      ]
+    };
+  }
+
+  // 3. 史蒂夫·罗杰斯的家
+  if (ownerName === '史蒂夫·罗杰斯') {
+    return {
+      placeName: '史蒂夫·罗杰斯的复古公寓',
+      emoji: '🏡',
+      desc: '布鲁克林老街区采光良好的红砖旧公寓，简单、沉稳、充满岁月感。',
+      spots: [
+        { name: '窗台边老式木椅与旧报纸旁', emoji: '☕' },
+        { name: '放着40年代老黑胶的留声机边', emoji: '📻' },
+        { name: '阳光洒满的旧式木质餐桌', emoji: '🥞' },
+        { name: '手绘速写本摊开的小书桌前', emoji: '🎨' },
+        { name: '公寓防火梯俯瞰布鲁克林街巷', emoji: '🌇' },
+        { name: '擦拭得干干净净的朴素小厨房', emoji: '🍳' },
+        { name: '挂着褪色夹克的玄关门廊', emoji: '🧥' },
+        { name: '老式布艺沙发靠垫旁', emoji: '🛋️' },
+        { name: '夜幕下微风吹拂的窗前看星斗', emoji: '✨' }
+      ]
+    };
+  }
+
+  // 4. 彼得·帕克的家
+  if (ownerName === '彼得·帕克') {
+    return {
+      placeName: '彼得·帕克的皇后区小公寓',
+      emoji: '🏡',
+      desc: '皇后区温馨局促的平民公寓，总是飘着梅姨烘焙的香气和少年气息。',
+      spots: [
+        { name: '堆满科技废件与图纸的书桌旁', emoji: '🔬' },
+        { name: '房间窗外通往屋顶的红色防火梯', emoji: '🪜' },
+        { name: '客厅有些磨损但极柔软的旧沙发', emoji: '🛋️' },
+        { name: '厨房飘着苹果派香味的餐台边', emoji: '🥧' },
+        { name: '坐在木地板上拼乐高积木', emoji: '🧩' },
+        { name: '窗台边吹着傍晚凉风喝汽水', emoji: '🥤' },
+        { name: '堆着课本与背包的床边地毯上', emoji: '📚' },
+        { name: '玄关旧鞋柜旁换鞋的门厅', emoji: '👟' },
+        { name: '夜里隔着窗户看皇后区夜景的窄沿', emoji: '🌃' }
+      ]
+    };
+  }
+
+  // 5. 娜塔莎·罗曼诺夫的家
+  if (ownerName === '娜塔莎·罗曼诺夫') {
+    return {
+      placeName: '娜塔莎·罗曼诺夫的隐秘安全居所',
+      emoji: '🏡',
+      desc: '高层隔音公寓，暗调极简、高度安全，只有极少数人知晓这处住所。',
+      spots: [
+        { name: '全景无反光落地窗暗角单人椅', emoji: '🍸' },
+        { name: '极简黑白中岛厨台前喝茶', emoji: '🫖' },
+        { name: '铺着厚实羊绒地毯的放映暗室', emoji: '🎬' },
+        { name: '深色皮沙发与未拆封的唱片盒旁', emoji: '🛋️' },
+        { name: '无遮挡高空私人避风露台', emoji: '🌃' },
+        { name: '整洁却藏有暗格的实木书架前', emoji: '📚' },
+        { name: '微光流淌的恒温水池畔', emoji: '🧖' },
+        { name: '晨曦初现时静立的咖啡吧台', emoji: '☕' },
+        { name: '玄关处卸下外甲与防备的长凳', emoji: '🗝️' }
+      ]
+    };
+  }
+
+  // 6. 其他所有联系人通用专属居所
+  return {
+    placeName: `${ownerName}的私密居所`,
+    emoji: '🏡',
+    desc: `属于${ownerName}个人的舒适私密生活空间，温馨而放松。`,
+    spots: [
+      { name: '宽敞温暖的客厅主沙发座', emoji: '🛋️' },
+      { name: '开放式厨房中岛餐吧前', emoji: '🍳' },
+      { name: '视野开阔的私人微风露台', emoji: '🌅' },
+      { name: '摆放着喜爱藏品的静谧书房', emoji: '📚' },
+      { name: '放着轻柔背景音乐的影音角', emoji: '🎬' },
+      { name: '洒满阳光的靠窗早餐桌椅', emoji: '☕' },
+      { name: '玄关处卸下一身防备的衣帽廊', emoji: '💡' },
+      { name: '私人珍藏的酒水饮品小吧台', emoji: '🍷' },
+      { name: '夜幕降临后静谧无人的窗边', emoji: '✨' }
+    ]
+  };
 }
 
 apps.dating = {
