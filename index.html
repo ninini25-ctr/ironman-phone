@@ -16445,27 +16445,32 @@ apps.dating = {
   spotIdx: 0,
   people: [],
 
-  _safeSession(s) {
-    if (!s || typeof s !== 'object') return null;
+  // 老数据全字段强力清洗与向下兼容补全
+  _safeSession(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const s = { ...raw };
     if (!Array.isArray(s.history)) s.history = [];
     if (!Array.isArray(s._turnStories)) s._turnStories = [];
     if (!Array.isArray(s.people)) s.people = [];
     if (typeof s.turn !== 'number' || s.turn < 1) s.turn = 1;
     if (typeof s.story !== 'string') s.story = '';
     if (typeof s.options !== 'string') s.options = '';
+    if (!s.place) s.place = '家 · 私密居所';
+    if (!s.spot) s.spot = '客厅沙发旁';
+    if (!s.emoji) s.emoji = '🍷';
     return s;
   },
 
-  // 核心：智能清洗与分离正文、好感标签与选项（彻底杜绝嵌套BUG）
+  // 核心：彻底剥离正文、好感变动与选项（防嵌套核心算法）
   _parseStoryAndOptions(rawText) {
     let text = cleanSlur(String(rawText || '')).trim();
-    // 1. 清洗各类好感度变动标签
+    // 移除好感度变动标签
     text = text.replace(/【(?:Affinity\s*)?(?:好感度)?(?:变动)?[:：][^】]*】/gi, '').trim();
 
     let storyPart = text;
     let optPart = '';
 
-    // 2. 先尝试通过【选项】标记拆分
+    // 1. 若显式带有【选项】标签
     const splitRegex = /(?:【选项】|\[选项\]|选项[:：])/i;
     if (splitRegex.test(text)) {
       const parts = text.split(splitRegex);
@@ -16473,7 +16478,7 @@ apps.dating = {
       optPart = parts.slice(1).join('\n').trim();
     }
 
-    // 3. 容错提取：如果正文尾部仍嵌套着 A. B. C. D.，或者未打标记直接输出选项
+    // 2. 正文尾部残留选项逐行提取
     const lines = storyPart.split('\n');
     const optLines = [];
     const keptStoryLines = [];
@@ -16485,9 +16490,8 @@ apps.dating = {
         parsingOpts = true;
         optLines.push(line);
       } else if (parsingOpts && !line) {
-        // 遇到空行继续跳过
+        // 跳过空行
       } else if (parsingOpts) {
-        // 如果已经进入选项段但某行未带字母标号，若整体较短则合并到上一条选项，否则回退
         if (line.length < 50 && optLines.length) {
           optLines[optLines.length - 1] += ' ' + line;
         } else {
@@ -16504,7 +16508,6 @@ apps.dating = {
       optPart = optLines.join('\n').trim();
     }
 
-    // 兜底选项
     if (!optPart) {
       optPart = 'A. 顺着话题探讨下去\nB. 举杯与对方轻碰致意\nC. 保持舒适的安静，细尝餐点\nD. 聊起一件轻松的旧事';
     }
@@ -16526,20 +16529,19 @@ apps.dating = {
     const self = this, f = flags();
     const p = store.profile() || {};
     const myName = p.name || '你';
+    
+    // 安全读取并清洗当前会话，避免旧数据类型崩坏
     let session = self._safeSession(store.get('dateSession', null));
     if (session) store.set('dateSession', session);
     $('#actBtn').style.display = 'none';
 
+    // 路由分发
     if (this._view === 'date' && session) {
-      Promise.resolve(this.renderDate(v, session)).catch(e => {
-        showErr('E-RENDER-001', { err: e }); self._view = 'setup'; self.render(v);
-      });
+      this.renderDate(v, session);
       return;
     }
     if (this._view === 'result' && session) {
-      Promise.resolve(this.renderResult(v, session)).catch(e => {
-        showErr('E-RENDER-001', { err: e }); self._view = 'setup'; self.render(v);
-      });
+      this.renderResult(v, session);
       return;
     }
 
@@ -16547,7 +16549,7 @@ apps.dating = {
     let curCity = allPlaces.find(p => p.key === self.cityKey) || allPlaces[0];
     self.cityKey = curCity.key;
 
-    let displaySpots = curCity.spots;
+    let displaySpots = curCity.spots || [];
     let displayPlaceTitle = curCity.name;
     let displayPlaceDesc = curCity.desc;
 
@@ -16562,7 +16564,7 @@ apps.dating = {
     }
 
     if (self.spotIdx >= displaySpots.length) self.spotIdx = 0;
-    const curSpot = displaySpots[self.spotIdx] || displaySpots[0];
+    const curSpot = displaySpots[self.spotIdx] || displaySpots[0] || { name: '舒适一角', emoji: '🛋️' };
     const names = activeNames().filter(n => !isAI(n));
 
     v.innerHTML = `
@@ -16601,7 +16603,7 @@ apps.dating = {
       </style>
 
       <div class="pad" style="padding-bottom: 24px">
-        <!-- 顶部约饭结束后自动消息开关 -->
+        <!-- 自动消息开关 -->
         <div class="card" style="padding: 10px 12px; margin-bottom: 10px; border-radius: 12px">
           <div style="display: flex; align-items: center; justify-content: space-between">
             <div style="display: flex; align-items: center; gap: 6px">
@@ -16634,7 +16636,7 @@ apps.dating = {
           </div>
         ` : ''}
 
-        <!-- 城市选择网格 -->
+        <!-- 城市选择 -->
         <div class="card" style="padding: 11px; margin-bottom: 10px">
           <div style="display: flex; justify-content: space-between; align-items: center">
             <div style="font-size: 12px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 4px">
@@ -16655,7 +16657,7 @@ apps.dating = {
           </div>
         </div>
 
-        <!-- 专属点位与动态「家的归属」选择器 -->
+        <!-- 场所点位与家的归属切换 -->
         <div class="card" style="padding: 11px; margin-bottom: 10px">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
             <div>
@@ -16701,7 +16703,7 @@ apps.dating = {
           </div>
         </div>
 
-        <!-- 同行伙伴多选 -->
+        <!-- 邀约伙伴 -->
         <div class="card" style="padding: 11px; margin-bottom: 12px">
           <div style="font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 6px">
             👥 邀约同行伙伴（可多选）
@@ -16718,7 +16720,7 @@ apps.dating = {
           </div>
         </div>
 
-        <!-- 启动与记录 -->
+        <!-- 启动按键 -->
         <div class="row" style="gap: 8px; margin-bottom: 12px">
           <button class="btn gold" id="dt_start_btn" style="flex: 1; font-weight: 700">▶ 开始这场约会</button>
           <button class="btn ghost sm" id="dt_hist_btn" style="flex: 0 0 85px">📜 约饭记录</button>
@@ -16811,7 +16813,7 @@ apps.dating = {
           </div>
           <div class="field"><label>城市风貌描述 *</label><textarea id="nc_desc" class="inp" rows="2" placeholder="例如：雪山湖畔，静谧的私人疗养与钟表工坊。"></textarea></div>
           <div class="field">
-            <label>初始约会地点（每行一个，格式：名称 || 图标，可加多个）</label>
+            <label>初始约会地点（每行一个，格式：名称 || 图标）</label>
             <textarea id="nc_spots" class="inp" rows="4" style="font-family:var(--font-mono);font-size:12px">湖畔私密天台咖啡厅 || ☕\n旧钟表工坊VIP定制间 || 🕰️\n雪山观景缆车独处空间 || 🚠</textarea>
           </div>
           <button class="btn gold sm" id="nc_save" style="width:100%;margin-top:6px">保存并固定在列表</button>
@@ -16906,18 +16908,248 @@ apps.dating = {
     };
   },
 
-  // ====== 约会推演主界面：带上一回合、重置本回合、5槽位存读档、回忆 ======
-  async renderDate(v, session) {
+  // ====== 约会推演主界面：彻底消除嵌套、全控制按钮归位、防丢骨架 ======
+  renderDate(v, session) {
     const self = this, f = flags();
 
-    if (!session.story) {
-      v.innerHTML = '<div class="loader"><div class="spin"></div>正在入席布置现场…</div>';
-      const last = session.history.length ? session.history[session.history.length - 1] : null;
+    // 核心安全机制：无论是否已有剧情，先立刻把外层骨架同步渲染上屏，绝对不触发 safeRender 的 EMPTY_DOM 兜底！
+    const renderDomShell = () => {
+      // 容错剥离正文与选项
+      const parsed = self._parseStoryAndOptions(session.story);
+      session.story = parsed.story;
+      if (!session.options) session.options = parsed.options;
+      
+      const opts = (session.options || '').split('\n').filter(l => /^[A-DＡ-Ｄ]\s*[\.、]/.test(l.trim()));
 
-      const sys = buildSystem('worldline', `这是一场在【${session.place} · ${session.spot}】的约会聚餐/相处场景。
-同行人物：${session.people.join('、')}。
+      v.innerHTML = `
+        <div class="pad" style="padding-bottom: 24px">
+          <!-- 顶栏信息条 -->
+          <div class="statbar" style="margin-bottom:8px;padding:9px 12px">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:10.5px;color:var(--muted)">
+                ${esc(session.emoji || '🍷')} ${esc(session.place)} · <b style="color:var(--cyan)">第 ${session.turn || 1} 回合</b>
+              </div>
+              <div style="font-family:var(--font-serif);font-size:14px;font-weight:700;margin-top:2px;color:var(--text)">
+                ${esc(session.spot)}
+              </div>
+              <div class="hint" style="font-size:10.5px;margin-top:1px">同行人：<b>${esc((session.people || []).join('、'))}</b></div>
+            </div>
+            <div style="font-size:22px;flex-shrink:0">${session.emoji || '🍷'}</div>
+          </div>
+
+          <!-- 核心控制按钮行：上一回合 / 重置本回合 / 存读档 / 回忆 -->
+          <div class="row" style="margin-bottom:8px;gap:5px;flex-wrap:wrap">
+            <button class="btn ghost sm" id="dt_back_turn" ${(session.history && session.history.length) ? '' : 'disabled'} style="flex:1;font-size:11px;padding:6px 2px" title="丢弃当前回合，回退到上一回合">
+              ↩ 上一回合
+            </button>
+            <button class="btn ghost sm" id="dt_reset_turn" style="flex:1;font-size:11px;padding:6px 2px" title="重新生成本回合剧情与选项">
+              ↺ 重置本回合
+            </button>
+            <button class="btn ghost sm" id="dt_slots_btn" style="flex:1;font-size:11px;padding:6px 2px" title="5 槽位独立存读档">
+              💾 存读档
+            </button>
+            <button class="btn ghost sm" id="dt_memo_btn" style="flex:0 0 54px;font-size:11px;padding:6px 2px" title="查看本次约会回忆">
+              📜 回忆
+            </button>
+          </div>
+
+          <!-- 剧情正文区（纯净排版） -->
+          <div id="dt_story_box" class="story" style="font-size:13px;line-height:1.8;margin-bottom:12px;background:var(--panel);padding:12px;border-radius:12px;border:1px solid var(--line)">
+            ${session.story ? fmtStory(session.story) : '<div class="hint" style="line-height:1.8"><div class="spin" style="display:inline-block;width:12px;height:12px;border-width:2px;vertical-align:middle;margin-right:6px"></div>正在入席布置现场，稍候片刻…</div>'}
+          </div>
+
+          <!-- 独立按钮操作区（彻底分离） -->
+          <div class="card" id="dt_opts_card" style="padding:10px 12px;margin-bottom:8px;border-color:var(--cyan);${session.story ? '' : 'display:none;'}">
+            <div style="font-size:11.5px;font-weight:700;color:var(--cyan);margin-bottom:8px">◉ 可选行动抉择：</div>
+            <div id="dt_opts">
+              ${opts.map(o => `<button class="opt" data-o="${esc(o).replace(/"/g, '&quot;')}" style="font-size:12px;padding:9px 12px;margin-bottom:6px">${fmt(o)}</button>`).join('')}
+            </div>
+          </div>
+
+          <!-- 自定义行动与纠偏 -->
+          <div class="card" style="padding:10px 12px">
+            <div class="hint" style="font-size:10px;margin-bottom:5px;color:var(--gold)">
+              💡 提示：<b>（括号内）</b>输入剧情指引与纠偏，<b>括号外</b>输入行动与台词
+            </div>
+            <input id="dt_act" class="inp" value="（）" placeholder="（行动指示）具体行动与台词…" style="font-size:12.5px;margin-bottom:7px" ${session.story ? '' : 'disabled'}>
+            <div class="row" style="gap:7px">
+              <button class="btn sm" id="dt_send" style="flex:1;font-weight:700" ${session.story ? '' : 'disabled'}>执行行动与推进</button>
+              <button class="btn ghost sm" id="dt_end" style="flex:0 0 85px">结算并结束</button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      bindEvents();
+    };
+
+    const bindEvents = () => {
+      // 选项点击事件
+      v.querySelectorAll('[data-o]').forEach(b => b.onclick = () => doPick(b.dataset.o));
+
+      // 自定义行动
+      const doSend = () => {
+        let raw = v.querySelector('#dt_act').value.trim();
+        if (!raw || raw === '（）' || raw === '()') return toast('请输入行动内容');
+        let corr = '', act = raw;
+        const m = raw.match(/[（\(](.*?)[）\)](.*)/s);
+        if (m) { corr = m[1].trim(); act = m[2].trim(); }
+        let choice = act;
+        if (corr) choice = `【系统纠偏指令：${corr}】\n玩家实际行动：${act || '（遵循上述纠偏推进）'}`;
+        doPick(choice);
+      };
+
+      const sendBtn = v.querySelector('#dt_send');
+      if (sendBtn) sendBtn.onclick = doSend;
+      const actInp = v.querySelector('#dt_act');
+      if (actInp) {
+        actInp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doSend(); } });
+        if (actInp.value === '（）') {
+          actInp.addEventListener('focus', () => { setTimeout(() => actInp.setSelectionRange(1, 1), 10); }, { once: true });
+        }
+      }
+
+      // 1. 回到上一回合
+      const backBtn = v.querySelector('#dt_back_turn');
+      if (backBtn) {
+        backBtn.onclick = () => {
+          if (!session.history || !session.history.length) return;
+          if (!confirm('确定回到上一回合？当前回合内容将被丢弃。')) return;
+          const h = session.history.pop();
+          session.story = h.story;
+          session.options = h.options;
+          session.turn = Math.max(1, session.turn - 1);
+          session._turnStories = (session._turnStories || []).slice(0, session.turn);
+          store.set('dateSession', session);
+          toast(`已回退至第 ${session.turn} 回合`);
+          self.renderDate(v, session);
+        };
+      }
+
+      // 2. 重置本回合
+      const resetBtn = v.querySelector('#dt_reset_turn');
+      if (resetBtn) {
+        resetBtn.onclick = () => {
+          if (!confirm('确定重置本回合？将保留当前回合进度，让 AI 重新推演当前场景与选项。')) return;
+          session.story = '';
+          session.options = '';
+          store.set('dateSession', session);
+          toast('正在重新推演本幕剧情…');
+          self.renderDate(v, session);
+        };
+      }
+
+      // 3. 5 槽位独立存读档
+      const slotsBtn = v.querySelector('#dt_slots_btn');
+      if (slotsBtn) {
+        slotsBtn.onclick = () => {
+          const slots = store.get('date_slots', Array(5).fill(null));
+          const renderSlots = () => slots.map((sl, idx) => `
+            <div class="card" style="padding:10px;margin-bottom:8px;background:var(--panel2)">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <b style="color:var(--cyan)">约会槽位 ${idx + 1}</b>
+                <span class="hint" style="font-size:10px">${sl ? esc(sl.saveTime) : '空槽位'}</span>
+              </div>
+              ${sl ? `<div class="hint" style="margin:5px 0;font-size:11px;line-height:1.6">
+                地点：<b>${esc(sl.session.place)} · ${esc(sl.session.spot)}</b><br>
+                进度：第 ${sl.session.turn || 1} 回合 · 同行：${esc((sl.session.people || []).join('、'))}
+                <div style="max-height:34px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px;color:var(--text);opacity:.85">
+                  ${esc((sl.session.story || '').slice(0, 48))}...
+                </div>
+              </div>` : '<div class="hint" style="margin:5px 0">暂无存档记录</div>'}
+              <div class="row" style="margin-top:6px">
+                <button class="btn sm" data-dtsave="${idx}">覆盖保存</button>
+                <button class="btn ghost sm" data-dtload="${idx}" ${sl ? '' : 'disabled'}>读取本槽</button>
+                ${sl ? `<button class="btn ghost sm" data-dtdel="${idx}" style="color:var(--red);flex:0 0 46px">删</button>` : ''}
+              </div>
+            </div>
+          `).join('');
+
+          const d = modal(`
+            <h2 style="color:var(--cyan);margin-top:0;font-size:16px">💾 约会剧情存读档 (5 槽位)</h2>
+            <div class="hint" style="margin-bottom:8px">与世界线存档互相独立，专门用于保存当前约会的剧情分叉。</div>
+            <div id="dt_slot_box" style="max-height:60vh;overflow-y:auto">${renderSlots()}</div>
+            <button class="btn ghost sm" data-close style="margin-top:10px;width:100%">关闭</button>
+          `);
+
+          const bindSlots = () => {
+            d.querySelectorAll('[data-dtsave]').forEach(b => b.onclick = () => {
+              const idx = +b.dataset.dtsave;
+              slots[idx] = {
+                saveTime: nowTime(),
+                session: JSON.parse(JSON.stringify(store.get('dateSession', session)))
+              };
+              store.set('date_slots', slots);
+              toast(`已存入约会槽位 ${idx + 1}`);
+              d.querySelector('#dt_slot_box').innerHTML = renderSlots();
+              bindSlots();
+            });
+            d.querySelectorAll('[data-dtload]').forEach(b => b.onclick = () => {
+              const idx = +b.dataset.dtload;
+              const target = slots[idx];
+              if (!target) return;
+              if (!confirm(`确定读取约会槽位 ${idx + 1}？当前未保存的进度将被覆盖。`)) return;
+              store.set('dateSession', JSON.parse(JSON.stringify(target.session)));
+              d.remove();
+              toast(`已读取约会槽位 ${idx + 1}`);
+              self.renderDate(v, target.session);
+            });
+            d.querySelectorAll('[data-dtdel]').forEach(b => b.onclick = () => {
+              const idx = +b.dataset.dtdel;
+              slots[idx] = null;
+              store.set('date_slots', slots);
+              d.querySelector('#dt_slot_box').innerHTML = renderSlots();
+              bindSlots();
+            });
+          };
+          bindSlots();
+        };
+      }
+
+      // 4. 回忆
+      const memoBtn = v.querySelector('#dt_memo_btn');
+      if (memoBtn) {
+        memoBtn.onclick = () => {
+          const hist = session.history || [];
+          modal(`
+            <h2 style="color:var(--cyan);margin-top:0;font-size:16px">📜 本场约会回忆录</h2>
+            <div style="max-height:60vh;overflow-y:auto;padding-right:2px">
+              ${hist.length ? hist.map((h, i) => `
+                <div class="card" style="padding:10px;margin-bottom:8px">
+                  <div class="hint" style="color:var(--gold);font-weight:700">第 ${h.turn || (i + 1)} 幕</div>
+                  <div class="story" style="font-size:12px;margin:5px 0">${fmtStory(h.story)}</div>
+                  <div style="font-size:11.5px;color:var(--cyan)">➤ 你的抉择：${esc(h.choice)}</div>
+                </div>
+              `).join('') : '<div class="hint">暂无前期记录，当前正处于开端第 1 幕。</div>'}
+            </div>
+            <button class="btn ghost sm" data-close style="margin-top:10px;width:100%">关闭</button>
+          `);
+        };
+      }
+
+      // 结束约会
+      const endBtn = v.querySelector('#dt_end');
+      if (endBtn) {
+        endBtn.onclick = () => {
+          self._view = 'result';
+          self.renderResult(v, session);
+        };
+      }
+    };
+
+    // 先上屏骨架，杜绝页面空白
+    renderDomShell();
+
+    // 如果还没有故事内容，异步发起 AI 渲染
+    if (!session.story) {
+      (async () => {
+        try {
+          const last = (session.history && session.history.length) ? session.history[session.history.length - 1] : null;
+
+          const sys = buildSystem('worldline', `这是一场在【${session.place} · ${session.spot}】的约会聚餐/相处场景。
+同行人物：${(session.people || []).join('、')}。
 【文风与节奏要求】：
-1. 细腻描摹环境（如私密居所的惬意、食物香气、入座与微小肢体动作）；
+1. 细腻描摹私密环境、食物香气、入座与微小肢体动作；
 2. 角色说话必须带有符合人设的特征与口吻；
 3. 【对白语言铁律】每句出声台词必须写成："English Line"（中文译文），旁白环境纯中文；
 4. 【格式铁律 · 极其重要】正文中绝对严禁包含任何 A. B. C. D. 选项！
@@ -16928,91 +17160,43 @@ B. ...
 C. ...
 D. ...`);
 
-      const ctx = last
-        ? `【上一回合场景】：\n${last.story.slice(-350)}\n【玩家上一轮行动】：${last.choice}\n请承接推进第 ${session.turn} 幕。`
-        : `请推进这场约会的开场第一幕。`;
+          const ctx = last
+            ? `【上一回合场景】：\n${(last.story || '').slice(-350)}\n【玩家上一轮行动】：${last.choice}\n请承接推进第 ${session.turn || 1} 幕。`
+            : `请推进这场约会的开场第一幕。`;
 
-      let r = await ai([{ role: 'user', content: ctx }], sys, () => {
-        const lead = session.people[0] || '托尼·斯塔克';
-        return `${session.emoji} ${session.place} · ${session.spot}\n\n夜色正浓。门在身后悄然合上，屋里弥漫着令人放松的气息。\n\n${lead}转过身，将外套随手搭在一旁：「坐吧。这里没有记者，也没有排得密密麻麻的会议日程。」\n\n【选项】\nA. 笑着环顾四周，点评房间的陈设\nB. 顺手接过杯子，走到窗前看夜色\nC. 靠在沙发上，深吸了一口气卸下疲惫\nD. 聊起刚才在路上遇到的趣事`;
-      });
+          let r = await ai([{ role: 'user', content: ctx }], sys, () => {
+            const lead = (session.people && session.people[0]) || '托尼·斯塔克';
+            return `${session.emoji || '🍷'} ${session.place} · ${session.spot}\n\n夜色正浓。门在身后悄然合上，屋里弥漫着令人放松的气息。\n\n${lead}转过身，将外套随手搭在一旁：「坐吧。这里没有记者，也没有排得密密麻麻的会议日程。」\n\n【选项】\nA. 笑着环顾四周，点评房间的陈设\nB. 顺手接过杯子，走到窗前看夜色\nC. 靠在沙发上，深吸了一口气卸下疲惫\nD. 聊起刚才在路上遇到的趣事`;
+          });
 
-      // 调用专属清洗器，杜绝嵌套
-      const parsed = self._parseStoryAndOptions(r);
-      session.story = parsed.story;
-      session.options = parsed.options;
-      session._turnStories = session._turnStories || [];
-      session._turnStories[session.turn - 1] = { story: session.story, options: session.options };
-      store.set('dateSession', session);
+          const parsed = self._parseStoryAndOptions(r);
+          session.story = parsed.story;
+          session.options = parsed.options;
+          session._turnStories = session._turnStories || [];
+          session._turnStories[(session.turn || 1) - 1] = { story: session.story, options: session.options };
+          store.set('dateSession', session);
+
+          // 回填并刷新页面显示
+          renderDomShell();
+        } catch (err) {
+          console.error('[renderDate initial load error]', err);
+          session.story = '现场布置妥当，空气里弥漫着安静的气息。';
+          session.options = 'A. 坐下聊聊\nB. 享受安静';
+          store.set('dateSession', session);
+          renderDomShell();
+        }
+      })();
     }
 
-    // 解析出按钮选项
-    const opts = (session.options || '').split('\n').filter(l => /^[A-DＡ-Ｄ]\s*[\.、]/.test(l.trim()));
-
-    v.innerHTML = `
-      <div class="pad" style="padding-bottom: 24px">
-        <!-- 顶栏信息条 -->
-        <div class="statbar" style="margin-bottom:8px;padding:9px 12px">
-          <div style="flex:1;min-width:0">
-            <div style="font-size:10.5px;color:var(--muted)">
-              ${esc(session.emoji)} ${esc(session.place)} · <b style="color:var(--cyan)">第 ${session.turn} 回合</b>
-            </div>
-            <div style="font-family:var(--font-serif);font-size:14px;font-weight:700;margin-top:2px;color:var(--text)">
-              ${esc(session.spot)}
-            </div>
-            <div class="hint" style="font-size:10.5px;margin-top:1px">同行人：<b>${esc(session.people.join('、'))}</b></div>
-          </div>
-          <div style="font-size:22px;flex-shrink:0">${session.emoji || '🍷'}</div>
-        </div>
-
-        <!-- 核心控制按钮行：上一回合 / 重置本回合 / 存读档 / 回忆 -->
-        <div class="row" style="margin-bottom:8px;gap:5px;flex-wrap:wrap">
-          <button class="btn ghost sm" id="dt_back_turn" ${session.history.length ? '' : 'disabled'} style="flex:1;font-size:11px;padding:6px 2px" title="丢弃当前回合，回退到上一回合">
-            ↩ 上一回合
-          </button>
-          <button class="btn ghost sm" id="dt_reset_turn" style="flex:1;font-size:11px;padding:6px 2px" title="重新生成本回合剧情与选项">
-            ↺ 重置本回合
-          </button>
-          <button class="btn ghost sm" id="dt_slots_btn" style="flex:1;font-size:11px;padding:6px 2px" title="5 槽位独立存读档">
-            💾 存读档
-          </button>
-          <button class="btn ghost sm" id="dt_memo_btn" style="flex:0 0 54px;font-size:11px;padding:6px 2px" title="查看本次约会回忆">
-            📜 回忆
-          </button>
-        </div>
-
-        <!-- 剧情正文区（纯净排版） -->
-        <div class="story" style="font-size:13px;line-height:1.8;margin-bottom:12px;background:var(--panel);padding:12px;border-radius:12px;border:1px solid var(--line)">
-          ${fmtStory(session.story)}
-        </div>
-
-        <!-- 独立按钮操作区（彻底分离） -->
-        <div class="card" style="padding:10px 12px;margin-bottom:8px;border-color:var(--cyan)">
-          <div style="font-size:11.5px;font-weight:700;color:var(--cyan);margin-bottom:8px">◉ 可选行动抉择：</div>
-          <div id="dt_opts">
-            ${opts.map(o => `<button class="opt" data-o="${esc(o).replace(/"/g, '&quot;')}" style="font-size:12px;padding:9px 12px;margin-bottom:6px">${fmt(o)}</button>`).join('')}
-          </div>
-        </div>
-
-        <!-- 自定义行动与纠偏 -->
-        <div class="card" style="padding:10px 12px">
-          <div class="hint" style="font-size:10px;margin-bottom:5px;color:var(--gold)">
-            💡 提示：<b>（括号内）</b>输入剧情指引与纠偏，<b>括号外</b>输入行动与台词
-          </div>
-          <input id="dt_act" class="inp" value="（）" placeholder="（行动指示）具体行动内容…" style="font-size:12.5px;margin-bottom:7px">
-          <div class="row" style="gap:7px">
-            <button class="btn sm" id="dt_send" style="flex:1;font-weight:700">执行行动与推进</button>
-            <button class="btn ghost sm" id="dt_end" style="flex:0 0 85px">结算并结束</button>
-          </div>
-        </div>
-      </div>
-    `;
-
-    // 推进回合
-    const pick = async (choice) => {
+    // 执行选择并推进回合
+    const doPick = async (choice) => {
       const s = store.get('dateSession', session);
-      v.innerHTML = '<div class="loader"><div class="spin"></div>剧情深入推演中…</div>';
+      const storyBox = v.querySelector('#dt_story_box');
+      if (storyBox) storyBox.innerHTML = '<div class="loader"><div class="spin"></div>剧情深入推演中…</div>';
+      const optsCard = v.querySelector('#dt_opts_card');
+      if (optsCard) optsCard.style.display = 'none';
 
+      s.history = s.history || [];
       s.history.push({
         turn: s.turn,
         story: s.story,
@@ -17020,7 +17204,7 @@ D. ...`);
         choice
       });
 
-      const sys = buildSystem('worldline', `继续约会。地点：${s.place} · ${s.spot}。同行：${s.people.join('、')}。
+      const sys = buildSystem('worldline', `继续约会。地点：${s.place} · ${s.spot}。同行：${(s.people || []).join('、')}。
 玩家本轮行动：${choice}。
 【对白语言铁律】每句出声台词必须写成："English"（中文翻译）。
 【格式铁律】正文中严禁出现 A. B. C. D. 选项！
@@ -17031,151 +17215,27 @@ B. ...
 C. ...
 D. ...`);
 
-      const r = await ai(
-        [{ role: 'user', content: `【前文剧情】\n${s.story.slice(-400)}\n\n玩家选择：${choice}\n请承接推进下一幕。` }],
-        sys,
-        () => '空气里微光流转，对方眼中带着若有所思的笑意。\n\n【选项】\nA. 继续交谈探讨\nB. 准备收束约会'
-      );
+      try {
+        const r = await ai(
+          [{ role: 'user', content: `【前文剧情】\n${(s.story || '').slice(-400)}\n\n玩家选择：${choice}\n请承接推进下一幕。` }],
+          sys,
+          () => '空气里微光流转，对方眼中带着若有所思的笑意。\n\n【选项】\nA. 继续交谈探讨\nB. 准备收束约会'
+        );
 
-      const parsed = self._parseStoryAndOptions(r);
-      s.story = parsed.story;
-      s.options = parsed.options;
-      s.turn++;
-      s._turnStories = s._turnStories || [];
-      s._turnStories[s.turn - 1] = { story: s.story, options: s.options };
-      store.set('dateSession', s);
-      self.renderDate(v, s);
-    };
-
-    v.querySelectorAll('[data-o]').forEach(b => b.onclick = () => pick(b.dataset.o));
-
-    const doSend = () => {
-      let raw = v.querySelector('#dt_act').value.trim();
-      if (!raw || raw === '（）' || raw === '()') return toast('请输入行动内容');
-      let corr = '', act = raw;
-      const m = raw.match(/[（\(](.*?)[）\)](.*)/s);
-      if (m) { corr = m[1].trim(); act = m[2].trim(); }
-      let choice = act;
-      if (corr) choice = `【系统纠偏指令：${corr}】\n玩家实际行动：${act || '（遵循上述纠偏推进）'}`;
-      pick(choice);
-    };
-    v.querySelector('#dt_send').onclick = doSend;
-    v.querySelector('#dt_act').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doSend(); } });
-    const wInp = v.querySelector('#dt_act');
-    if (wInp && wInp.value === '（）') {
-      wInp.addEventListener('focus', () => { setTimeout(() => wInp.setSelectionRange(1, 1), 10); }, { once: true });
-    }
-
-    // 1. 上一回合
-    v.querySelector('#dt_back_turn').onclick = () => {
-      if (!session.history.length) return;
-      if (!confirm('确定回到上一回合？当前回合内容将被丢弃。')) return;
-      const h = session.history.pop();
-      session.story = h.story;
-      session.options = h.options;
-      session.turn = Math.max(1, session.turn - 1);
-      session._turnStories = (session._turnStories || []).slice(0, session.turn);
-      store.set('dateSession', session);
-      toast(`已回退至第 ${session.turn} 回合`);
-      self.renderDate(v, session);
-    };
-
-    // 2. 重置本回合
-    v.querySelector('#dt_reset_turn').onclick = () => {
-      if (!confirm('确定重置本回合？将保留当前回合进度，让 AI 重新推演当前场景与选项。')) return;
-      session.story = '';
-      session.options = '';
-      store.set('dateSession', session);
-      toast('正在重新推演本幕剧情…');
-      self.renderDate(v, session);
-    };
-
-    // 3. 5 槽位独立存读档
-    v.querySelector('#dt_slots_btn').onclick = () => {
-      const slots = store.get('date_slots', Array(5).fill(null));
-      const renderSlots = () => slots.map((sl, idx) => `
-        <div class="card" style="padding:10px;margin-bottom:8px;background:var(--panel2)">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <b style="color:var(--cyan)">约会槽位 ${idx + 1}</b>
-            <span class="hint" style="font-size:10px">${sl ? esc(sl.saveTime) : '空槽位'}</span>
-          </div>
-          ${sl ? `<div class="hint" style="margin:5px 0;font-size:11px;line-height:1.6">
-            地点：<b>${esc(sl.session.place)} · ${esc(sl.session.spot)}</b><br>
-            进度：第 ${sl.session.turn || 1} 回合 · 同行：${esc((sl.session.people || []).join('、'))}
-            <div style="max-height:34px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px;color:var(--text);opacity:.85">
-              ${esc((sl.session.story || '').slice(0, 48))}...
-            </div>
-          </div>` : '<div class="hint" style="margin:5px 0">暂无存档记录</div>'}
-          <div class="row" style="margin-top:6px">
-            <button class="btn sm" data-dtsave="${idx}">覆盖保存</button>
-            <button class="btn ghost sm" data-dtload="${idx}" ${sl ? '' : 'disabled'}>读取本槽</button>
-            ${sl ? `<button class="btn ghost sm" data-dtdel="${idx}" style="color:var(--red);flex:0 0 46px">删</button>` : ''}
-          </div>
-        </div>
-      `).join('');
-
-      const d = modal(`
-        <h2 style="color:var(--cyan);margin-top:0;font-size:16px">💾 约会剧情存读档 (5 槽位)</h2>
-        <div class="hint" style="margin-bottom:8px">与世界线存档互相独立，专门用于保存当前约会的剧情分叉。</div>
-        <div id="dt_slot_box" style="max-height:60vh;overflow-y:auto">${renderSlots()}</div>
-        <button class="btn ghost sm" data-close style="margin-top:10px;width:100%">关闭</button>
-      `);
-
-      const bind = () => {
-        d.querySelectorAll('[data-dtsave]').forEach(b => b.onclick = () => {
-          const idx = +b.dataset.dtsave;
-          slots[idx] = {
-            saveTime: nowTime(),
-            session: JSON.parse(JSON.stringify(store.get('dateSession', session)))
-          };
-          store.set('date_slots', slots);
-          toast(`已存入约会槽位 ${idx + 1}`);
-          d.querySelector('#dt_slot_box').innerHTML = renderSlots();
-          bind();
-        });
-        d.querySelectorAll('[data-dtload]').forEach(b => b.onclick = () => {
-          const idx = +b.dataset.dtload;
-          const target = slots[idx];
-          if (!target) return;
-          if (!confirm(`确定读取约会槽位 ${idx + 1}？当前未保存的进度将被覆盖。`)) return;
-          store.set('dateSession', JSON.parse(JSON.stringify(target.session)));
-          d.remove();
-          toast(`已读取约会槽位 ${idx + 1}`);
-          self.renderDate(v, target.session);
-        });
-        d.querySelectorAll('[data-dtdel]').forEach(b => b.onclick = () => {
-          const idx = +b.dataset.dtdel;
-          slots[idx] = null;
-          store.set('date_slots', slots);
-          d.querySelector('#dt_slot_box').innerHTML = renderSlots();
-          bind();
-        });
-      };
-      bind();
-    };
-
-    // 4. 回忆功能（查看本场约会全程记录）
-    v.querySelector('#dt_memo_btn').onclick = () => {
-      const hist = session.history || [];
-      modal(`
-        <h2 style="color:var(--cyan);margin-top:0;font-size:16px">📜 本场约会回忆录</h2>
-        <div style="max-height:60vh;overflow-y:auto;padding-right:2px">
-          ${hist.length ? hist.map((h, i) => `
-            <div class="card" style="padding:10px;margin-bottom:8px">
-              <div class="hint" style="color:var(--gold);font-weight:700">第 ${h.turn || (i + 1)} 幕</div>
-              <div class="story" style="font-size:12px;margin:5px 0">${fmtStory(h.story)}</div>
-              <div style="font-size:11.5px;color:var(--cyan)">➤ 你的抉择：${esc(h.choice)}</div>
-            </div>
-          `).join('') : '<div class="hint">暂无前期记录，当前正处于开端第 1 幕。</div>'}
-        </div>
-        <button class="btn ghost sm" data-close style="margin-top:10px;width:100%">关闭</button>
-      `);
-    };
-
-    // 结束约会
-    v.querySelector('#dt_end').onclick = () => {
-      self._view = 'result';
-      self.renderResult(v, session);
+        const parsed = self._parseStoryAndOptions(r);
+        s.story = parsed.story;
+        s.options = parsed.options;
+        s.turn = (s.turn || 1) + 1;
+        s._turnStories = s._turnStories || [];
+        s._turnStories[s.turn - 1] = { story: s.story, options: s.options };
+        store.set('dateSession', s);
+        self.renderDate(v, s);
+      } catch (e) {
+        s.story = '对方微微一笑，轻轻放下了手中的杯子。';
+        s.options = 'A. 准备结束这场约会\nB. 再坐一会儿';
+        store.set('dateSession', s);
+        self.renderDate(v, s);
+      }
     };
   },
 
@@ -17188,90 +17248,97 @@ D. ...`);
         <div class="card" style="padding:20px 14px">
           <div style="font-size:36px;margin-bottom:6px">${session.emoji || '🍷'}</div>
           <h2 style="font-family:var(--font-serif);font-size:16px;margin:0 0 6px">这场聚会圆满收束</h2>
-          <div class="hint" style="font-size:11.5px">${esc(session.place)} · ${esc(session.spot)}<br>同行伙伴：${esc(session.people.join('、'))}</div>
+          <div class="hint" style="font-size:11.5px">${esc(session.place)} · ${esc(session.spot)}<br>同行伙伴：${esc((session.people || []).join('、'))}</div>
           <div class="divider"></div>
           <div id="dt_result_eval" class="hint">正在进行情感共鸣结算…</div>
         </div>
       </div>
     `;
 
-    const sys = buildSystem('general', `你是情感与好感判定器。评估这场聚会/约会全过程：
+    try {
+      const sys = buildSystem('general', `你是情感与好感判定器。评估这场聚会/约会全过程：
 1. 氛围判定（愉快 / 融洽 / 平淡 / 拘谨）；
 2. 好感结算（整数 -5 ~ +5）；
 3. 50字内走心评语。
 格式严格为：氛围 ||| 整数数字 ||| 评语`);
-    const r = await ai(
-      [{ role: 'user', content: `约会地点：${session.place} · ${session.spot}\n同行：${session.people.join('、')}\n剧情回顾：\n${fullStory.slice(0, 1800)}` }],
-      sys,
-      () => '愉快 ||| 2 ||| 彼此在不被打扰的时光里卸下了防备。',
-      'summary'
-    );
+      const r = await ai(
+        [{ role: 'user', content: `约会地点：${session.place} · ${session.spot}\n同行：${(session.people || []).join('、')}\n剧情回顾：\n${fullStory.slice(0, 1800)}` }],
+        sys,
+        () => '愉快 ||| 2 ||| 彼此在不被打扰的时光里卸下了防备。',
+        'summary'
+      );
 
-    const [mood, rawAff, comment] = r.split('|||').map(x => x.trim());
-    const aff = Math.max(-5, Math.min(5, parseInt(rawAff) || 2));
+      const [mood, rawAff, comment] = r.split('|||').map(x => x.trim());
+      const aff = Math.max(-5, Math.min(5, parseInt(rawAff) || 2));
 
-    const evalBox = v.querySelector('#dt_result_eval');
-    if (evalBox) {
-      evalBox.innerHTML = `
-        <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px">氛围感受：${esc(mood)}</div>
-        <div style="font-size:18px;font-weight:800;color:var(--gold);margin-bottom:8px">好感变动 ${aff >= 0 ? '+' : ''}${aff}</div>
-        <div class="story" style="font-size:12px;background:var(--panel2);padding:8px 10px;border-radius:8px;text-align:left">${fmtStory(comment || '美好的相聚')}</div>
-        <button class="btn gold sm" id="dt_res_save_btn" style="width:100%;margin-top:12px">💾 结算并保存归档</button>
-      `;
+      const evalBox = v.querySelector('#dt_result_eval');
+      if (evalBox) {
+        evalBox.innerHTML = `
+          <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px">氛围感受：${esc(mood || '温馨')}</div>
+          <div style="font-size:18px;font-weight:800;color:var(--gold);margin-bottom:8px">好感变动 ${aff >= 0 ? '+' : ''}${aff}</div>
+          <div class="story" style="font-size:12px;background:var(--panel2);padding:8px 10px;border-radius:8px;text-align:left">${fmtStory(comment || '美好的相聚')}</div>
+          <button class="btn gold sm" id="dt_res_save_btn" style="width:100%;margin-top:12px">💾 结算并保存归档</button>
+        `;
 
-      v.querySelector('#dt_res_save_btn').onclick = () => {
-        const h = store.get('dateHistory', []);
-        h.unshift({
-          ...session,
-          mood,
-          aff,
-          comment,
-          fullStory,
-          time: nowTime()
-        });
-        store.set('dateHistory', h);
+        v.querySelector('#dt_res_save_btn').onclick = () => {
+          const h = store.get('dateHistory', []);
+          h.unshift({
+            ...session,
+            mood,
+            aff,
+            comment,
+            fullStory,
+            time: nowTime()
+          });
+          store.set('dateHistory', h);
 
-        applyAffinity(((store.state() || {}).affinity || 0) + aff);
-        store.set('dateSession', null);
+          applyAffinity(((store.state() || {}).affinity || 0) + aff);
+          store.set('dateSession', null);
 
-        if (dtAutoMsgOn() && session.people.length) {
-          const mainPeer = session.people[0];
-          setTimeout(async () => {
-            try {
-              const smsSys = buildSystem('chat', `你扮演【${mainPeer}】。你刚刚和玩家结束了一场在【${session.place} · ${session.spot}】的聚餐/相聚。
+          if (dtAutoMsgOn() && session.people && session.people.length) {
+            const mainPeer = session.people[0];
+            setTimeout(async () => {
+              try {
+                const smsSys = buildSystem('chat', `你扮演【${mainPeer}】。你刚刚和玩家结束了一场在【${session.place} · ${session.spot}】的聚餐/相聚。
 请发一条短消息（15~35字），自然提起刚才的小插曲，表达意犹未尽或随口吐槽。严禁动作神态描写，纯口语短信。`);
-              const sms = await ai(
-                [{ role: 'user', content: '发一条约饭结束后的随笔短信。' }],
-                smsSys,
-                () => `“到家了？刚才聊得不错，下次再聚。”`,
-                'social'
-              );
-              const cleanSms = cleanSlur(sms).replace(/[*"（）()]/g, '').trim();
+                const sms = await ai(
+                  [{ role: 'user', content: '发一条约饭结束后的随笔短信。' }],
+                  smsSys,
+                  () => `“到家了？刚才聊得不错，下次再聚。”`,
+                  'social'
+                );
+                const cleanSms = cleanSlur(sms).replace(/[*"（）()]/g, '').trim();
 
-              const ch = store.chats();
-              (ch[mainPeer] = ch[mainPeer] || []).push({
-                role: 'them',
-                who: mainPeer,
-                content: cleanSms,
-                time: storyMsgTime(),
-                worldEvent: true
-              });
-              store.setChats(ch);
+                const ch = store.chats();
+                (ch[mainPeer] = ch[mainPeer] || []).push({
+                  role: 'them',
+                  who: mainPeer,
+                  content: cleanSms,
+                  time: storyMsgTime(),
+                  worldEvent: true
+                });
+                store.setChats(ch);
 
-              notifyBanner(`💬 ${mainPeer}`, cleanSms, () => {
-                openApp('messages');
-                apps.messages.cur = mainPeer;
-                apps.messages.view = 'chat';
-                safeRender('messages', $('#appBody'));
-              });
-            } catch (err) {}
-          }, 3500);
-        }
+                notifyBanner(`💬 ${mainPeer}`, cleanSms, () => {
+                  openApp('messages');
+                  apps.messages.cur = mainPeer;
+                  apps.messages.view = 'chat';
+                  safeRender('messages', $('#appBody'));
+                });
+              } catch (err) {}
+            }, 3500);
+          }
 
-        toast(`约会已归档！好感变动 ${aff >= 0 ? '+' : ''}${aff}`);
-        self._view = 'setup';
-        self.render(v);
-      };
+          toast(`约会已归档！好感变动 ${aff >= 0 ? '+' : ''}${aff}`);
+          self._view = 'setup';
+          self.render(v);
+        };
+      }
+    } catch (e) {
+      console.error('[renderResult error]', e);
+      self._view = 'setup';
+      store.set('dateSession', null);
+      self.render(v);
     }
   }
 };
