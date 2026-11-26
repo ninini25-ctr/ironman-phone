@@ -2035,11 +2035,64 @@ setInterval(syncClock,10000);
 
 /* ---------- 存储层（兼容原 so_ 存档） ---------- */
 const store = {
+  _mem: {},
   g(k, d) {
-    try { const v = localStorage.getItem('so_' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; }
+    try {
+      const v = localStorage.getItem('so_' + k);
+      if (v !== null) return JSON.parse(v);
+    } catch (e) {}
+    if (k in this._mem) return JSON.parse(JSON.stringify(this._mem[k]));
+    return d;
+  },
+  _emergencySlim() { // ← 去掉这里的空格
+    ['so_envlog', 'so_worldEvents', 'so_eventCooldown', 'so_wtree', 'so_tmAudit', 'so_parallelSnaps'].forEach(k2 => {
+      try { localStorage.removeItem(k2); } catch (_) {}
+    });
+    // 2. 剥离 Twitter / Instagram 动态里占空间最大的 Base64 图片（保留文字）
+    try {
+      const ps = JSON.parse(localStorage.getItem('so_posts') || '{}');
+      ['twitter', 'instagram'].forEach(p => {
+        if (Array.isArray(ps[p])) {
+          ps[p] = ps[p].slice(0, 25).map(it => ({ ...it, img: (it.img && it.img.length > 500) ? '' : it.img }));
+        }
+      });
+      localStorage.setItem('so_posts', JSON.stringify(ps));
+    } catch (_) {}
+    // 3. 裁剪过长的历史记录与每位联系人的单聊记录（每人保留最近 120 条）
+    try {
+      const ch = JSON.parse(localStorage.getItem('so_chats') || '{}');
+      Object.keys(ch).forEach(name => {
+        if (Array.isArray(ch[name]) && ch[name].length > 120) ch[name] = ch[name].slice(-120);
+      });
+      localStorage.setItem('so_chats', JSON.stringify(ch));
+    } catch (_) {}
+    try {
+      const dh = JSON.parse(localStorage.getItem('so_dateHistory') || '[]');
+      if (Array.isArray(dh) && dh.length > 20) {
+        localStorage.setItem('so_dateHistory', JSON.stringify(dh.slice(0, 20).map(x => ({ ...x, fullStory: (x.fullStory || '').slice(0, 800) }))));
+      }
+    } catch (_) {}
   },
   s(k, v) {
-    try { localStorage.setItem('so_' + k, JSON.stringify(v)); } catch (e) {}
+    try { this._mem[k] = JSON.parse(JSON.stringify(v)); } catch (_) { this._mem[k] = v; }
+    try {
+      localStorage.setItem('so_' + k, JSON.stringify(v));
+      return true;
+    } catch (e) {
+      if (e && /quota|storage|exceeded/i.test((e.name || '') + (e.message || ''))) {
+        this._emergencySlim();
+        try {
+          localStorage.setItem('so_' + k, JSON.stringify(v));
+          toast('⚡ 存储空间已自动优化，消息正常保存');
+          return true;
+        } catch (e2) {
+          showErr('E-STORE-002', { message: '本地存储已满（当前消息已在内存中保留，建议去设置清理旧槽位）：' + k, err: e2 });
+          return false;
+        }
+      }
+      showErr('E-STORE-002', { message: '写入 ' + k + ' 失败', err: e });
+      return false;
+    }
   },
   get(k, d) { return this.g(k, d); },
   set(k, v) { return this.s(k, v); },
@@ -2060,7 +2113,7 @@ const store = {
       };
     }
     return c;
-  },  
+  },
   setCfg(c){this.s('cfg',c);},
   profile(){return this.g('profile',null);},setProfile(p){this.s('profile',p);},
   state(){return this.g('state',null);},setState(s){this.s('state',s);},
@@ -5234,7 +5287,7 @@ if (isPeerBirthdayToday) {
         const w = emUserWallet();
         emSetUserWallet({ total: (w.total || 0) + (m.amount || 0) });
         toast(`✅ 已领取 ${emFmtPrice(m.amount || 0)}，已存入钱包`);
-        self.render(v);
+        self.render(v); 
       };
     });
     th.querySelectorAll('[data-recall]').forEach(el=>{
@@ -5645,13 +5698,23 @@ d.querySelector('#c_sv').onclick=()=>{
   },
       async send(v, text) {
   const self = this, f = flags();
+  const targetPeer = self.cur; // 锁定本次发送的目标联系人，防止异步中途串人
+  if (!targetPeer) return;
   self.last = text;
-  let responder = self.cur;
+  let responder = targetPeer;
+  if (targetPeer === '贾维斯' && f.ultronAfter) responder = '幻视';
 
-  // 立即强制落库玩家发送的消息
+  const repaintIfHere = () => {
+    const host = document.getElementById('appBody') || v;
+    if (currentApp === 'messages' && self.view === 'chat' && self.cur === targetPeer && host) {
+      try { self.render(host); } catch (e) { console.error('[chat render fail]', e); }
+    }
+  };
+
+  // 1. 立即强制落库玩家发送的消息
   let chats = store.chats();
-  chats[self.cur] = chats[self.cur] || [];
-  chats[self.cur].push({
+  chats[targetPeer] = chats[targetPeer] || [];
+  chats[targetPeer].push({
     role: 'me',
     content: text,
     time: storyMsgTime(),
@@ -5660,25 +5723,27 @@ d.querySelector('#c_sv').onclick=()=>{
     delivered: true
   });
   store.setChats(chats);
-  self.render(v);
+  repaintIfHere();
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  const c0 = (store.contacts().find(x => x.name === self.cur) || { affinity: 0 });
-  const aff = Math.max(0, Math.min(200, c0.affinity || 0));
-  const readDelay = 400;
-  const replyDelay = 600;
+  const c0 = (store.contacts().find(x => x.name === targetPeer) || { affinity: 0 });
+  const readDelay = 350;
 
   let isTonyProxy = false, proxyAI = f.ultronAfter ? '星期五' : '贾维斯';
   const proxyChance = (typeof c0.proxyFreq === 'number' ? c0.proxyFreq : 35) / 100;
-  isTonyProxy = (self.cur === '托尼·斯塔克') && (Math.random() < proxyChance);
+  isTonyProxy = (targetPeer === '托尼·斯塔克') && (Math.random() < proxyChance);
 
-  const recent = chats[self.cur].slice(-14).map(m => ({
-    role: m.role === 'me' ? 'user' : 'assistant',
-    content: String(m.content || '')
-  }));
+  // 过滤掉撤回/空文本/纯系统占位的气泡，避免多轮后污染 AI 上下文导致返回空
+  const recent = (store.chats()[targetPeer] || [])
+    .filter(m => !m.recalled && m.content && String(m.content).trim())
+    .slice(-14)
+    .map(m => ({
+      role: m.role === 'me' ? 'user' : 'assistant',
+      content: String(m.content || '').trim()
+    }));
 
   let promptExtra = `你现在扮演【${responder}】。${castText(responder)}`;
-  promptExtra += `\n【回复条数要求】：请务必输出刚好 ${c0.replyCount || 2} 条简短消息，每条之间必须严格用 || 隔开！`;
+  promptExtra += `\n【回复条数要求】：请务必输出刚好 ${c0.replyCount || 2} 条简短消息，每条之间必须严格用 || 隔开！绝对不要输出空内容！`;
   if (isTonyProxy) {
     promptExtra += `\n【重要形式要求】：由【${proxyAI}】进行语音转文字代录发送！代发格式必须严格遵循："｛语音转文字｝……"`;
   } else if (self.langMode === 'zh') {
@@ -5687,17 +5752,18 @@ d.querySelector('#c_sv').onclick=()=>{
 
   const sys = buildSystem('chat', promptExtra);
 
-  // 显示正在输入状态
+  // 显示已读与正在输入状态
   await sleep(readDelay);
   chats = store.chats();
-  const curList = chats[self.cur] || [];
-  if (curList.length && curList[curList.length - 1].role === 'me') {
-    curList[curList.length - 1].read = true;
-    store.setChats(chats);
+  const curList = chats[targetPeer] || [];
+  for (let k = curList.length - 1; k >= 0; k--) {
+    if (curList[k].role === 'me') { curList[k].read = true; break; }
   }
-  const th0 = v.querySelector('#thread');
+  store.setChats(chats);
+
+  const th0 = document.querySelector('#thread');
   let typing = null;
-  if (th0) {
+  if (th0 && currentApp === 'messages' && self.cur === targetPeer) {
     typing = document.createElement('div');
     typing.className = 'bub them typing-bub';
     typing.id = 'typing';
@@ -5706,73 +5772,70 @@ d.querySelector('#c_sv').onclick=()=>{
     th0.scrollTop = th0.scrollHeight;
   }
 
-  // 执行 AI 调用，不加任何兜底，有错立刻 alert
+  // 执行 AI 调用；若接口报错或返回空，给明确提示并降级为角色本地台词，绝不让回复凭空消失
   let res = '';
   try {
-    res = await callAI(recent, sys, 'social');
+    res = await callAI(recent.length ? recent : [{ role: 'user', content: text }], sys, 'social');
   } catch (err) {
     if (typing) typing.remove();
-    alert(`【信息发送失败 · API 直接报错】\n错误原因: ${err.message}\n请检查网络、Base URL 或 API Key。`);
-    throw err; // 直接中断，不吞错、不伪造假回复
+    const classified = classifyAPIError(err, apiCfg('social'));
+    toast(`⚠️ [${classified.code}] ${classified.title} · 已使用角色本地回应`);
+    res = localReply(responder, text);
   }
 
- if (typing) typing.remove();
-if (!res || !String(res).trim()) {
-  alert('【错误】API 返回文本为空！');
-  return;
-}
+  if (typing) typing.remove();
+  if (!res || !String(res).trim()) {
+    res = localReply(responder, text);
+  }
 
-// 清洗后按 || 切分；若切分后全空，则把整段当作一条消息兜底，绝不丢回复
-const cleaned = cleanSlur(String(res)).trim();
-let msgs = cleaned.split('||').map(x => x.trim()).filter(Boolean);
-if (!msgs.length) {
-  // 兜底1：尝试换行切分（有些模型会用换行而非 ||）
-  msgs = cleaned.split(/\r?\n/).map(x => x.replace(/^[\-·•\d\.\)\s]+/, '').trim()).filter(Boolean);
-}
-if (!msgs.length) {
-  // 兜底2：实在切不出来，就整段作为一条
-  msgs = [cleaned];
-}
+  // 清洗后按 || 或 ||| 切分；若切分后为空，回退到换行或整段保底
+  const cleaned = cleanSlur(String(res)).trim();
+  let msgs = cleaned.split(/\|\|\|?/).map(x => x.trim()).filter(Boolean);
+  if (!msgs.length) {
+    msgs = cleaned.split(/\r?\n/).map(x => x.replace(/^[\-·•\d\.\)\s]+/, '').trim()).filter(Boolean);
+  }
+  if (!msgs.length) {
+    msgs = [cleaned || localReply(responder, text)];
+  }
 
-for (let i = 0; i < msgs.length; i++) {
-  const freshChats = store.chats();
-  freshChats[self.cur] = freshChats[self.cur] || [];
-  freshChats[self.cur].push({
-    role: 'them',
-    who: isTonyProxy ? `${proxyAI}代录` : responder,
-    content: msgs[i],
-    time: storyMsgTime(),
-    timestamp: Date.now()
-  });
-  store.setChats(freshChats);
-  try { self.render(v); } catch (e) { console.error('[chat render fail]', e); }
-  if (i < msgs.length - 1) await sleep(400);
-}
-// 循环结束兜底再渲染一次，杜绝中途 render 异常导致界面未同步
-try { self.render(v); } catch (e) { console.error('[chat final render fail]', e); }
+  for (let i = 0; i < msgs.length; i++) {
+    const freshChats = store.chats();
+    freshChats[targetPeer] = freshChats[targetPeer] || [];
+    freshChats[targetPeer].push({
+      role: 'them',
+      who: isTonyProxy ? `${proxyAI}代录` : (responder === '幻视' && targetPeer === '贾维斯' ? '幻视（代回）' : responder),
+      content: msgs[i],
+      time: storyMsgTime(),
+      timestamp: Date.now() + i
+    });
+    store.setChats(freshChats);
+    repaintIfHere();
+    if (i < msgs.length - 1) await sleep(380);
+  }
+  repaintIfHere();
 
-    // ④ 偶发撤回：复用现有撤回 UI（.bub.recalled + 受限日志入口 data-restr）
-    if(Math.random()<0.12&&msgs.length){
-      await sleep(1100);
-      const ch=store.chats(),a3=ch[self.cur]||[];
-      for(let j=a3.length-1;j>=0;j--){
-        const m=a3[j];
-        if(m&&m.role==='them'&&!m.recalled&&m.content){
-          m.orig=m.content;m.content='';m.recalled=true;m.recalledBy=responder;
-          ch[self.cur]=a3;store.setChats(ch);
-          self.render(v);toast(responder+' 撤回了一条消息');
-          break;
-        }
+  // ④ 偶发撤回：仅当本轮对方回复了 >= 2 条消息时才允许撤回最后一条，绝不把唯一一条回复吞掉！
+  if (msgs.length >= 2 && Math.random() < 0.08) {
+    await sleep(1100);
+    const ch = store.chats(), a3 = ch[targetPeer] || [];
+    for (let j = a3.length - 1; j >= 0; j--) {
+      const m = a3[j];
+      if (m && m.role === 'them' && !m.recalled && m.content) {
+        m.orig = m.content; m.content = ''; m.recalled = true; m.recalledBy = responder;
+        ch[targetPeer] = a3; store.setChats(ch);
+        repaintIfHere(); toast(responder + ' 撤回了一条消息');
+        break;
       }
     }
+  }
     // 方舟臻选 · 对方可能赠送礼物
     try{
       const giftCfg=emGiftCfg();
-      const contact=store.contacts().find(x=>x.name===self.cur);
-      if(giftCfg.enabled&&contact&&!isAI(self.cur)){
+      const contact=store.contacts().find(x=>x.name===targetPeer);
+      if(giftCfg.enabled&&contact&&!isAI(targetPeer)){
         const aff=contact.affinity||0;
         if(aff>=giftCfg.affThreshold){
-          const wealth=emWealthOf(self.cur);
+          const wealth=emWealthOf(targetPeer);
           const hit=Math.random()*100 < (wealth.giftChance||giftCfg.baseChance);
           // 话题触发：消息含「想要 / 喜欢 / 好看 / 买不起 / 生日 / 纪念」等
           const kw=/想要|喜欢|好看|心动|买不起|有点贵|生日|纪念|送我|对我好/.test(text);
@@ -5782,12 +5845,12 @@ try { self.render(v); } catch (e) { console.error('[chat final render fail]', e)
             if (pool.length) {
               const pick = pool[Math.floor(Math.random() * pool.length)];
               if (pick.price <= wealth.total) {
-                emSetWealth(self.cur, { total: wealth.total - pick.price });
-                emAddInventory({ id: 'inv' + Date.now(), goodId: pick.id, from: self.cur, to: 'me', time: nowTime(), msg: text.slice(0, 40) });
-                const ch2 = store.chats(), a4 = ch2[self.cur] || [];
+                emSetWealth(targetPeer, { total: wealth.total - pick.price });
+                emAddInventory({ id: 'inv' + Date.now(), goodId: pick.id, from: targetPeer, to: 'me', time: nowTime(), msg: text.slice(0, 40) });
+                const ch2 = store.chats(), a4 = ch2[targetPeer] || [];
                 a4.push({
                   role: 'them',
-                  who: self.cur,
+                  who: targetPeer,
                   content: `（送出礼物：${pick.name}）`,
                   time: storyMsgTime(),
                   isGift: true,
@@ -5796,9 +5859,9 @@ try { self.render(v); } catch (e) { console.error('[chat final render fail]', e)
                   giftIco: pick.ico || '🎁',
                   giftPrice: pick.price
                 });
-                ch2[self.cur] = a4; store.setChats(ch2);
-                self.render(v);
-                banner('🎁 ' + self.cur + ' 送来了礼物', pick.name + ' · 已入库', () => openApp('emporium'));
+                ch2[targetPeer] = a4; store.setChats(ch2);
+                repaintIfHere();
+                banner('🎁 ' + targetPeer + ' 送来了礼物', pick.name + ' · 已入库', () => openApp('emporium'));
               }
             }
           }
@@ -5807,17 +5870,17 @@ try { self.render(v); } catch (e) { console.error('[chat final render fail]', e)
     }catch(e){console.warn(e);}
         // 联系人主动发转账 / 红包
     try {
-      const contact = store.contacts().find(x => x.name === self.cur);
-      const wealth = emWealthOf(self.cur);
-      if (contact && !isAI(self.cur) && wealth.total > 500) {
+      const contact = store.contacts().find(x => x.name === targetPeer);
+      const wealth = emWealthOf(targetPeer);
+      if (contact && !isAI(targetPeer) && wealth.total > 500) {
         const moneyKw = /没钱|好穷|借钱|报销|红包|转点|零花钱|资助/.test(text);
         if (moneyKw && (contact.affinity || 0) >= 31) {
           const isHb = /红包/.test(text);
-          const amt = self.cur === '托尼·斯塔克' 
+          const amt = targetPeer === '托尼·斯塔克' 
             ? (Math.floor(Math.random() * 5) + 1) * 10000 
             : Math.min(Math.floor(wealth.total * 0.05), Math.max(50, (wealth.avg || 200)));
           if (amt > 0 && amt <= wealth.total) {
-            emSetWealth(self.cur, { total: wealth.total - amt });
+            emSetWealth(targetPeer, { total: wealth.total - amt });
 
             // 按联系人人设生成专属转账/红包附语
             const charNotes = {
@@ -5887,29 +5950,29 @@ try { self.render(v); } catch (e) { console.error('[chat final render fail]', e)
               }
             };
 
-            const pool = charNotes[self.cur] 
-              ? (isHb ? charNotes[self.cur].hb : charNotes[self.cur].pay)
+            const pool = charNotes[targetPeer] 
+              ? (isHb ? charNotes[targetPeer].hb : charNotes[targetPeer].pay)
               : null;
             const fallbackNote = isHb ? '一点心意，大吉大利' : '拿去应个急，别客气';
             const selectedNote = pool 
               ? pool[Math.floor(Math.random() * pool.length)] 
               : fallbackNote;
 
-            const ch2 = store.chats(), a4 = ch2[self.cur] || [];
+            const ch2 = store.chats(), a4 = ch2[targetPeer] || [];
             a4.push({
               role: 'them',
-              who: self.cur,
-              content: `（${self.cur}发来了${isHb ? '红包' : '转账'}）`,
+              who: targetPeer,
+              content: `（${targetPeer}发来了${isHb ? '红包' : '转账'}）`,
               [isHb ? 'isRedPacket' : 'isPay']: true,
               amount: amt,
               note: selectedNote,
               claimed: false,
               time: storyMsgTime()
             });
-            ch2[self.cur] = a4; store.setChats(ch2);
-            self.render(v);
-            banner(`${isHb ? '🧧' : '💸'} ${self.cur} 发来了${isHb ? '红包' : '转账'}`, `${emFmtPrice(amt)} · 点击领取`, () => {
-              openApp('messages'); apps.messages.cur = self.cur; apps.messages.view = 'chat'; safeRender('messages', $('#appBody'));
+            ch2[targetPeer] = a4; store.setChats(ch2);
+            repaintIfHere();
+            banner(`${isHb ? '🧧' : '💸'} ${targetPeer} 发来了${isHb ? '红包' : '转账'}`, `${emFmtPrice(amt)} · 点击领取`, () => {
+              openApp('messages'); apps.messages.cur = targetPeer; apps.messages.view = 'chat'; safeRender('messages', $('#appBody'));
             });
           }
         }
@@ -5917,19 +5980,19 @@ try { self.render(v); } catch (e) { console.error('[chat final render fail]', e)
     } catch (e) {showErr('E-CHAT-003');}
     // 心声随对话一起生成：弹窗显示并存入档案，不再单独产出
     try{
-      const ctxArr=(store.chats()[self.cur]||[]).slice(-4).map(m=>m.content).filter(Boolean);
-      const hv=await genHeartVoice(self.cur,ctxArr.join(' '));
+      const ctxArr=(store.chats()[targetPeer]||[]).slice(-4).map(m=>m.content).filter(Boolean);
+      const hv=await genHeartVoice(targetPeer,ctxArr.join(' '));
       if(hv){
-        showHeartPopup(self.cur,hv);
-        if(currentApp==='messages'&&self.view==='chat')self.render(v);
+        showHeartPopup(targetPeer,hv);
+        if(currentApp==='messages'&&self.view==='chat')repaintIfHere();
       }
     }catch(e){}
 // ★ 社交联动 · 聊天后角色可能顺手发条动态（含全套互评评论与点赞）
 try{
   const slc=socialLinkCfg();
-  if(slc.enabled&&!isAI(self.cur)&&Math.random()*100<slc.chatToPostChance){
+  if(slc.enabled&&!isAI(targetPeer)&&Math.random()*100<slc.chatToPostChance){
     setTimeout(async()=>{
-      const posterName = self.cur;
+      const posterName = targetPeer;
       const sys2=buildSystem('social',`你扮演【${posterName}】，刚和玩家聊过天。顺手在 Twitter 发一条与刚才聊天氛围相关但不直接复述对话的短动态（30~80字，口语化，符合 ${flags().year} 年的网络语境）。只输出推文正文，不要引号。`);
       const tx=await ai([{role:'user',content:`刚才聊了：${text.slice(0,80)}\n发帖人：${posterName}`}],sys2,
         ()=>'今晚的实验室比平时安静一档。没什么特别的——只是记一下。','social');
@@ -6009,16 +6072,18 @@ try{
   /* 帮忙起话题：AI 根据人物关系、时间段、具体时间生成 3 个不同方向的开场话题 */
   async suggestTopics(v){
     const self=this,f=flags();
+const targetPeer = self.cur; // ← 新增
+    if (!targetPeer) return;
     const hour=new Date().getHours();
     const period=hour<6?'凌晨':hour<11?'上午':hour<14?'中午':hour<18?'下午':hour<23?'晚间':'深夜';
     const timeStr=realClockText();
-    const c=(store.contacts().find(x=>x.name===self.cur)||{affinity:0});
+    const c=(store.contacts().find(x=>x.name===targetPeer)||{affinity:0});
     const aff=c.affinity||0;
-    const rel=relationOf(self.cur);
+    const rel=relationOf(targetPeer);
     const relTxt=rel?`${rel.label||'自定义'}（${rel.note||''}）`:'未设定';
-    const recent=(store.chats()[self.cur]||[]).slice(-6).map(m=>(m.role==='me'?'我：':'TA：')+m.content).join('\n');
-    const d=modal(`<div class="loader" style="padding:20px"><div class="spin"></div>正在为「${esc(self.cur)}」想三个话题…</div>`);
-    const sys=buildSystem('chat',`你是话题建议助手。根据当前与【${self.cur}】的人物关系、时间段、具体时间，生成 3 个不同方向的开场话题，帮玩家打开对话。\n【当前情境】\n- 联系人：${self.cur}\n- 好感度：${aff}/200\n- 关系：${relTxt}\n- 时间：${period}（${timeStr}）\n- 世界线：${eraName()}\n${recent?'- 最近对话：\n'+recent:''}\n【输出要求】\n3 个话题，每个不超过 30 字，覆盖三个不同方向：①轻松日常 ②关系推进 ③共同回忆/世界线事件。\n格式：\nA. 话题1\nB. 话题2\nC. 话题3`);
+    const recent=(store.chats()[targetPeer]||[]).slice(-6).map(m=>(m.role==='me'?'我：':'TA：')+m.content).join('\n');
+    const d=modal(`<div class="loader" style="padding:20px"><div class="spin"></div>正在为「${esc(targetPeer)}」想三个话题…</div>`);
+    const sys=buildSystem('chat',`你是话题建议助手。根据当前与【${targetPeer}】的人物关系、时间段、具体时间，生成 3 个不同方向的开场话题，帮玩家打开对话。\n【当前情境】\n- 联系人：${targetPeer}\n- 好感度：${aff}/200\n- 关系：${relTxt}\n- 时间：${period}（${timeStr}）\n- 世界线：${eraName()}\n${recent?'- 最近对话：\n'+recent:''}\n【输出要求】\n3 个话题，每个不超过 30 字，覆盖三个不同方向：①轻松日常 ②关系推进 ③共同回忆/世界线事件。\n格式：\nA. 话题1\nB. 话题2\nC. 话题3`);
     const r=await ai([{role:'user',content:'请生成 3 个开场话题。'}],sys,()=>{
       const pool={
         morning:['昨晚梦见 4 号工作台炸了。你说这算预感吗？','早餐吃了没？我带了第三杯咖啡。','今天天气不错，要不要出去走走？'],
@@ -6032,7 +6097,7 @@ try{
       return `A. ${p[0]}\nB. ${p[1]}\nC. ${p[2]}`;
     },'social');
     d.querySelector('.loader').innerHTML=`<div class="card"><h3 style="color:var(--cyan);margin:0 0 10px">💡 三个开场话题</h3>
-      <div class="hint" style="margin-bottom:10px">联系人：${esc(self.cur)} · ${period} ${timeStr} · 好感 ${aff}/200</div>
+      <div class="hint" style="margin-bottom:10px">联系人：${esc(targetPeer)} · ${period} ${timeStr} · 好感 ${aff}/200</div>
       <div id="tp_list">${String(r).split('\n').filter(l=>/^[ABC][\.、]/.test(l.trim())).map(l=>`<button class="opt" data-tp="${esc(l).replace(/"/g,'&quot;')}" style="margin-bottom:8px">${fmt(l)}</button>`).join('')}</div>
       <button class="btn ghost" data-close style="margin-top:4px">关闭</button></div>`;
     d.querySelectorAll('[data-tp]').forEach(b=>b.onclick=()=>{
@@ -6043,9 +6108,11 @@ try{
   },
   openTransferModal(v, mode) {
     const self = this;
+const targetPeer = self.cur; // ← 新增
+    if (!targetPeer) return;
     const isPay = mode === 'pay';
     const wallet = emUserWallet();
-    const d = modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:16px">${isPay ? '💸 发起转账' : '🧧 发送红包'} · ${esc(self.cur)}</h2>
+    const d = modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:16px">${isPay ? '💸 发起转账' : '🧧 发送红包'} · ${esc(targetPeer)}</h2>
       <div class="card">
         <div class="hint" style="margin-bottom:8px">你的钱包余额：<b style="color:var(--gold)">${emFmtWealth(wallet.total)}</b></div>
         <div class="field"><label>金额 (USD)</label><input id="tr_amt" type="number" min="1" class="inp" placeholder="${isPay ? '例如：5000' : '例如：888'}"></div>
@@ -6060,7 +6127,7 @@ try{
       if (wallet.total < amt) return toast('钱包余额不足');
       emSetUserWallet({ total: wallet.total - amt });
       const ch = store.chats();
-      (ch[self.cur] = ch[self.cur] || []).push({
+      (ch[targetPeer] = ch[targetPeer] || []).push({
         role: 'me',
         [isPay ? 'isPay' : 'isRedPacket']: true,
         amount: amt,
@@ -6072,18 +6139,18 @@ try{
       store.setChats(ch);
       d.remove();
       toast(`已发送 ${emFmtPrice(amt)}`);
-      self.render(v);
+      repaintIfHere();
 
       // 触发对方按人设回复
       try {
-        const sys = buildSystem('chat', `玩家刚刚在聊天里给你发了一笔${isPay ? '转账' : '红包'}，金额：${emFmtPrice(amt)}${note ? '，备注：' + note : ''}。请以【${self.cur}】的口吻回复 1~2 条短消息（10~40 字，多条用 || 分隔），符合人设、资产水平与当前关系（比如托尼不会缺这点钱，可能会吐槽或顺手双倍转回来）。严禁动作描写。`);
-        const r = await ai([{ role: 'user', content: '请回复。' }], sys, () => localReply(self.cur, isPay ? '转账' : '红包'), 'social');
+        const sys = buildSystem('chat', `玩家刚刚在聊天里给你发了一笔${isPay ? '转账' : '红包'}，金额：${emFmtPrice(amt)}${note ? '，备注：' + note : ''}。请以【${targetPeer}】的口吻回复 1~2 条短消息（10~40 字，多条用 || 分隔），符合人设、资产水平与当前关系（比如托尼不会缺这点钱，可能会吐槽或顺手双倍转回来）。严禁动作描写。`);
+        const r = await ai([{ role: 'user', content: '请回复。' }], sys, () => localReply(targetPeer, isPay ? '转账' : '红包'), 'social');
         const msgs = String(r).split('||').map(x => x.trim()).filter(Boolean);
         for (const m of msgs) {
           const ch2 = store.chats();
-          (ch2[self.cur] = ch2[self.cur] || []).push({ role: 'them', who: self.cur, content: m, time: storyMsgTime() });
+          (ch2[targetPeer] = ch2[targetPeer] || []).push({ role: 'them', who: targetPeer, content: m, time: storyMsgTime() });
           store.setChats(ch2);
-          self.render(v);
+          repaintIfHere();
         }
       } catch (e) {}
     };
@@ -6091,6 +6158,7 @@ try{
   /* 真心话：选择回答者后，从内置题库随机出题，对方按人设作答 */
   async truthGame(v){
     const self=this,f=flags();
+    const targetPeer = self.cur;
     const names=activeNames().filter(n=>!isAI(n)||n==='贾维斯'||n==='幻视');
     /* 内置真心话题库：分 4 类，每类 8 题 */
     const TRUTH_BANK={
@@ -6138,7 +6206,7 @@ try{
     const cats=Object.keys(TRUTH_BANK);
     const d=modal(`<h2 style="color:var(--cyan);margin-top:0">🎭 真心话</h2>
       <div class="card">
-        <div class="field"><label>选择回答者</label><select id="tr_who" class="inp">${names.map(n=>`<option value="${esc(n)}" ${n===self.cur?'selected':''}>${esc(n)}</option>`).join('')}</select></div>
+        <div class="field"><label>选择回答者</label><select id="tr_who" class="inp">${names.map(n=>`<option value="${esc(n)}" ${n===targetPeer?'selected':''}>${esc(n)}</option>`).join('')}</select></div>
         <div class="field"><label>题目类别</label><div class="seg" id="tr_cat">${cats.map((c,i)=>`<button data-cat="${c}" class="${i===0?'on':''}">${c}</button>`).join('')}</div></div>
         <button class="btn gold" id="tr_draw">🎲 抽一道题</button>
         <div id="tr_q" style="margin-top:12px"></div>
@@ -6159,16 +6227,16 @@ try{
       d.querySelector('#tr_ask').onclick=async()=>{
         const ansBox=d.querySelector('#tr_ans');
         ansBox.innerHTML='<div class="loader" style="padding:14px"><div class="spin"></div>'+esc(who)+' 正在思考…</div>';
-        /* 把题发到当前聊天（如果 who === self.cur），并让对方回复 */
+        /* 把题发到当前聊天（如果 who === targetPeer），并让对方回复 */
         const sys=buildSystem('chat',`你扮演【${who}】。${castText(who)}\n玩家向你提了一道真心话：「${q}」\n请按人设回答，不要回避，但可以保留分寸。${isAI(who)?'严守保密铁律，但可以坦诚回答非受限问题。':''}回答控制在 30~80 字。`);
         const ans=await ai([{role:'user',content:'请回答这道真心话。'}],sys,()=>localReply(who,q),'social');
         ansBox.innerHTML=`<div class="bub them" style="margin-top:8px">${fmt(String(ans).replace(/\*/g,'').trim())}</div>`;
         /* 如果对方就是当前聊天对象，把问答写入聊天记录 */
-        if(who===self.cur){
-          const ch=store.chats();const a2=ch[self.cur]||[];
+        if(who===targetPeer){
+          const ch=store.chats();const a2=ch[targetPeer]||[];
           a2.push({role:'me',content:'🎭 真心话：'+q,time:storyMsgTime(),read:false});
           a2.push({role:'them',who,content:String(ans).replace(/\*/g,'').trim(),time:storyMsgTime()});
-          ch[self.cur]=a2;store.setChats(ch);
+          ch[targetPeer]=a2;store.setChats(ch);
           toast('已写入与 '+who+' 的对话记录');
         }
       };
@@ -7641,10 +7709,10 @@ const rawHist = (s.history || [])
             const styleGuide = SUMMARY_STYLE_PRESETS[ms.style] || SUMMARY_STYLE_PRESETS.calm;
             const sys = `你是斯塔克工业的记忆整理系统 J.A.R.V.I.S.。请将以往所有剧情和核心进展无损压缩为一段 ${styleGuide.wordRange} 字的【长期阶段摘要】。必须保留：发生的重大危机、玩家与托尼确立的关系界限、已解决的技术与关键承诺。\n文风要求：${styleGuide.desc}`;
             const compact = await ai([{ role: 'user', content: `【已有阶段摘要】：\n${prevSummary}\n\n【最新经历】：\n${rawHist}\n\n请输出最新的整体剧情压缩记忆：` }], sys, () => '剧情已压缩归档。', 'summary');
-            if (compact && compact.trim()) {
-              const curState = store.state();
-              curState.compactSummary = compact.trim();
-              store.setState(curState);
+           if (compact && compact.trim()) {
+  const curState = store.state();
+  curState.compactSummary = compact.trim().slice(0, 4000); // 硬截断
+  store.setState(curState);
               const wl = store.get('memWorldline', []);
               wl.unshift({ id: 'wl' + Date.now(), text: compact.trim(), time: nowTime(), turn: s.turn, era: eraName(), editable: true, auto: true });
               store.set('memWorldline', wl.slice(0, 60));
@@ -11043,7 +11111,7 @@ apps.armory = {
               ${segBtn('hall','🏛 陈列室')}${segBtn('suit','🔬 核心蓝图')}${segBtn('tune','🎚 四维调参')}${segBtn('rd','🧪 协作研发')}${segBtn('items','🧰 物品仓')}
             </div>
           </div>
-          ${MARKS.map(m => {
+           ${MARKS.map(m => {
             const lk = m.year > f.year;
             const integ = a.integrity[m.no];
             return `
@@ -16510,6 +16578,44 @@ function avStripPlayer(lines) {
     return true;
   });
 }
+/* 通用容错解析器：兼容 |||、||、冒号、角色简称，永不丢行 */
+function avParseLines(rawText, allowedMembers) {
+  const p = store.profile() || {};
+  const me = p.name || '';
+  const allMem = avengersMembers();
+  const pool = (allowedMembers && allowedMembers.length) ? allowedMembers : allMem;
+
+  const matchMember = (rawName) => {
+    const s = String(rawName || '').replace(/[\[\]【】*""'']/g, '').trim();
+    if (!s || s === '你' || s === '我' || s === '玩家' || (me && s === me)) return null;
+    return pool.find(m => m.name === s || m.short === s || m.name.includes(s) || s.includes(m.short))
+      || allMem.find(m => m.name === s || m.short === s || m.name.includes(s) || s.includes(m.short))
+      || null; // ← 必须是双竖线 ||
+  };
+
+  const out = [];
+  String(rawText || '').split(/\r?\n/).forEach(line => {
+    let l = line.replace(/^[\s\-·•\d\.\)]+/, '').trim();
+    if (!l || l.includes('【场景】')) return;
+    let speakerPart = '', contentPart = '';
+    if (l.includes('|||')) {
+      const pt = l.split('|||');
+      speakerPart = pt[0]; contentPart = pt.slice(1).join('|||');
+    } else if (l.includes('||')) {
+      const pt = l.split('||');
+      speakerPart = pt[0]; contentPart = pt.slice(1).join('||');
+    } else {
+      const m = l.match(/^([^:：]{1,14})[:：]\s*(.+)$/);
+      if (m) { speakerPart = m[1]; contentPart = m[2]; }
+    }
+    const memObj = matchMember(speakerPart);
+    const cleanContent = cleanSlur(String(contentPart || '').replace(/^[""''「『]|[""''」』]$/g, '').trim());
+    if (memObj && cleanContent) {
+      out.push({ member: memObj, text: cleanContent });
+    }
+  });
+  return out;
+}
 /* ============================================================
    复仇者频道 App 实现（纵向大视野 + 紧凑字号版）
    ============================================================ */
@@ -16529,9 +16635,19 @@ apps.avengers = {
         <button class="btn gold" id="av_unlock">🔓 标记「复联1 已发生」并解锁</button>
         <button class="btn ghost" id="av_era" style="margin-top:8px">↗ 切换时间线</button></div></div>`;
       v.querySelector('#av_unlock').onclick = () => {
-        const s = store.state(); s.forceAvengers1 = true; store.setState(s);
-        renderGrid(); toast('已解锁 · 复仇者集结'); self.render(v);
-      };
+  const s = store.state(); s.forceAvengers1 = true; store.setState(s);
+  // 新：种一条集结消息，避免看起来像 bug
+  const msgs = store.get('groupMsgs', []);
+  if (!msgs.length) {
+    msgs.push({
+      name: '— 频道事件 —', short: '📢', color: '#7c8da0',
+      text: '纽约之战之后，复仇者作战频道正式开通。点上方「🎬 场景开场」或直接发言加入。',
+      time: nowTime(), auto: true, isScene: true
+    });
+    store.set('groupMsgs', msgs);
+  }
+  renderGrid(); toast('已解锁 · 复仇者集结'); self.render(v);
+};
       v.querySelector('#av_era').onclick = () => openTimelineResetModal();
       return;
     }
@@ -16633,67 +16749,69 @@ apps.avengers = {
       </div>
     `;
 
-    const thread = body.querySelector('#av_thread');
-    const paint = () => {
-      const a = store.get('groupMsgs', []);
-      if (!thread) return;
-      if (!a.length) {
-        thread.innerHTML = '<div class="empty" style="padding:40px 0">频道静默中。</div>';
-        return;
-      }
-      thread.innerHTML = a.map((m, i) => {
-        if (m.isScene) {
-          return `
-            <div style="padding:6px 10px;background:rgba(53,208,255,.07);border-left:2px solid var(--cyan);border-radius:6px;font-size:11px;line-height:1.6;color:var(--text);display:flex;align-items:center;justify-content:space-between">
-              <div>${fmt(m.text)}</div>
-              <span data-avd="${i}" style="color:var(--muted);cursor:pointer;font-size:9.5px;padding-left:8px;flex-shrink:0">✕</span>
-            </div>`;
-        }
-        const isMe = m.name === me;
-        const rc = m.react || {};
-        return `
-          <div class="av-msg ${isMe ? 'me' : ''}">
-            <div class="av-av" style="background:${esc(m.color || '#35d0ff')}">${esc(String(m.short || m.name || '?')[0])}</div>
-            <div class="av-bd">
-              ${isMe ? '' : `
-                <div class="av-nm">
-                  <span>${esc(m.name)}</span>
-                  ${m.faction ? `<span class="tag red" style="margin:0;font-size:8px;padding:0 3px">${esc(m.faction)}</span>` : ''}
-                  ${m.auto ? `<span class="tag" style="margin:0;font-size:8px;padding:0 3px">自动</span>` : ''}
-                  <span style="color:var(--muted);font-weight:400;font-size:9px">${esc(String(m.time || '').slice(11, 16))}</span>
-                </div>`}
-              ${m.quote ? `<div class="av-quote">↩ ${esc(m.quote)}</div>` : ''}
-              <div class="av-tx">${fmt(m.text)}</div>
-              ${Object.keys(rc).length ? `<div class="av-react">${Object.entries(rc).map(([e, n]) => `<i class="on">${e} ${n}</i>`).join('')}</div>` : ''}
-              <div class="av-ops">
-                ${AV_REACTS.map(e => `<span data-avr="${i}:${e}">${e}</span>`).join('')}
-                <span data-avq="${i}">回复</span>
-                <span data-avd="${i}">撤回</span>
-              </div>
-            </div>
-          </div>`;
-      }).join('');
-      thread.scrollTop = thread.scrollHeight;
-      bindMsg();
-    };
+    // 实时获取当前活着的 #av_thread，彻底解决点"回复"或切 Tab 后闭包引用旧死节点导致消息看不见的问题
+const getLiveThread = () => document.querySelector('#av_thread') || body.querySelector('#av_thread');
+const paint = () => {
+  const liveThread = getLiveThread();
+  if (!liveThread) return;
+  const a = store.get('groupMsgs', []);
+  if (!a.length) {
+    liveThread.innerHTML = '<div class="empty" style="padding:40px 0">频道静默中。点击上方「🎬 场景开场」或在下方打字加入频道…</div>';
+    return;
+  }
+  liveThread.innerHTML = a.map((m, i) => {
+    if (m.isScene) {
+      return `
+        <div style="padding:6px 10px;background:rgba(53,208,255,.07);border-left:2px solid var(--cyan);border-radius:6px;font-size:11px;line-height:1.6;color:var(--text);display:flex;align-items:center;justify-content:space-between">
+          <div>${fmt(m.text)}</div>
+          <span data-avd="${i}" style="color:var(--muted);cursor:pointer;font-size:9.5px;padding-left:8px;flex-shrink:0">✕</span>
+        </div>`;
+    }
+    const isMe = m.name === me;
+    const rc = m.react || {};
+    return `
+      <div class="av-msg ${isMe ? 'me' : ''}">
+        <div class="av-av" style="background:${esc(m.color || '#35d0ff')}">${esc(String(m.short || m.name || '?')[0])}</div>
+        <div class="av-bd">
+          ${isMe ? '' : `
+            <div class="av-nm">
+              <span>${esc(m.name)}</span>
+              ${m.faction ? `<span class="tag red" style="margin:0;font-size:8px;padding:0 3px">${esc(m.faction)}</span>` : ''}
+              ${m.auto ? `<span class="tag" style="margin:0;font-size:8px;padding:0 3px">自动</span>` : ''}
+              <span style="color:var(--muted);font-weight:400;font-size:9px">${esc(String(m.time || '').slice(11, 16))}</span>
+            </div>`}
+          ${m.quote ? `<div class="av-quote">↩ ${esc(m.quote)}</div>` : ''}
+          <div class="av-tx">${fmt(m.text)}</div>
+          ${Object.keys(rc).length ? `<div class="av-react">${Object.entries(rc).map(([e, n]) => `<i class="on">${e} ${n}</i>`).join('')}</div>` : ''}
+          <div class="av-ops">
+            ${AV_REACTS.map(e => `<span data-avr="${i}:${e}">${e}</span>`).join('')}
+            <span data-avq="${i}">回复</span>
+            <span data-avd="${i}">撤回</span>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+  liveThread.scrollTop = liveThread.scrollHeight;
+  bindMsg(liveThread);
+};
 
-    const bindMsg = () => {
-      thread.querySelectorAll('[data-avr]').forEach(el => el.onclick = () => {
-        const [i, e] = el.dataset.avr.split(':');
-        const a = store.get('groupMsgs', []), m = a[+i]; if (!m) return;
-        m.react = m.react || {}; m.react[e] = (m.react[e] || 0) + 1;
-        store.set('groupMsgs', a); paint();
-      });
-      thread.querySelectorAll('[data-avq]').forEach(el => el.onclick = () => {
-        const m = store.get('groupMsgs', [])[+el.dataset.avq]; if (!m) return;
-        self.reply = { name: m.name, text: m.text }; self.renderChat(body, v);
-      });
-      thread.querySelectorAll('[data-avd]').forEach(el => el.onclick = () => {
-        const a = store.get('groupMsgs', []); a.splice(+el.dataset.avd, 1); store.set('groupMsgs', a); paint();
-      });
-    };
-
-    paint();
+const bindMsg = (liveThread) => {
+  if (!liveThread) return;
+  liveThread.querySelectorAll('[data-avr]').forEach(el => el.onclick = () => {
+    const [i, e] = el.dataset.avr.split(':');
+    const a = store.get('groupMsgs', []), m = a[+i]; if (!m) return;
+    m.react = m.react || {}; m.react[e] = (m.react[e] || 0) + 1;
+    store.set('groupMsgs', a); paint();
+  });
+  liveThread.querySelectorAll('[data-avq]').forEach(el => el.onclick = () => {
+    const m = store.get('groupMsgs', [])[+el.dataset.avq]; if (!m) return;
+    self.reply = { name: m.name, text: m.text }; self.renderChat(body, v);
+  });
+  liveThread.querySelectorAll('[data-avd]').forEach(el => el.onclick = () => {
+    const a = store.get('groupMsgs', []); a.splice(+el.dataset.avd, 1); store.set('groupMsgs', a); paint();
+  });
+};
+self._livePaint = paint; // 挂载到实例上，供任何异步回调随时刷新当前屏幕
 
     const rq = body.querySelector('#av_rq');
     if (rq) rq.onclick = () => { self.reply = null; self.renderChat(body, v); };
@@ -16704,7 +16822,8 @@ apps.avengers = {
     const send = () => {
       const inp = body.querySelector('#av_in');
       const x = inp.value.trim(); if (!x) return;
-      inp.value = ''; self.send(v, x, paint, thread);
+      inp.value = ''; 
+      self.send(v, x, paint); // ← 删掉未定义的 thread 参数
     };
     body.querySelector('#av_snd').onclick = send;
     VoiceInput.attach(body.querySelector('#av_mic'), body.querySelector('#av_in'), {});
@@ -16855,46 +16974,41 @@ ${f.civilWar ? `索科维亚内战阵营对立强度：${cfg.tension}/100。` : 
 4. 只能从以下登场成员中输出：${cast.map(m => m.name).join('、')}；
 ${avNoPlayerRule()}`);
 
-    const r = cleanSlur(await ai(
-      [{ role: 'user', content: `请开始推演事件【${opener.t}】的群内开场消息。` }],
-      sys,
-      () => {
-        const out = [starter.name + ' ||| ' + localReply(starter.name, opener.brief)];
-        others.forEach(m => out.push(m.name + ' ||| ' + localReply(m.name, opener.brief)));
-        return out.join('\n');
-      },
-      'social'
-    ));
-
-    let rawLines = String(r).split('\n').filter(l => l.includes('|||'));
-    let lines = avStripPlayer(rawLines);
-    const allowSet = new Set(cast.map(m => m.name));
-    lines = lines.filter(l => allowSet.has(l.split('|||')[0].trim()));
-
-    if (!lines.length) {
-      lines = [starter.name + ' ||| ' + localReply(starter.name, opener.brief)];
+   let r = '';
+    try {
+      r = cleanSlur(await ai(
+        [{ role: 'user', content: `请以 ${starter.name} 为先手展开场景对话。` }],
+        sys,
+        () => cast.map(m => m.name + ' ||| ' + localReply(m.name, opener.brief)).join('\n'),
+        'social'
+      ));
+    } catch (e) {
+      r = cast.map(m => m.name + ' ||| ' + localReply(m.name, opener.brief)).join('\n');
     }
 
-    let accumulatedDelay = 0;
-    lines.forEach((l, i) => {
-      const parts = l.split('|||');
-      const speakerName = parts[0].trim();
-      const content = parts.slice(1).join('|||').trim();
-      const speakerObj = cast.find(x => x.name === speakerName) || starter;
+    let parsed = avParseLines(r, cast);
+if (!parsed.length) {
+  parsed = [
+    { member: starter, text: localReply(starter.name, opener.brief) },
+    ...others.map(m => ({ member: m, text: localReply(m.name, opener.brief) }))
+  ];
+}
 
-      accumulatedDelay += (i === 0 ? 400 : (speakerObj.delay * 0.65 + Math.random() * 600));
+let accumulatedDelay = 0;
+parsed.forEach((item, i) => {
+  const speakerObj = item.member || starter;
+  accumulatedDelay += (i === 0 ? 350 : (speakerObj.delay * 0.55 + Math.random() * 450));
 
-      setTimeout(() => {
-        const th = thread();
-        const typingEl = self.showTyping(th, speakerObj);
-        setTimeout(() => {
-          if (typingEl && typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
-          self.push(speakerObj.name, content || localReply(speakerObj.name, opener.brief));
-          if (currentApp === 'avengers') paint();
-          else notifyBanner(speakerObj.short, '复仇者频道开启了新事件', () => openApp('avengers'));
-        }, 500);
-      }, accumulatedDelay);
-    });
+  setTimeout(() => {
+    const th = document.querySelector('#av_thread');
+    const typingEl = self.showTyping(th, speakerObj);
+    setTimeout(() => {
+      if (typingEl && typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
+      self.push(speakerObj.name, item.text);
+      if (currentApp !== 'avengers') notifyBanner(speakerObj.short, '复仇者频道开启了新事件', () => openApp('avengers'));
+    }, 450);
+  }, accumulatedDelay);
+});
 
     if (usedKey) {
       const u = store.get('avOpenerUsed', []);
@@ -17066,20 +17180,25 @@ renderTopic(body, v) {
   },
 
   push(name, text, extra) {
-    const mem = avengersMembers().find(x => x.name === name) || {};
-    const a = store.get('groupMsgs', []);
-    a.push({
-      name,
-      short: mem.short || name[0],
-      color: mem.color || '#35d0ff',
-      faction: mem.faction || '',
-      text: cleanSlur(text),
-      time: nowTime(),
-      auto: !!(extra && extra.auto),
-      quote: (extra && extra.quote) || ''
-    });
-    store.set('groupMsgs', a.slice(-200));
-  },
+  const cleanText = cleanSlur(String(text || '').trim());
+  if (!cleanText) return;
+  const mem = avengersMembers().find(x => x.name === name || x.short === name) || {};
+  const a = store.get('groupMsgs', []);
+  a.push({
+    name: mem.name || name,
+    short: mem.short || String(name || '?')[0],
+    color: mem.color || '#35d0ff',
+    faction: mem.faction || '',
+    text: cleanText,
+    time: nowTime(),
+    auto: !!(extra && extra.auto),
+    quote: (extra && extra.quote) || ''
+  });
+  store.set('groupMsgs', a.slice(-200));
+  if (currentApp === 'avengers' && this.tab === 'chat' && typeof this._livePaint === 'function') {
+    try { this._livePaint(); } catch (e) {}
+  }
+},
 
   showTyping(thread, m) {
     if (!thread) return null;
@@ -17124,34 +17243,26 @@ ${avNoPlayerRule()}`);
       'social'
     ));
 
-    let rawLines = avStripPlayer(String(r).split('\n').filter(l => l.includes('|||')));
-    if (!rawLines.length) {
-      rawLines = responders.map(m => m.name + ' ||| ' + localReply(m.name, topic.t));
-    }
+   let parsed = avParseLines(r, mem);
+if (!parsed.length) {
+  parsed = responders.map(m => ({ member: m, text: localReply(m.name, topic.t) }));
+}
 
-    let delayAccum = 0;
-    rawLines.forEach((lineStr, idx) => {
-      const parts = lineStr.split('|||');
-      const speakerRaw = parts[0].trim();
-      const content = parts.slice(1).join('|||').trim();
-      if (!content) return;
+let delayAccum = 0;
+parsed.forEach((item) => {
+  const realSpeaker = item.member;
+  delayAccum += (realSpeaker.delay * 0.5 + Math.random() * 450);
 
-      // 同样根据每行实际名字动态寻人
-      const realSpeaker = mem.find(m => m.name === speakerRaw || m.short === speakerRaw || speakerRaw.includes(m.short)) || responders[idx % responders.length];
-
-      delayAccum += (realSpeaker.delay * 0.5 + Math.random() * 600);
-
-      setTimeout(() => {
-        const th = document.querySelector('#av_thread');
-        const tip = self.showTyping(th, realSpeaker);
-        setTimeout(() => {
-          if (tip && tip.parentNode) tip.parentNode.removeChild(tip);
-          self.push(realSpeaker.name, content || localReply(realSpeaker.name, topic.t));
-          if (currentApp === 'avengers') paint();
-          else notifyBanner(realSpeaker.short, '话题讨论有了新进展', () => openApp('avengers'));
-        }, 500);
-      }, delayAccum);
-    });
+  setTimeout(() => {
+    const th = document.querySelector('#av_thread');
+    const tip = self.showTyping(th, realSpeaker);
+    setTimeout(() => {
+      if (tip && tip.parentNode) tip.parentNode.removeChild(tip);
+      self.push(realSpeaker.name, item.text || localReply(realSpeaker.name, topic.t));
+      if (currentApp !== 'avengers') notifyBanner(realSpeaker.short, '话题讨论有了新进展', () => openApp('avengers'));
+    }, 450);
+  }, delayAccum);
+});
   },
 
   async autoMessage(v, paint, n) {
@@ -17243,38 +17354,29 @@ ${avNoPlayerRule()}`);
       'social'
     ));
 
-    // 3. 严格解析实际输出的发件人，绝不按数组下标错位赋值！
-    let rawLines = avStripPlayer(String(r).split('\n').filter(l => l.includes('|||')));
-    if (!rawLines.length) {
-      rawLines = chosen.map(x => x.name + ' ||| ' + localReply(x.name, text));
-    }
+    // 3. 使用容错解析器 avParseLines，兼容 |||、||、冒号与角色简称，绝不吞回复
+let parsed = avParseLines(r, allMem);
+if (!parsed.length) {
+  parsed = chosen.map(x => ({ member: x, text: localReply(x.name, text) }));
+}
 
-    let delayAccum = 0;
-    rawLines.forEach((lineStr, idx) => {
-      const parts = lineStr.split('|||');
-      const speakerRaw = parts[0].trim();
-      const content = parts.slice(1).join('|||').trim();
-      if (!content) return;
+let delayAccum = 0;
+parsed.forEach((item, idx) => {
+  const realSpeaker = item.member;
+  delayAccum += (realSpeaker.delay * 0.5 + Math.random() * 400);
 
-      // 智能匹配正确的英雄对象（防止模型简写名字导致匹配失败）
-      const realSpeaker = allMem.find(m => m.name === speakerRaw || m.short === speakerRaw || speakerRaw.includes(m.short)) || chosen[idx % chosen.length];
-
-      delayAccum += (realSpeaker.delay * 0.6 + Math.random() * 500);
-
-      setTimeout(() => {
-        const th = document.querySelector('#av_thread');
-        const tip = self.showTyping(th, realSpeaker);
-        setTimeout(() => {
-          if (tip && tip.parentNode) tip.parentNode.removeChild(tip);
-          // 确保以真实的 speaker 发言并推入界面
-          self.push(realSpeaker.name, content, {
-            quote: (idx === 0 && mention) ? me + '：' + text.slice(0, 24) : ''
-          });
-          if (currentApp === 'avengers') paint();
-          else notifyBanner(realSpeaker.short, '复仇者频道有新消息', () => openApp('avengers'));
-        }, 500);
-      }, delayAccum);
-    });
+  setTimeout(() => {
+    const th = document.querySelector('#av_thread');
+    const tip = self.showTyping(th, realSpeaker);
+    setTimeout(() => {
+      if (tip && tip.parentNode) tip.parentNode.removeChild(tip);
+      self.push(realSpeaker.name, item.text, {
+        quote: (idx === 0 && mention) ? me + '：' + text.slice(0, 24) : ''
+      });
+      if (currentApp !== 'avengers') notifyBanner(realSpeaker.short, '复仇者频道有新消息', () => openApp('avengers'));
+    }, 450);
+  }, delayAccum);
+});
   },
 
   async scene(v, paint) {
@@ -17443,11 +17545,25 @@ apps.briefing={title:'今日简报',render(v){
   v.querySelectorAll('[data-go]').forEach(el=>el.onclick=()=>{
   const g=el.dataset.go;
   if(g==='notes'){apps.notes.kind='capsule';}
+  if(g==='avengers'){
+    apps.avengers.tab='chat';
+    // 如果简报里有复联频道事件，但 groupMsgs 因历史配额原因还是空的，自动把简报里的那条消息补进频道
+    const gm = store.get('groupMsgs', []);
+    if (!gm.length) {
+      const grpEv = (store.get('worldEvents', []) || []).find(e => e.target === 'avengers' || e.type === 'group');
+      if (grpEv) {
+        const who = (grpEv.title.split('·')[1] || '托尼·斯塔克').replace(/发言/g, '').trim();
+        apps.avengers.push(who, grpEv.detail.replace(/…$/, '') || '大家看一眼共享盘里的最新简报。', { auto: true });
+      } else {
+        const x = LOCAL.groupAuto()[0].split('|||');
+        apps.avengers.push(x[0].trim(), x[1].trim(), { auto: true });
+      }
+    }
+  }
   if(g==='messages'){
     apps.messages.cur='托尼·斯塔克';
     apps.messages.view='chat';
     openApp('messages');
-    // 延迟确保DOM挂载后滚到最新消息
     setTimeout(()=>{
       const th = document.querySelector('#thread');
       if(th) th.scrollTop = th.scrollHeight;
