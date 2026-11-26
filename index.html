@@ -2492,27 +2492,92 @@ const WORLD={
     {id:'shield',name:'《神盾局情况简报》',en:'S.H.I.E.L.D. Briefing',tier:'官方 · 内部参阅',style:'报告体、分级标注、只列可执行结论（复联1后可用）。',color:'#4fd08a',official:true},
     {id:'bugle',name:'《号角日报》',en:'The Daily Bugle',tier:'可选 · 小报',style:'夸张、耸动、爱黑钢铁侠与超级英雄；斯塔克工业不在意其报道，公关部归档为「无需回应」。',color:'#e23636',official:false},
   ],
-  /* 约饭：仅高端场所与托尼的住宅 */
-  datePlaces:[
-    {key:'malibu',name:'马里布 · 托尼的悬崖住宅',emoji:'🌊',desc:'10880 Malibu Point。落地窗外是太平洋，车库比客厅大。',spots:[
-      {name:'悬崖露台 · 日落酒会',emoji:'🥂'},{name:'开放式厨房吧台',emoji:'🍸'},{name:'下沉式客厅',emoji:'🛋️'},{name:'私人车库 · 古董车旁',emoji:'🏎️'},{name:'海崖无边泳池',emoji:'🌅'},{name:'地下实验室门口',emoji:'🔬'},{name:'顶层私人放映厅',emoji:'🎬'},{name:'直升机停机坪',emoji:'🚁'}]},
-    {key:'tower',name:'斯塔克大厦 · 顶层',emoji:'🏢',desc:'曼哈顿中城。玻璃幕墙、全息屏与贾维斯的问候声。',spots:[
-      {name:'顶层全景酒廊',emoji:'🥂'},{name:'董事会会议室',emoji:'📊'},{name:'战甲陈列廊',emoji:'🤖'},{name:'斯塔克实验室',emoji:'🔬'},{name:'停机坪看日落',emoji:'🚁'},{name:'全息投影会议室',emoji:'🕹️'},{name:'俯瞰纽约的落地窗',emoji:'🌃'},{name:'私人餐厅 · 主厨席',emoji:'🍽️'}]},
-    {key:'expo',name:'斯塔克博览会',emoji:'🎪',desc:'Flushing Meadows。全新元素、新品发布与闪光灯。',spots:[
-      {name:'开幕酒会 · 主展台',emoji:'🥂'},{name:'新品发布会后台',emoji:'🎤'},{name:'未来城市展区',emoji:'🏙️'},{name:'贵宾观礼席',emoji:'🎟️'},{name:'媒体见面会',emoji:'📸'},{name:'闭幕晚宴',emoji:'🍷'}]},
-    {key:'gala',name:'慈善酒会 / 募捐晚宴',emoji:'🍷',desc:'大都会博物馆、广场饭店或私人庄园。黑领结，名单比酒重要。',spots:[
-      {name:'主厅香槟塔',emoji:'🥂'},{name:'拍卖预展长廊',emoji:'🖼️'},{name:'露台 · 避开人群',emoji:'🌙'},{name:'贵宾包厢',emoji:'🎭'},{name:'捐助人致辞台侧',emoji:'🎙️'},{name:'散场后的空厅',emoji:'✨'}]},
-    {key:'board',name:'董事会 / 股东大会',emoji:'📊',desc:'斯塔克工业总部 42 层。议程、表决、以及托尼明显没读的材料。',spots:[
-      {name:'董事会长桌',emoji:'🪑'},{name:'会前休息室',emoji:'☕'},{name:'季度报告发布会',emoji:'📈'},{name:'股东答疑环节',emoji:'🎤'},{name:'会后走廊',emoji:'🚪'},{name:'顶层总裁办公室',emoji:'🏙️'}]},
-    {key:'auction',name:'拍卖会 · 苏富比 / 佳士得',emoji:'🔨',desc:'古典机械、稀有元素、以及托尼忽然举牌的那件东西。',spots:[
-      {name:'预展酒会',emoji:'🥂'},{name:'前排竞投席',emoji:'🎫'},{name:'私人洽购室',emoji:'🔒'},{name:'落槌后的走廊',emoji:'🚶'},{name:'拍品库房',emoji:'🖼️'}]},
-    {key:'conf',name:'国际科技会议 / 高峰论坛',emoji:'🎤',desc:'日内瓦、苏黎世或达沃斯。清洁能源、人工智能与一份没写完的演讲稿。',spots:[
-      {name:'主旨演讲后台',emoji:'🎙️'},{name:'圆桌论坛',emoji:'🪑'},{name:'VIP 交流酒会',emoji:'🍸'},{name:'闭门分会场',emoji:'🔐'},{name:'展区 · 原型机前',emoji:'⚙️'},{name:'会后私人晚宴',emoji:'🍽️'}]},
-    {key:'compound',name:'复仇者基地 · 北部园区',emoji:'🛡️',desc:'玻璃与混凝土，停机坪、实验室和一张总是不够坐的长桌（复联1后）。',spots:[
-      {name:'公共长桌 · 深夜',emoji:'🍕'},{name:'机库看台',emoji:'✈️'},{name:'实验室观察窗',emoji:'🔬'},{name:'湖边栈道',emoji:'🌊'},{name:'屋顶平台',emoji:'🌌'},{name:'简报室',emoji:'📋'}]},
-    {key:'lake',name:'湖边小屋 · 私人住宅',emoji:'🏡',desc:'安静、没有记者、没有信号塔。托尼只在极少数人面前提过这里（2018 后）。',spots:[
-      {name:'湖畔木栈道',emoji:'🌅'},{name:'壁炉前的旧沙发',emoji:'🔥'},{name:'菜园旁的长椅',emoji:'🌿'},{name:'清晨的码头',emoji:'🛶'},{name:'没有战甲的车库',emoji:'🕊️'}]},
-  ],
+ /* 约饭：全球精选漫威地标、私密居所与浪漫都市（每城不少于 9 个精细点位） */
+datePlaces:[
+  {key:'home',name:'家 · 私密居所',emoji:'🏡',desc:'最私密舒适的居所，门一关就是只属于彼此的时光。',spots:[
+    {name:'下沉式客厅壁炉旁',emoji:'🛋️'},{name:'开放式厨房中岛吧台',emoji:'🍳'},{name:'主卧全景落地窗露台',emoji:'🌅'},
+    {name:'私人车库古董车旁',emoji:'🏎️'},{name:'地下私人放映厅',emoji:'🎬'},{name:'海崖/庭院恒温无边泳池',emoji:'🏊'},
+    {name:'观星阁楼与天窗下',emoji:'🌌'},{name:'清晨洒满阳光的门廊木椅',emoji:'☕'},{name:'专属工作台与备用席',emoji:'🔬'},
+    {name:'深夜无人的酒窖长桌',emoji:'🍷'}]},
+
+  {key:'tower',name:'复联基地 · 斯塔克大厦',emoji:'🏢',desc:'玻璃幕墙、全息屏与贾维斯/星期五的问候声。',spots:[
+    {name:'顶层80层全景酒廊',emoji:'🥂'},{name:'大厦停机坪看曼哈顿日落',emoji:'🚁'},{name:'复联公共区深夜长桌',emoji:'🍕'},
+    {name:'中央实验室4号工作台',emoji:'🔬'},{name:'高空全息投影会议室',emoji:'🕹️'},{name:'私人星空主厨铁板席',emoji:'🍽️'},
+    {name:'重力训练室休息长椅',emoji:'🥊'},{name:'机库看台看战机起降',emoji:'✈️'},{name:'大厦玻璃外挑观景台',emoji:'🌃'},
+    {name:'战甲陈列廊幽蓝光晕旁',emoji:'🤖'}]},
+
+  {key:'manhattan',name:'曼哈顿中城',emoji:'🏙️',desc:'霓虹、高楼与行色匆匆的人群，最繁华的喧嚣。',spots:[
+    {name:'大都会艺术博物馆露台',emoji:'🖼️'},{name:'第五大道旋转景观餐厅',emoji:'🍷'},{name:'中央公园毕士达喷泉长椅',emoji:'⛲'},
+    {name:'老派爵士乐俱乐部暗角',emoji:'🎷'},{name:'百老汇歌剧院VIP贵宾包厢',emoji:'🎭'},{name:'洛克菲勒中心顶层滑冰场',emoji:'⛸️'},
+    {name:'雨夜黄包车与街角熟食店',emoji:'🥪'},{name:'帝国大厦避开游人的顶台',emoji:'🗼'},{name:'中央车站拱顶回音廊',emoji:'🚂'},
+    {name:'深夜街角24小时红蓝招牌餐车',emoji:'☕'}]},
+
+  {key:'queens',name:'皇后区',emoji:'🏘️',desc:'熟悉的街区，老披萨店和地铁穿行的市井烟火。',spots:[
+    {name:'Joe\'s Pizza 砖墙排挡小座',emoji:'🍕'},{name:'老旧公寓防火梯看鸽子',emoji:'🕊️'},{name:'街角复古杂货铺铁皮长椅',emoji:'🏪'},
+    {name:'穿过高架地铁的林荫步道',emoji:'🚊'},{name:'社区屋顶水箱旁的落日',emoji:'🌇'},{name:'法拉盛地道中式小吃铺',emoji:'🥟'},
+    {name:'河滨公园看对岸曼哈顿天际线',emoji:'🌉'},{name:'街头篮球铁丝网旁的汽水摊',emoji:'🥤'},{name:'家庭烘焙工坊的靠窗角落',emoji:'🥐'},
+    {name:'旧书店翻动发黄漫画的角落',emoji:'📚'}]},
+
+  {key:'brooklyn',name:'布鲁克林',emoji:'🌉',desc:'红砖、复古唱片与海风拂过的怀旧质感。',spots:[
+    {name:'DUMBO 鹅卵石街遥望大桥',emoji:'📸'},{name:'红砖旧仓库改装精酿酒馆',emoji:'🍻'},{name:'二手中古黑胶唱片店深处',emoji:'📻'},
+    {name:'布鲁克林高地海滨散步长廊',emoji:'🌊'},{name:'跳蚤市场老式留声机摊前',emoji:'🕰️'},{name:'运河边独立艺术家陶艺工坊',emoji:'🏺'},
+    {name:'经典美式复古皮质卡座Diner',emoji:'🥞'},{name:'老派木质保龄球馆包道',emoji:'🎳'},{name:'日落公园俯瞰自由女神像',emoji:'🗽'},
+    {name:'河岸废弃码头的木桩栈道',emoji:'⚓'}]},
+
+  {key:'coney',name:'科尼岛',emoji:'🎡',desc:'海滩、游乐园和融化的冰淇淋与欢笑声。',spots:[
+    {name:'海边老式巨型木质过山车下',emoji:'🎢'},{name:'落日沙滩边的彩色木板栈道',emoji:'🏖️'},{name:'摩天轮升至最高点的海风包厢',emoji:'🎡'},
+    {name:'Nathan\'s 著名热狗摊长凳',emoji:'🌭'},{name:'复古旋转木马金色骏马上',emoji:'🎠'},{name:'海浪拍打的旧码头钓鱼台',emoji:'🎣'},
+    {name:'散发黄油香的爆米花机旁',emoji:'🍿'},{name:'霓虹街机厅击锤比分机前',emoji:'👾'},{name:'退潮时湿润平缓的贝壳浅滩',emoji:'🐚'},
+    {name:'夜幕初垂时海风中的烟花看台',emoji:'🎆'}]},
+
+  {key:'tuscany',name:'意大利 · 托斯卡纳',emoji:'🇮🇹',desc:'葡萄园、石砌小镇与慢煮的午后阳光。',spots:[
+    {name:'阳光倾泻的橄榄树林长桌',emoji:'🫒'},{name:'百年石砌酒庄私密橡木桶窖',emoji:'🍷'},{name:'山顶石堡俯瞰丝柏树小径',emoji:'🏰'},
+    {name:'石板路尽头的意式手工冰淇淋店',emoji:'🍨'},{name:'露天露台的手工松露意面席',emoji:'🍝'},{name:'金黄麦浪边缘的旧长凳',emoji:'🌾'},
+    {name:'古老钟楼顶层俯瞰红色屋顶',emoji:'🔔'},{name:'黄昏农庄里香草慢烤披萨窑旁',emoji:'🍕'},{name:'私人温泉水疗石砌池边',emoji:'🧖'},
+    {name:'暮色苍茫中的烛光葡萄庄园长廊',emoji:'🕯️'}]},
+
+  {key:'venice',name:'威尼斯',emoji:'🛶',desc:'水道、石桥与黄昏时分传来的悠扬钟声。',spots:[
+    {name:'暮色下轻摇的贡多拉小船',emoji:'🛶'},{name:'圣马可广场露天咖啡馆弦乐旁',emoji:'☕'},{name:'叹息桥下悄然划过的水波',emoji:'🌉'},
+    {name:'大运河畔百年私宅斑驳露台',emoji:'🏛️'},{name:'穆拉诺手工吹制彩色玻璃作坊',emoji:'🏺'},{name:'隐秘死胡同里只有四张桌的酒馆',emoji:'🍝'},
+    {name:'里亚托桥头看水上巴士穿梭',emoji:'🚢'},{name:'石桥石阶旁晃荡双腿喂鸽子',emoji:'🕊️'},{name:'老图书馆阳光斑驳的天井',emoji:'📖'},
+    {name:'夜间水波粼粼倒映星辉的浮桥',emoji:'✨'}]},
+
+  {key:'london',name:'伦敦',emoji:'🇬🇧',desc:'阴雨、红巴士与塔桥映衬在泰晤士河的灯。',spots:[
+    {name:'泰晤士河夜游船船头甲板',emoji:'🚢'},{name:'大本钟雨雾朦胧的西敏桥头',emoji:'🕰️'},{name:'英伦古董红茶馆三层高台',emoji:'🫖'},
+    {name:'伦敦眼包厢俯瞰整座雾都夜景',emoji:'🎡'},{name:'考文特花园街头艺人弹唱旁',emoji:'🎻'},{name:'海德公园落叶铺满的林荫骑道',emoji:'🍂'},
+    {name:'诺丁山彩色排屋掩映的书店',emoji:'📚'},{name:'红砖老酒馆靠壁炉的墨绿卡座',emoji:'🍺'},{name:'千禧桥连接圣保罗大教堂的中段',emoji:'🌉'},
+    {name:'深夜红色双层巴士顶层第一排',emoji:'🚌'}]},
+
+  {key:'tokyo',name:'东京',emoji:'🗼',desc:'霓虹小巷、拉面香气与电车叮当的微光。',spots:[
+    {name:'思出横丁挂满纸灯笼的烧鸟店',emoji:'🍢'},{name:'涩谷十字路口二楼看汹涌人潮',emoji:'🚦'},{name:'六本木之丘顶楼露天看东京铁塔',emoji:'🗼'},
+    {name:'目黑川沿岸樱花掩映的木椅',emoji:'🌸'},{name:'新宿歌舞伎町幽暗地库爵士吧',emoji:'🍸'},{name:'隐秘板前手握寿司主厨席',emoji:'🍣'},
+    {name:'秋叶原复古街机顶层抓娃娃机旁',emoji:'🕹️'},{name:'明治神宫参道苍翠宁静的碎石路',emoji:'⛩️'},{name:'下北泽二手古着杂货铺檐下',emoji:'🧥'},
+    {name:'深夜暖帘轻挑的浓汤拉面单间',emoji:'🍜'}]},
+
+  {key:'paris',name:'巴黎',emoji:'🗼',desc:'塞纳河、可颂与铁塔闪烁的璀璨灯火。',spots:[
+    {name:'夏乐宫平台看铁塔整点闪烁',emoji:'✨'},{name:'塞纳河右岸林荫道旧书摊旁',emoji:'📚'},{name:'蒙马特高地圣心堂石阶俯瞰',emoji:'⛪'},
+    {name:'花神咖啡馆露天藤椅看行人',emoji:'☕'},{name:'卢浮宫玻璃金字塔夜景池畔',emoji:'🏛️'},{name:'玛黑区石板街角手工甜品沙龙',emoji:'🍰'},
+    {name:'艺术桥两岸落日染红的河面',emoji:'🌅'},{name:'隐秘米其林三星古堡法餐厅',emoji:'🍽️'},{name:'橘园美术馆莫奈睡莲巨幅画环抱中',emoji:'🎨'},
+    {name:'塞纳河游船穿过新桥时的汽笛声',emoji:'🚢'}]},
+
+  {key:'reykjavik',name:'冰岛 · 雷克雅未克',emoji:'❄️',desc:'极光、温泉与无尽荒凉神秘的黑沙荒原。',spots:[
+    {name:'蓝湖地热温泉升腾白雾的池角',emoji:'🧖'},{name:'黑沙滩玄武岩柱前看狂暴白浪',emoji:'🌊'},{name:'旷野玻璃穹顶木屋仰望绿色极光',emoji:'🌌'},
+    {name:'瓦特纳冰川蓝冰洞水晶腹地',emoji:'🧊'},{name:'大教堂顶层眺望彩色铁皮屋顶',emoji:'⛪'},{name:'古佛斯瀑布轰鸣的水汽彩虹旁',emoji:'🌈'},
+    {name:'海边避风木屋里一碗热腾腾羊肉汤',emoji:'🍲'},{name:'苔原地带无尽荒野公路边缘',emoji:'🛣️'},{name:'地热喷泉水柱喷涌前的沸腾水潭',emoji:'🌋'},
+    {name:'雪夜小镇温暖微黄的柴火壁炉前',emoji:'🔥'}]},
+
+  {key:'asgard',name:'阿斯加德 · 金宫',emoji:'⚡',desc:'彩虹桥、黄金神殿与仙宫星海的永恒神域。',spots:[
+    {name:'金宫万神殿长宴主神席',emoji:'👑'},{name:'彩虹桥尽头海姆达尔守望台',emoji:'🌈'},{name:'悬浮群岛边缘俯瞰星云瀑布',emoji:'🌌'},
+    {name:'仙宫皇家酒窖盛满蜜酒的金樽旁',emoji:'🍯'},{name:'女武神练兵场长矛与盾牌列阵前',emoji:'⚔️'},{name:'群星倒映的纯净静水神池畔',emoji:'✨'},
+    {name:'金苹果神树浓郁芬芳的绿荫下',emoji:'🍏'},{name:'神域皇家飞舟划过星际长空',emoji:'⛵'},{name:'奥丁藏宝库厚重寒冰符文外',emoji:'🔮'},
+    {name:'黄昏时分霞光漫天的浮空巨石崖',emoji:'🌄'}]},
+
+  {key:'wakanda',name:'瓦坎达',emoji:'🐆',desc:'高科技与古老部族完美交融的世外桃源。',spots:[
+    {name:'舒里皇家科技核心悬浮实验室',emoji:'🔬'},{name:'伯宁扎纳王宫顶层全景花园',emoji:'🌺'},{name:'大猩猩峰积雪覆盖的险峻石峰',emoji:'🏔️'},
+    {name:'振金矿脉深处幽蓝能量列车旁',emoji:'🚅'},{name:'部族集市色彩斑斓的香料摊前',emoji:'🧺'},{name:'神圣瀑布决斗悬崖飞溅的水雾中',emoji:'🌊'},
+    {name:'夜幕下静谧幽深的心形草洞穴外',emoji:'🌿'},{name:'夕阳西下金光闪耀的草原飞船台',emoji:'🌅'},{name:'手工艺集市编织部族披风的织机旁',emoji:'🧶'},
+    {name:'湖畔篝火晚会鼓点与民谣交织中',emoji:'🔥'}]}
+],
 };
 /* ---------- 可添加的 MCU 备选联系人（按时间线筛选 + 符合人设） ---------- */
 const MCU_CANDIDATES=[
@@ -16328,462 +16393,773 @@ function datePlacesFor(){
     return true;
   });
 }
-apps.dating={title:'约饭',_view:'setup',city:0,spot:null,people:[],
-  onBack(){const s=store.get('dateSession',null);if(s&&this._view!=='setup'){this._view='setup';Promise.resolve(this.render(document.getElementById('appBody'))).catch(e=>showErr('E-RENDER-001',{err:e}));return true;}return false;},
-  _safeSession(s){
-    if(!s||typeof s!=='object')return null;
-    if(!Array.isArray(s.history))s.history=[];
-    if(!Array.isArray(s._turnStories))s._turnStories=[];
-    if(!Array.isArray(s.people))s.people=[];
-    if(typeof s.turn!=='number'||s.turn<1)s.turn=1;
-    if(typeof s.story!=='string')s.story='';
-    if(typeof s.options!=='string')s.options='';
+/* ============================================================
+   约饭 · 完整重构版 (Dating & Dining Hub)
+   - 4列四卡自适应精致网格
+   - 顶部「约饭结束后自动消息」开关
+   - 丰富全球地标与每城不少于9个专属点位
+   - 支持在已有城市下添加自定义地点 / 新增自定义城市并置顶固化
+   ============================================================ */
+function dtCustomPlaces() { return store.get('dt_custom_places', []); }
+function dtSaveCustomPlaces(list) { store.set('dt_custom_places', list); }
+function dtAutoMsgOn() { return store.get('dt_auto_msg', true) !== false; }
+function dtSetAutoMsg(b) { store.set('dt_auto_msg', !!b); }
+
+// 动态合并预设城市与玩家自定义的城市（自定义可置顶）
+function dtGetAllPlaces() {
+  const f = flags();
+  const presets = datePlacesFor();
+  const customs = dtCustomPlaces();
+  const map = new Map();
+
+  // 1. 先加入预设
+  presets.forEach(p => {
+    map.set(p.key, { ...p, spots: [...p.spots], isCustom: false });
+  });
+
+  // 2. 合并或追加自定义城市及已有城市的自定义点位
+  customs.forEach(c => {
+    if (map.has(c.key)) {
+      // 在已有城市下追加自定义点位
+      const target = map.get(c.key);
+      const existingNames = new Set(target.spots.map(s => s.name));
+      (c.spots || []).forEach(s => {
+        if (!existingNames.has(s.name)) target.spots.push(s);
+      });
+    } else {
+      // 纯新增的自定义城市
+      map.set(c.key, { ...c, isCustom: true });
+    }
+  });
+
+  const list = Array.from(map.values());
+  // 置顶城市排在前列
+  return list.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+}
+
+// ====== 辅助函数：根据归属人动态生成专属的家的风貌与点位 ======
+function dtGetHomeProfile(ownerName) {
+  const p = store.profile() || {};
+  const myName = p.name || '我';
+  const f = flags();
+
+  // 1. 用户自己的家
+  if (!ownerName || ownerName === 'me' || ownerName === myName) {
+    return {
+      placeName: `${myName}的家`,
+      emoji: '🏡',
+      desc: '属于你自己的私密空间，门一关就是只属于彼此的惬意时光。',
+      spots: [
+        { name: '下沉式客厅温暖布艺沙发', emoji: '🛋️' },
+        { name: '开放式小厨房料理吧台', emoji: '🍳' },
+        { name: '主卧落地窗飘窗前', emoji: '🌅' },
+        { name: '整洁的书桌工作台旁', emoji: '📖' },
+        { name: '放满绿植的微风阳台', emoji: '🌿' },
+        { name: '地毯上围坐的茶几边', emoji: '☕' },
+        { name: '放着轻柔音乐的私人小房间', emoji: '📻' },
+        { name: '玄关处微黄暖光灯下', emoji: '💡' },
+        { name: '深夜安静的餐桌旁', emoji: '🍷' }
+      ]
+    };
+  }
+
+  // 2. 托尼·斯塔克的家（自动识别所处时间线：2018年后为湖边小屋，此前为马里布海崖豪宅）
+  if (ownerName === '托尼·斯塔克') {
+    const isLake = f.year >= 2018;
+    return {
+      placeName: isLake ? '托尼·斯塔克的湖畔木屋' : '托尼·斯塔克的马里布海崖豪宅',
+      emoji: '🏡',
+      desc: isLake ? '避开所有镁光灯与喧嚣的湖畔木屋，静谧、水波与生活气。' : '马里布悬崖顶端高科技海景豪宅，全景玻璃窗与地下私人车库。',
+      spots: [
+        { name: '地下私人车库4号工作台旁', emoji: '🔬' },
+        { name: '悬崖无边泳池看太平洋日落', emoji: '🏊' },
+        { name: '下沉式智能壁炉客厅软座', emoji: '🛋️' },
+        { name: '私人酒窖深夜长木吧台', emoji: '🍷' },
+        { name: '主卧外挑全景星空露台', emoji: '🌌' },
+        { name: '古董跑车引擎盖边喝咖啡', emoji: '🏎️' },
+        { name: '私人放映厅深陷式皮质沙发', emoji: '🎬' },
+        { name: '清晨海风轻拂的木质门廊', emoji: '☕' },
+        { name: '陈列装甲幽蓝微光流转的走廊拐角', emoji: '🤖' }
+      ]
+    };
+  }
+
+  // 3. 史蒂夫·罗杰斯的家
+  if (ownerName === '史蒂夫·罗杰斯') {
+    return {
+      placeName: '史蒂夫·罗杰斯的复古公寓',
+      emoji: '🏡',
+      desc: '布鲁克林老街区采光良好的红砖旧公寓，简单、沉稳、充满岁月感。',
+      spots: [
+        { name: '窗台边老式木椅与旧报纸旁', emoji: '☕' },
+        { name: '放着40年代老黑胶的留声机边', emoji: '📻' },
+        { name: '阳光洒满的旧式木质餐桌', emoji: '🥞' },
+        { name: '手绘速写本摊开的小书桌前', emoji: '🎨' },
+        { name: '公寓防火梯俯瞰布鲁克林街巷', emoji: '🌇' },
+        { name: '擦拭得干干净净的朴素小厨房', emoji: '🍳' },
+        { name: '挂着褪色夹克的玄关门廊', emoji: '🧥' },
+        { name: '老式布艺沙发靠垫旁', emoji: '🛋️' },
+        { name: '夜幕下微风吹拂的窗前看星斗', emoji: '✨' }
+      ]
+    };
+  }
+
+  // 4. 彼得·帕克的家
+  if (ownerName === '彼得·帕克') {
+    return {
+      placeName: '彼得·帕克的皇后区小公寓',
+      emoji: '🏡',
+      desc: '皇后区温馨局促的平民公寓，总是飘着梅姨烘焙的香气和少年气息。',
+      spots: [
+        { name: '堆满科技废件与图纸的书桌旁', emoji: '🔬' },
+        { name: '房间窗外通往屋顶的红色防火梯', emoji: '🪜' },
+        { name: '客厅有些磨损但极柔软的旧沙发', emoji: '🛋️' },
+        { name: '厨房飘着苹果派香味的餐台边', emoji: '🥧' },
+        { name: '坐在木地板上拼乐高积木', emoji: '🧩' },
+        { name: '窗台边吹着傍晚凉风喝汽水', emoji: '🥤' },
+        { name: '堆着课本与背包的床边地毯上', emoji: '📚' },
+        { name: '玄关旧鞋柜旁换鞋的门厅', emoji: '👟' },
+        { name: '夜里隔着窗户看皇后区夜景的窄沿', emoji: '🌃' }
+      ]
+    };
+  }
+
+  // 5. 娜塔莎·罗曼诺夫的家
+  if (ownerName === '娜塔莎·罗曼诺夫') {
+    return {
+      placeName: '娜塔莎·罗曼诺夫的隐秘安全居所',
+      emoji: '🏡',
+      desc: '高层隔音公寓，暗调极简、高度安全，只有极少数人知晓这处住所。',
+      spots: [
+        { name: '全景无反光落地窗暗角单人椅', emoji: '🍸' },
+        { name: '极简黑白中岛厨台前喝茶', emoji: '🫖' },
+        { name: '铺着厚实羊绒地毯的放映暗室', emoji: '🎬' },
+        { name: '深色皮沙发与未拆封的唱片盒旁', emoji: '🛋️' },
+        { name: '无遮挡高空私人避风露台', emoji: '🌃' },
+        { name: '整洁却藏有暗格的实木书架前', emoji: '📚' },
+        { name: '微光流淌的恒温水池畔', emoji: '🧖' },
+        { name: '晨曦初现时静立的咖啡吧台', emoji: '☕' },
+        { name: '玄关处卸下外甲与防备的长凳', emoji: '🗝️' }
+      ]
+    };
+  }
+
+  // 6. 其他所有联系人通用专属居所
+  return {
+    placeName: `${ownerName}的私密居所`,
+    emoji: '🏡',
+    desc: `属于${ownerName}个人的舒适私密生活空间，温馨而放松。`,
+    spots: [
+      { name: '宽敞温暖的客厅主沙发座', emoji: '🛋️' },
+      { name: '开放式厨房中岛餐吧前', emoji: '🍳' },
+      { name: '视野开阔的私人微风露台', emoji: '🌅' },
+      { name: '摆放着喜爱藏品的静谧书房', emoji: '📚' },
+      { name: '放着轻柔背景音乐的影音角', emoji: '🎬' },
+      { name: '洒满阳光的靠窗早餐桌椅', emoji: '☕' },
+      { name: '玄关处卸下一身防备的衣帽廊', emoji: '💡' },
+      { name: '私人珍藏的酒水饮品小吧台', emoji: '🍷' },
+      { name: '夜幕降临后静谧无人的窗边', emoji: '✨' }
+    ]
+  };
+}
+
+apps.dating = {
+  title: '约饭',
+  _view: 'setup',
+  cityKey: 'home',
+  homeOwner: 'me', // 当前选中的家归属：'me' 或具体联系人姓名
+  spotIdx: 0,
+  people: [],
+
+  _safeSession(s) {
+    if (!s || typeof s !== 'object') return null;
+    if (!Array.isArray(s.history)) s.history = [];
+    if (!Array.isArray(s._turnStories)) s._turnStories = [];
+    if (!Array.isArray(s.people)) s.people = [];
+    if (typeof s.turn !== 'number' || s.turn < 1) s.turn = 1;
+    if (typeof s.story !== 'string') s.story = '';
+    if (typeof s.options !== 'string') s.options = '';
     return s;
   },
-  render(v){
-    const self=this,f=flags();
-    let session=self._safeSession(store.get('dateSession',null));
-    if(session)store.set('dateSession',session);
-    $('#actBtn').style.display='none';
-    if(this._view==='date'&&session){
-      Promise.resolve(this.renderDate(v,session)).catch(e=>{
-        console.error('[dating.renderDate fail]',e);
-        showErr('E-RENDER-001',{err:e});
-        self._view='setup';self.render(v);
-      });
-      return;
-    }
-    if(this._view==='result'&&session){
-      Promise.resolve(this.renderResult(v,session)).catch(e=>{
-        console.error('[dating.renderResult fail]',e);
-        showErr('E-RENDER-001',{err:e});
-        self._view='setup';self.render(v);
-      });
-      return;
-    }
-    const places=datePlacesFor();
-    if(this.city>=places.length)this.city=0;
-    const city=places[this.city]||places[0];
-    const names=activeNames().filter(n=>!isAI(n));
-    v.innerHTML=`<div class="pad">
-      <div class="card" style="padding:12px"><div class="eyebrow">AN INVITATION · ${esc(eraName())}</div>
-        <div style="font-family:var(--font-serif);font-size:15px;font-weight:700;margin:6px 0">🍷 约饭 · 高端场所与私人住宅</div>
-        <div class="hint">场所清单：博览会、会议、酒会、董事会、拍卖会，以及托尼的住宅（马里布悬崖别墅、斯塔克大厦顶层、湖边小屋、复仇者基地——后两处按时间点解锁）。全部为高端场所与私人住宅。</div></div>
-      ${session?`<div class="card" style="border-color:var(--gold);padding:12px"><h3 style="color:var(--gold);margin:0 0 8px">◉ 进行中的约会</h3>
-        <div class="hint" style="margin-bottom:8px">${esc(session.emoji||'🍷')} ${esc(session.place)} / ${esc(session.spot)} · 同行：${esc((session.people||[]).join('、'))} · 第 ${session.turn||1} 回合</div>
-        <div class="row"><button class="btn gold" id="dt_resume">▶ 继续这场约会</button><button class="btn ghost" id="dt_abandon">放弃本场</button></div>
-        <div class="hint" style="margin-top:7px">退出 App 后再次进入会自动提示续接；可在下方存档以防丢失。</div></div>`:''}
-      <div class="card"><h3>◉ 选择场所</h3>
-        <div class="seg" style="flex-wrap:wrap">${places.map((c,i)=>`<button data-c="${i}" class="${this.city===i?'on':''}">${c.emoji} ${esc(c.name.split(' · ')[0])}</button>`).join('')}</div>
-        <div class="hint" style="margin-bottom:9px">${esc(city.desc)}</div>
-        <div>${city.spots.map((s,i)=>`<span class="chip ${this.spot===i?'on':''}" data-s="${i}">${s.emoji} ${esc(s.name)}</span>`).join('')}</div></div>
-      <div class="card"><h3>◉ 同行的人</h3>
-        <div class="hint" style="margin-bottom:8px">可多选。初代复联成员在纽约之战前彼此不熟，同时选太多人会显得穿帮。</div>
-        <div>${names.map(n=>`<span class="chip ${this.people.includes(n)?'on':''}" data-p="${esc(n)}">${esc(n)}</span>`).join('')}</div>
-        <div class="hint" style="margin-top:8px">已选 ${this.people.length} 人：${esc(this.people.join('、')||'（至少选一位）')}</div></div>
-      <div class="row" style="margin-bottom:12px"><button class="btn" id="dt_start">▶ 开始这场约会</button><button class="btn ghost" id="dt_hist">📜 历史记录</button></div>
-      <div class="hint" style="text-align:center">${en('Dress code: black tie, or a lab coat.')} · 托尼大概会迟到八分钟</div>
-    </div>`;
-    v.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{self.city=+b.dataset.c;self.spot=null;self.render(v);});
-    v.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{self.spot=+b.dataset.s;self.render(v);});
-    v.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{const n=b.dataset.p;self.people=self.people.includes(n)?self.people.filter(x=>x!==n):[...self.people,n];self.render(v);});
-        /* 进行中约会的续接 / 放弃 */
-    const resumeBtn=v.querySelector('#dt_resume');
-    if(resumeBtn)resumeBtn.onclick=()=>{self._view='date';self.render(v);};
-    const abandonBtn=v.querySelector('#dt_abandon');
-    if(abandonBtn)abandonBtn.onclick=()=>{if(!confirm('放弃当前进行中的约会？已进行的剧情不会写入历史记录。'))return;store.set('dateSession',null);self.spot=null;self.people=[];self.render(v);toast('已放弃当前约会');};
 
-    /* 修复：绑定「▶ 开始这场约会」按钮 */
-    const startBtn=v.querySelector('#dt_start');
-    if(startBtn)startBtn.onclick=()=>{
-      if(self.spot===null)return toast('请先选择一个具体点位');
-      if(!self.people.length)return toast('请至少选择一位同行的人');
-      const sp=city.spots[self.spot]||city.spots[0];
-      const newSession={
-        id:'dt'+Date.now(),
-        place:city.name,
-        spot:sp.name,
-        emoji:sp.emoji||city.emoji||'🍷',
-        people:self.people.slice(),
-        turn:1,
-        story:'',
-        options:'',
-        _turnStories:[],
-        time:nowTime()
+  onBack() {
+    const s = store.get('dateSession', null);
+    if (s && this._view !== 'setup') {
+      this._view = 'setup';
+      Promise.resolve(this.render(document.getElementById('appBody'))).catch(e => showErr('E-RENDER-001', { err: e }));
+      return true;
+    }
+    return false;
+  },
+
+  render(v) {
+    const self = this, f = flags();
+    const p = store.profile() || {};
+    const myName = p.name || '你';
+    let session = self._safeSession(store.get('dateSession', null));
+    if (session) store.set('dateSession', session);
+    $('#actBtn').style.display = 'none';
+
+    if (this._view === 'date' && session) {
+      Promise.resolve(this.renderDate(v, session)).catch(e => {
+        showErr('E-RENDER-001', { err: e }); self._view = 'setup'; self.render(v);
+      });
+      return;
+    }
+    if (this._view === 'result' && session) {
+      Promise.resolve(this.renderResult(v, session)).catch(e => {
+        showErr('E-RENDER-001', { err: e }); self._view = 'setup'; self.render(v);
+      });
+      return;
+    }
+
+    const allPlaces = dtGetAllPlaces();
+    let curCity = allPlaces.find(p => p.key === self.cityKey) || allPlaces[0];
+    self.cityKey = curCity.key;
+
+    // 当且仅当选中的是“家”时，根据选定的家归属（用户或同行联系人）动态获取点位和名称
+    let displaySpots = curCity.spots;
+    let displayPlaceTitle = curCity.name;
+    let displayPlaceDesc = curCity.desc;
+
+    if (self.cityKey === 'home') {
+      // 验证 homeOwner 有效性：若选中的联系人已不在当前同行名单里，则重置为 'me'
+      if (self.homeOwner !== 'me' && !self.people.includes(self.homeOwner)) {
+        self.homeOwner = 'me';
+      }
+      const homeProf = dtGetHomeProfile(self.homeOwner);
+      displaySpots = homeProf.spots;
+      displayPlaceTitle = homeProf.placeName;
+      displayPlaceDesc = homeProf.desc;
+    }
+
+    if (self.spotIdx >= displaySpots.length) self.spotIdx = 0;
+    const curSpot = displaySpots[self.spotIdx] || displaySpots[0];
+    const names = activeNames().filter(n => !isAI(n));
+
+    v.innerHTML = `
+      <style>
+        .dt-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-top: 8px; }
+        .dt-city-card {
+          background: var(--panel, #10151c); border: 1.5px solid var(--line, #1e2a38);
+          border-radius: 12px; padding: 10px 4px 8px; text-align: center;
+          cursor: pointer; transition: all .16s ease; display: flex; flex-direction: column;
+          align-items: center; justify-content: flex-start; min-height: 126px; position: relative;
+        }
+        .dt-city-card.on {
+          border-color: #ff6b6b; background: rgba(255, 107, 107, 0.05);
+          box-shadow: 0 0 0 1px #ff6b6b, 0 4px 14px rgba(255, 107, 107, 0.15);
+        }
+        .dt-city-ico { font-size: 24px; margin-bottom: 4px; line-height: 1; }
+        .dt-city-name { font-weight: 700; font-size: 11.5px; color: var(--text); line-height: 1.25; margin-bottom: 4px; word-break: break-all; }
+        .dt-city-desc { font-size: 9px; color: var(--muted); line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; padding: 0 2px; }
+        .dt-pin-badge { position: absolute; top: 3px; right: 3px; font-size: 8px; color: var(--gold); }
+        .dt-spot-chip {
+          display: inline-flex; align-items: center; gap: 4px; font-size: 11px;
+          padding: 5px 9px; border-radius: 8px; background: var(--panel2);
+          border: 1px solid var(--line); color: var(--text); margin: 0 4px 6px 0; cursor: pointer;
+        }
+        .dt-spot-chip.on {
+          border-color: var(--cyan); background: rgba(53, 208, 255, 0.12); color: var(--cyan); font-weight: 700;
+        }
+        .dt-home-owner-btn {
+          display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px;
+          padding: 6px 11px; border-radius: 10px; border: 1.5px solid var(--line);
+          background: var(--panel); color: var(--text); cursor: pointer; transition: .15s;
+        }
+        .dt-home-owner-btn.on {
+          border-color: var(--gold); background: rgba(245, 185, 66, 0.12); color: var(--gold); font-weight: 700;
+        }
+      </style>
+
+      <div class="pad" style="padding-bottom: 24px">
+        <!-- 顶部约饭结束后自动消息开关 -->
+        <div class="card" style="padding: 10px 12px; margin-bottom: 10px; border-radius: 12px">
+          <div style="display: flex; align-items: center; justify-content: space-between">
+            <div style="display: flex; align-items: center; gap: 6px">
+              <span style="font-size: 15px">💬</span>
+              <div>
+                <div style="font-size: 12.5px; font-weight: 700; color: var(--text)">约饭结束后自动消息</div>
+                <div style="font-size: 10px; color: var(--muted)">关闭后，约会结束时同行人不会主动发来回味短信</div>
+              </div>
+            </div>
+            <label class="switch" style="flex-shrink: 0">
+              <input type="checkbox" id="dt_auto_msg_cb" ${dtAutoMsgOn() ? 'checked' : ''}>
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+
+        ${session ? `
+          <div class="card" style="border-color: var(--gold); padding: 11px; margin-bottom: 10px">
+            <div style="display:flex; justify-content:space-between; align-items:center">
+              <b style="color:var(--gold); font-size:12.5px">◉ 进行中的约会</b>
+              <span class="tag gold" style="font-size:9.5px">第 ${session.turn || 1} 回合</span>
+            </div>
+            <div class="hint" style="margin:4px 0 8px; font-size:11.5px">
+              ${esc(session.emoji || '🍷')} ${esc(session.place)} · ${esc(session.spot)}（同行：${esc((session.people || []).join('、'))}）
+            </div>
+            <div class="row">
+              <button class="btn gold sm" id="dt_resume" style="flex:1">▶ 继续这场约会</button>
+              <button class="btn ghost sm" id="dt_abandon" style="flex:0 0 76px">放弃本场</button>
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- 城市选择网格 -->
+        <div class="card" style="padding: 11px; margin-bottom: 10px">
+          <div style="display: flex; justify-content: space-between; align-items: center">
+            <div style="font-size: 12px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 4px">
+              <span>📍</span> <span>选择城市与聚落</span>
+            </div>
+            <button class="btn ghost sm" id="dt_add_city_btn" style="padding: 2px 7px; font-size: 10.5px">＋ 新增城市</button>
+          </div>
+
+          <!-- 四列自适应卡片网格 -->
+          <div class="dt-grid-4">
+            ${allPlaces.map(p => `
+              <div class="dt-city-card ${p.key === self.cityKey ? 'on' : ''}" data-city-k="${esc(p.key)}">
+                ${p.pinned ? `<span class="dt-pin-badge">📌</span>` : ''}
+                <div class="dt-city-ico">${p.emoji || '📍'}</div>
+                <div class="dt-city-name">${esc(p.name.split(' · ')[0])}</div>
+                <div class="dt-city-desc">${esc(p.desc)}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- 专属点位与动态「家的归属」选择器 -->
+        <div class="card" style="padding: 11px; margin-bottom: 10px">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
+            <div>
+              <b style="font-size: 12.5px">${curCity.emoji || '📍'} ${esc(displayPlaceTitle)}</b>
+              <span class="hint" style="font-size: 10.5px; margin-left: 4px">(${displaySpots.length} 个点位)</span>
+            </div>
+            <div style="display: flex; gap: 4px">
+              <button class="btn ghost sm" id="dt_pin_city_btn" style="padding: 2px 6px; font-size: 10.5px">${curCity.pinned ? '取消置顶' : '📌 置顶城市'}</button>
+              ${self.cityKey !== 'home' ? `<button class="btn ghost sm" id="dt_add_spot_btn" style="padding: 2px 6px; font-size: 10.5px">＋ 在此城加点</button>` : ''}
+            </div>
+          </div>
+
+          <!-- 核心动态功能：选择「家」时，动态展示谁的家（用户家 或 任意已勾选同行人的家） -->
+          ${self.cityKey === 'home' ? `
+            <div style="margin-bottom: 10px; padding: 8px 10px; background: rgba(245, 185, 66, 0.06); border: 1px dashed var(--gold); border-radius: 10px">
+              <div style="font-size: 11.5px; font-weight: 700; color: var(--gold); margin-bottom: 6px">
+                🏡 选择居所归属（去谁的家）：
+              </div>
+              <div style="display: flex; flex-wrap: wrap; gap: 6px">
+                <button type="button" class="dt-home-owner-btn ${self.homeOwner === 'me' ? 'on' : ''}" data-set-home="me">
+                  <span>👤</span> <span>我的家 (${esc(myName)})</span>
+                </button>
+                ${self.people.map(person => `
+                  <button type="button" class="dt-home-owner-btn ${self.homeOwner === person ? 'on' : ''}" data-set-home="${esc(person)}">
+                    <span>🏠</span> <span>${esc(person)}的家</span>
+                  </button>
+                `).join('')}
+              </div>
+              ${!self.people.length ? `<div class="hint" style="font-size: 10px; color: var(--muted); margin-top: 5px">💡 提示：在下方勾选同行伙伴后，可随时切换到该伙伴的家！</div>` : ''}
+            </div>
+          ` : ''}
+
+          <div style="font-size: 11px; color: var(--muted); margin-bottom: 8px">${esc(displayPlaceDesc)}</div>
+
+          <div style="display: flex; flex-wrap: wrap">
+            ${displaySpots.map((s, idx) => `
+              <span class="dt-spot-chip ${idx === self.spotIdx ? 'on' : ''}" data-spot-idx="${idx}">
+                <span>${s.emoji || '✨'}</span> <span>${esc(s.name)}</span>
+              </span>
+            `).join('')}
+          </div>
+          <div class="hint" style="margin-top: 4px; font-size: 11px; color: var(--cyan)">
+            当前选中场所：<b>${esc(curSpot ? curSpot.name : '')}</b>
+          </div>
+        </div>
+
+        <!-- 同行伙伴多选 -->
+        <div class="card" style="padding: 11px; margin-bottom: 12px">
+          <div style="font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 6px">
+            👥 邀约同行伙伴（可多选）
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 5px">
+            ${names.map(n => `
+              <span class="chip ${self.people.includes(n) ? 'on' : ''}" data-dt-peer="${esc(n)}">
+                ${esc(n)}
+              </span>
+            `).join('')}
+          </div>
+          <div class="hint" style="margin-top: 6px; font-size: 11px">
+            已选同行人：<b>${esc(self.people.join('、') || '（请至少选择一位）')}</b>
+          </div>
+        </div>
+
+        <!-- 启动与记录 -->
+        <div class="row" style="gap: 8px; margin-bottom: 12px">
+          <button class="btn gold" id="dt_start_btn" style="flex: 1; font-weight: 700">▶ 开始这场约会</button>
+          <button class="btn ghost sm" id="dt_hist_btn" style="flex: 0 0 85px">📜 约饭记录</button>
+        </div>
+      </div>
+    `;
+
+    // 绑定自动发消息开关
+    v.querySelector('#dt_auto_msg_cb').onchange = e => {
+      dtSetAutoMsg(e.target.checked);
+      toast(e.target.checked ? '已开启约饭后角色主动发短信' : '已关闭约饭后主动消息');
+    };
+
+    // 切换城市
+    v.querySelectorAll('[data-city-k]').forEach(card => {
+      card.onclick = () => {
+        self.cityKey = card.dataset.cityK;
+        self.spotIdx = 0;
+        self.render(v);
       };
-      store.set('dateSession',newSession);
-      self._view='date';
+    });
+
+    // 切换家的归属（用户家或各联系人家）
+    v.querySelectorAll('[data-set-home]').forEach(btn => {
+      btn.onclick = () => {
+        self.homeOwner = btn.dataset.setHome;
+        self.spotIdx = 0; // 重置点位到该角色家的第一个点位
+        self.render(v);
+      };
+    });
+
+    // 切换点位
+    v.querySelectorAll('[data-spot-idx]').forEach(chip => {
+      chip.onclick = () => {
+        self.spotIdx = +chip.dataset.spotIdx;
+        self.render(v);
+      };
+    });
+
+    // 勾选同行人（勾选后若是在“家”，可自动生成对应联系人家的入口）
+    v.querySelectorAll('[data-dt-peer]').forEach(chip => {
+      chip.onclick = () => {
+        const pName = chip.dataset.dtPeer;
+        self.people = self.people.includes(pName) ? self.people.filter(x => x !== pName) : [...self.people, pName];
+        // 若当前选中的联系人家被反选，自动回退到 'me'
+        if (self.homeOwner !== 'me' && !self.people.includes(self.homeOwner)) {
+          self.homeOwner = 'me';
+          self.spotIdx = 0;
+        }
+        self.render(v);
+      };
+    });
+
+    // 置顶城市
+    v.querySelector('#dt_pin_city_btn').onclick = () => {
+      const customs = dtCustomPlaces();
+      let target = customs.find(c => c.key === curCity.key);
+      if (!target) {
+        target = { key: curCity.key, name: curCity.name, emoji: curCity.emoji, desc: curCity.desc, spots: [...curCity.spots] };
+        customs.push(target);
+      }
+      target.pinned = !target.pinned;
+      dtSaveCustomPlaces(customs);
+      toast(target.pinned ? `已置顶城市「${curCity.name}」` : `已取消置顶`);
       self.render(v);
     };
 
-    v.querySelector('#dt_hist').onclick=()=>{
-      const allHistory=store.get('dateHistory',[]);
-      let filterPerson='全部';
-      const personSet=new Set();
-      allHistory.forEach(item=>(item.people||[]).forEach(p=>personSet.add(p)));
-      const personTags=['全部',...Array.from(personSet)];
-      let currentModal=null;
+    // 在已有城市下新增点位（非家）
+    const addSpotBtn = v.querySelector('#dt_add_spot_btn');
+    if (addSpotBtn) {
+      addSpotBtn.onclick = () => {
+        const name = prompt(`在【${curCity.name}】新增约会地点：`, '私密空中观景露台');
+        if (!name || !name.trim()) return;
+        const emoji = prompt('地点图标 (Emoji)：', '✨') || '✨';
+        const customs = dtCustomPlaces();
+        let target = customs.find(c => c.key === curCity.key);
+        if (!target) {
+          target = { key: curCity.key, name: curCity.name, emoji: curCity.emoji, desc: curCity.desc, spots: [...curCity.spots] };
+          customs.push(target);
+        }
+        target.spots = target.spots || [];
+        target.spots.push({ name: name.trim(), emoji: emoji.trim() });
+        dtSaveCustomPlaces(customs);
+        self.spotIdx = target.spots.length - 1;
+        toast(`已向 ${curCity.name} 添加新地点`);
+        self.render(v);
+      };
+    }
 
-      const renderHistoryModal=(hostEl)=>{
-        const filtered=filterPerson==='全部'?allHistory:allHistory.filter(x=>(x.people||[]).includes(filterPerson));
-        hostEl.innerHTML=`
-          <h2 style="color:var(--cyan);margin-top:0;font-size:16px">📜 约饭完整记录 · 共 ${allHistory.length} 次</h2>
-          <div class="hint" style="margin-bottom:8px">已完整记录所有约饭历史（无数量上限）。点击下方标签按同行人即时检索。</div>
-          <div class="seg" style="flex-wrap:wrap;margin-bottom:10px" id="dh_tags">
-            ${personTags.map(p=>`<button class="${filterPerson===p?'on':''}" data-dh-tag="${esc(p)}">${esc(p)}${p==='全部'?` (${allHistory.length})`:''}</button>`).join('')}
+    // 新增全新自定义城市
+    v.querySelector('#dt_add_city_btn').onclick = () => {
+      const d = modal(`
+        <h2 style="color:var(--cyan);margin-top:0;font-size:16px">＋ 新增自定义城市/聚落</h2>
+        <div class="card">
+          <div class="field"><label>城市名称 *</label><input id="nc_name" class="inp" placeholder="例如：苏黎世 / 萨卡星 / 地狱厨房"></div>
+          <div class="row">
+            <div class="field" style="flex:1"><label>图标 Emoji</label><input id="nc_emoji" class="inp" value="🌆"></div>
+            <div class="field" style="flex:0 0 100px"><label>是否置顶</label><select id="nc_pin" class="inp"><option value="1">📌 置顶</option><option value="0">常规</option></select></div>
           </div>
-          <div style="max-height:58vh;overflow-y:auto;padding-right:2px" id="dh_list">
-            ${filtered.length?filtered.map((x)=>`
-              <div class="card" style="margin-bottom:8px;padding:11px">
-                <div style="display:flex;justify-content:space-between;align-items:center">
-                  <span class="hint" style="font-size:11px">${esc(x.time||'—')}</span>
-                  <span class="tag gold" style="font-size:10px">第 ${allHistory.length - (allHistory.indexOf(x))} 次</span>
-                </div>
-                <div style="font-family:var(--font-serif);font-size:13.5px;font-weight:700;margin:4px 0">
-                  ${esc(x.emoji||'🍷')} ${esc(x.place)} · ${esc(x.spot)}
-                </div>
-                <div class="hint" style="margin:2px 0 5px">
-                  同行伙伴：<b>${esc((x.people||[]).join('、')||'独处')}</b>
-                </div>
-                <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px dashed var(--line);padding-top:5px;font-size:12px">
-                  <span style="color:var(--gold)">体验状态：${esc(x.mood||'—')}</span>
-                  <span style="color:var(--cyan);font-family:var(--font-mono);font-weight:700">好感变动 ${x.aff>0?'+':''}${x.aff||0}</span>
-                </div>
-                ${(x.fullStory||x.story)?`<details style="margin-top:6px;font-size:12px;color:var(--muted)">
-                  <summary style="cursor:pointer;color:var(--cyan)">展开完整约会剧情（${x.turnStories?x.turnStories.length+' 回合':'全文'}）</summary>
-                  <div class="story" style="margin-top:6px;font-size:12px;line-height:1.75;max-height:400px;overflow-y:auto;background:var(--panel2);padding:10px;border-radius:8px">${fmtStory(x.fullStory||x.story)}</div>
-                  ${x.comment?`<div class="hint" style="margin-top:6px;padding:8px;background:rgba(53,208,255,.08);border-radius:6px;border-left:2px solid var(--cyan)"><b>AI 评语：</b>${fmtStory(x.comment)}</div>`:''}
-                </details>`:''}
-              </div>
-            `).join(''):`<div class="empty">${filterPerson==='全部'?'还没有约饭记录。':'没有与 '+esc(filterPerson)+' 的约饭记录。'}</div>`}
+          <div class="field"><label>城市风貌描述 *</label><textarea id="nc_desc" class="inp" rows="2" placeholder="例如：雪山湖畔，静谧的私人疗养与钟表工坊。"></textarea></div>
+          <div class="field">
+            <label>初始约会地点（每行一个，格式：名称 || 图标，可加多个）</label>
+            <textarea id="nc_spots" class="inp" rows="4" style="font-family:var(--font-mono);font-size:12px">湖畔私密天台咖啡厅 || ☕\n旧钟表工坊VIP定制间 || 🕰️\n雪山观景缆车独处空间 || 🚠</textarea>
           </div>
-          <button class="btn ghost" id="dh_close_btn" style="margin-top:10px">关闭</button>
-        `;
-        hostEl.querySelectorAll('[data-dh-tag]').forEach(btn=>{
-          btn.onclick=()=>{filterPerson=btn.dataset.dhTag;renderHistoryModal(hostEl);};
+          <button class="btn gold sm" id="nc_save" style="width:100%;margin-top:6px">保存并固定在列表</button>
+          <button class="btn ghost sm" data-close style="width:100%;margin-top:6px">取消</button>
+        </div>
+      `);
+
+      d.querySelector('#nc_save').onclick = () => {
+        const cName = d.querySelector('#nc_name').value.trim();
+        const cDesc = d.querySelector('#nc_desc').value.trim();
+        const cEmoji = d.querySelector('#nc_emoji').value.trim() || '🌆';
+        const isPin = d.querySelector('#nc_pin').value === '1';
+        if (!cName || !cDesc) return toast('请填写城市名称与风貌描述');
+
+        const rawSpots = d.querySelector('#nc_spots').value.split('\n').filter(l => l.trim());
+        const parsedSpots = rawSpots.map(line => {
+          const [sName, sIco] = line.split('||').map(x => x.trim());
+          return { name: sName || '浪漫打卡点', emoji: sIco || '✨' };
         });
-        const closeBtn=hostEl.querySelector('#dh_close_btn');
-        if(closeBtn)closeBtn.onclick=()=>{if(currentModal)currentModal.remove();};
+
+        const newCityKey = 'custom_c_' + Date.now().toString(36);
+        const customs = dtCustomPlaces();
+        customs.push({
+          key: newCityKey,
+          name: cName,
+          emoji: cEmoji,
+          desc: cDesc,
+          pinned: isPin,
+          spots: parsedSpots.length ? parsedSpots : [{ name: `${cName}星光露台`, emoji: '✨' }]
+        });
+        dtSaveCustomPlaces(customs);
+        self.cityKey = newCityKey;
+        self.spotIdx = 0;
+        d.remove();
+        toast(`已创建新城市「${cName}」`);
+        self.render(v);
       };
-
-      currentModal=modal(`<div id="dh_modal_root"></div>`);
-      const root=currentModal.querySelector('#dh_modal_root');
-      renderHistoryModal(root);
     };
-  },
-  async renderDate(v,session){
-    const self=this,f=flags();
-    if(!session.story){
-      v.innerHTML='<div class="loader"><div class="spin"></div>正在安排席位…</div>';
-            const sys=buildSystem('worldline',`这是一场「约饭」场景。地点：${session.place} / ${session.spot}。同行：${session.people.join('、')}。\n写 ${Math.round(wlWordRange().max*0.3)} 字左右的场景，符合所有角色人设与当前时间点。托尼迟到八分钟、不道歉、用技术细节岔开话题。地点必须是高端场所或托尼的住宅。\n【对白铁律】每句出声台词必须写成 "English"（中文翻译），旁白用纯中文。\n末尾输出【选项】A. … B. … C. …`);
-      const r=await ai([{role:'user',content:'请写这场约会的开场。'}],sys,()=>{
-        const lead=session.people[0]||'托尼·斯塔克';
-        const line=localReply(lead,'');
-        return `${session.emoji} ${session.place} · ${session.spot}\n\n香槟塔旁边的位置空了八分钟。侍者把餐巾折了两次，全息投影在墙上缓慢转着一版没人看的清洁能源曲线。\n\n${lead}比约定时间晚了八分钟才出现。领带是歪的，手里却拿着一支记号笔——显然是从另一场会议里直接过来的。\n\n${line}\n\n侍者递上酒单，${lead}摆了摆手，把笔在指间转了一圈：「不用，我知道你们这儿什么年份能喝。」\n\n终于坐下——没坐主位，坐了靠窗那个能看见门的位置。\n\n【选项】\nA. 把酒单接过来，替对方点了一杯黑咖啡\nB. 问「你迟到了八分钟」\nC. 不提时间，把话题拉回墙上的曲线\nD. 什么也不说，把自己那杯推过去`;
-      });
-      const parts=r.split(/【选项】/);session.story=(parts[0]||'').replace(/【剧情】/,'').trim();
-      session.options=(parts[1]||'A. 顺着他接下去\nB. 保持距离\nC. 把话题拉回正事').trim();
-      /* 记录第 1 回合剧情快照，供「重置当前回合」回退使用 */
-      session._turnStories=session._turnStories||[];
-      session._turnStories[0]={story:session.story,options:session.options};
-      store.set('dateSession',session);
-    }
-    const opts=session.options.split('\n').filter(l=>/^[A-DＡ-Ｄ]\s*[\.、]/.test(l.trim()));
-    v.innerHTML=`<div class="pad">
-      <div class="card" style="padding:12px"><div class="eyebrow">${esc(session.emoji)} ${esc(session.place)}</div>
-        <div style="font-family:var(--font-serif);font-size:14.5px;font-weight:700;margin:5px 0">${esc(session.spot)}</div>
-        <div class="hint">同行：${esc(session.people.join('、'))} · 第 ${session.turn} 回合 · ${esc(eraName())}</div></div>
-      <div class="story">${fmtStory(session.story)}</div>
-      <div id="dt_opts">${opts.map(o=>`<button class="opt" data-o="${esc(o).replace(/"/g,'&quot;')}">${fmt(o)}</button>`).join('')}</div>
-      <div class="card" style="padding:10px">
-  <div class="hint" style="font-size:10.5px;margin-bottom:5px;color:var(--gold)">
-    💡 提示：<b>（括号内）</b>输入剧情纠偏/规则指引，<b>括号外</b>输入行动与台词
-  </div>
-  <input id="dt_act" class="inp" value="（）" placeholder="（纠正或规则）具体行动内容…" style="margin-bottom:8px">
-  <div class="row">
-    <button class="btn" id="dt_send">继续推进</button>
-    <button class="btn ghost" id="dt_end">结束这场约会</button>
-  </div>
-    <div class="row" style="margin-top:8px">
-    <button class="btn ghost sm" id="dt_slot_manager" title="管理 5 个独立的约饭存档槽位">💾 约饭剧情存读档</button>
-    <button class="btn ghost sm" id="dt_reset_turn" title="清空本回合剧情，重新生成当前场景">↺ 重置当前回合</button>
-  </div>
-</div>
-    </div>`;
-    const pick=async(choice)=>{
-      const s=store.get('dateSession',session);
-      v.innerHTML='<div class="loader"><div class="spin"></div>场景推进中…</div>';
-           const sys=buildSystem('worldline',`继续这场约会。地点：${s.place}/${s.spot}。同行：${s.people.join('、')}。玩家选择：${choice}。写 ${Math.round(wlWordRange().max*0.25)} 字左右。\n【对白铁律】每句出声台词必须写成 "English"（中文翻译），旁白用纯中文。\n末尾输出【选项】A. … B. … C. …`);
-      // 如果未配置 API Key，明确弹出提示，而不是直接悄悄进兜底
-if (!apiCfg('story').apiKey) {
-  toast('未配置文本 API Key · 正在使用本地默认剧情');
-}
 
-let r = '';
-try {
-  r = await callAI([
-    { role: 'user', content: `【前情回顾】\n${s.story.slice(-500)}\n\n【本轮选择与行动】\n${choice}\n\n请紧接上文推进下一段约会场景（300~500字）。如果玩家在行动前带有【场景发展特别纠正要求】，必须严格无条件遵守！末尾必须另起一行附带【选项】A. ... B. ... C. ...` }
-  ], sys, 'story');
-} catch (err) {
-  toast('AI 请求失败：' + err.message + ' · 已启用备用剧情');
-  r = `他没有接那句话，只是把杯子转了半圈，让缺口朝里。\n\n窗外城市的灯一层层亮起来。"别搞得跟什么大事似的。"\n\n服务生来收走第一道几乎没动过的菜。他忽然问了一句跟今晚完全无关的事：「4 号工作台的散热你看了吗？」\n\n这就是他能给出的、最接近「留下」的说法。\n\n【选项】\nA. 回答工作台的事\nB. 反问「你是在岔开话题吗」\nC. 把话题留在今晚`;
-}
-      const parts=r.split(/【选项】/);s.story=(parts[0]||'').trim();s.options=(parts[1]||'A. 继续\nB. 结束').trim();s.turn++;
-      /* 记录每回合剧情快照，供「重置当前回合」回退使用 */
-      s._turnStories=s._turnStories||[];
-      s._turnStories[s.turn-1]={story:s.story,options:s.options};
-      store.set('dateSession',s);self.renderDate(v,s);
+    // 启动约会：若是家，动态将 place 记录为特定归属的家
+    v.querySelector('#dt_start_btn').onclick = () => {
+      if (!self.people.length) return toast('请至少勾选一位同行伙伴');
+      const finalPlaceName = self.cityKey === 'home' ? displayPlaceTitle : curCity.name;
+      const newSession = {
+        id: 'dt' + Date.now(),
+        place: finalPlaceName,
+        spot: curSpot.name,
+        emoji: curSpot.emoji || curCity.emoji || '🍷',
+        people: self.people.slice(),
+        turn: 1,
+        story: '',
+        options: '',
+        _turnStories: [],
+        time: nowTime()
+      };
+      store.set('dateSession', newSession);
+      self._view = 'date';
+      self.render(v);
     };
-    v.querySelectorAll('[data-o]').forEach(b=>b.onclick=()=>pick(b.dataset.o));
-    const handleDateSend = () => {
-  let raw = v.querySelector('#dt_act').value.trim();
-  if (!raw || raw === '（）' || raw === '()') return toast('请输入行动内容');
-  
-  let correction = '';
-  let action = raw;
-  const match = raw.match(/[（\(](.*?)[）\)](.*)/s);
-  if (match) {
-    correction = match[1].trim();
-    action = match[2].trim();
-  }
-  
-  let combinedChoice = action;
-  if (correction) {
-    combinedChoice = `【场景发展特别纠正要求：${correction}】\n玩家当前行动：${action || '（按纠正推进剧情）'}`;
-  }
-  pick(combinedChoice);
-};
 
-v.querySelector('#dt_send').onclick = handleDateSend;
-v.querySelector('#dt_act').addEventListener('keydown', e => {
-  if (e.key === 'Enter') { e.preventDefault(); handleDateSend(); }
-});
+    // 续接约会
+    const resumeBtn = v.querySelector('#dt_resume');
+    if (resumeBtn) resumeBtn.onclick = () => { self._view = 'date'; self.render(v); };
 
-const dtInp = v.querySelector('#dt_act');
-if (dtInp && dtInp.value === '（）') {
-  dtInp.addEventListener('focus', () => {
-    setTimeout(() => dtInp.setSelectionRange(1, 1), 10);
-  }, { once: true });
-}
-    v.querySelector('#dt_end').onclick=()=>{
-  const cur=self._safeSession(store.get('dateSession',null));
-  if(!cur){toast('会话已失效');self._view='setup';self.render(v);return;}
-  store.set('dateSession',cur);
-  self._view='result';
-  Promise.resolve(self.renderResult(v,cur)).catch(e=>{
-    console.error('[dating end fail]',e);
-    showErr('E-RENDER-001',{err:e});
-    self._view='setup';self.render(v);
-  });
-};
-        // 剧情内独立 5 槽位存读档管理器
-    const slotMgrBtn=v.querySelector('#dt_slot_manager');
-    if(slotMgrBtn){
-      slotMgrBtn.onclick=()=>{
-        const slots=store.get('date_slots',Array(5).fill(null));
+    // 放弃约会
+    const abandonBtn = v.querySelector('#dt_abandon');
+    if (abandonBtn) abandonBtn.onclick = () => {
+      if (!confirm('确定放弃当前约会？')) return;
+      store.set('dateSession', null);
+      self.render(v);
+      toast('已取消当前约会');
+    };
 
-        const renderDateSlots=()=>{
-          return slots.map((sl,idx)=>`
-            <div class="card" style="padding:10px;margin-bottom:8px;background:var(--panel2)">
+    // 历史记录弹窗
+    v.querySelector('#dt_hist_btn').onclick = () => {
+      const allHist = store.get('dateHistory', []);
+      modal(`
+        <h2 style="color:var(--cyan);margin-top:0;font-size:16px">📜 约饭历史档案 · 共 ${allHist.length} 次</h2>
+        <div style="max-height:60vh;overflow-y:auto;padding-right:2px">
+          ${allHist.length ? allHist.map((h, i) => `
+            <div class="card" style="padding:10px;margin-bottom:8px">
               <div style="display:flex;justify-content:space-between;align-items:center">
-                <b style="color:var(--cyan)">约饭槽位 ${idx+1}</b>
-                <span class="hint" style="font-size:10px">${sl?esc(sl.saveTime):'空槽位'}</span>
+                <span class="hint" style="font-size:10.5px">${esc(h.time || '—')}</span>
+                <span class="tag gold" style="font-size:9.5px">${h.mood || '完成'}</span>
               </div>
-              ${sl?`<div class="hint" style="margin:5px 0;font-size:11px;line-height:1.6">
-                场所：<b>${esc(sl.session.emoji||'🍷')} ${esc(sl.session.place)} · ${esc(sl.session.spot)}</b><br>
-                进度：第 ${sl.session.turn||1} 回合 · 同行：${esc((sl.session.people||[]).join('、'))}
-                <div style="max-height:36px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px;color:var(--text);opacity:.85">${esc((sl.session.story||'').slice(0,45))}...</div>
-              </div>`:'<div class="hint" style="margin:5px 0">暂无存档记录</div>'}
-              <div class="row" style="margin-top:6px">
-                <button class="btn sm" data-dtsave="${idx}">覆盖保存</button>
-                <button class="btn ghost sm" data-dtload="${idx}" ${sl?'':'disabled'}>读取本槽</button>
-                ${sl?`<button class="btn ghost sm" data-dtdel="${idx}" style="color:var(--red);flex:0 0 46px">删</button>`:''}
+              <div style="font-family:var(--font-serif);font-size:13px;font-weight:700;margin:3px 0">
+                ${esc(h.emoji || '🍷')} ${esc(h.place)} · ${esc(h.spot)}
               </div>
+              <div class="hint" style="font-size:11px">同行人：<b>${esc((h.people || []).join('、'))}</b> · 好感变动 ${h.aff > 0 ? '+' : ''}${h.aff || 0}</div>
             </div>
-          `).join('');
-        };
-
-        const d=modal(`
-          <h2 class="title-en" style="color:var(--cyan);margin-top:0;font-size:16px">💾 约饭剧情存读档 (5 独立槽位)</h2>
-          <div class="hint" style="margin-bottom:10px">本存读档专用于约饭场景，与主线世界线存档完全独立。读取后直接无缝恢复本场约会的全部对话与分支选项。</div>
-          <div id="dt_slot_container" style="max-height:65vh;overflow-y:auto">${renderDateSlots()}</div>
-          <button class="btn ghost" id="dt_modal_close" style="margin-top:10px">关闭</button>
-        `);
-
-        const bindDateSlotEvents=()=>{
-          // 保存覆盖
-          d.querySelectorAll('[data-dtsave]').forEach(b=>{
-            b.onclick=()=>{
-              const idx=+b.dataset.dtsave;
-              const curSession=store.get('dateSession',null);
-              if(!curSession) return toast('当前没有进行中的约会');
-              slots[idx]={
-                saveTime:nowTime(),
-                session:JSON.parse(JSON.stringify(curSession))
-              };
-              store.set('date_slots',slots);
-              toast(`已存入约饭槽位 ${idx+1}`);
-              d.querySelector('#dt_slot_container').innerHTML=renderDateSlots();
-              bindDateSlotEvents();
-            };
-          });
-
-          // 读取
-          d.querySelectorAll('[data-dtload]').forEach(b=>{
-  b.onclick=()=>{
-    const idx=+b.dataset.dtload;
-    const target=slots[idx];
-    if(!target||!target.session) return;
-    if(!confirm(`确定读取约饭槽位 ${idx+1}？当前未保存的约会进展将被完全覆盖！`)) return;
-    const restored=self._safeSession(JSON.parse(JSON.stringify(target.session)));
-    if(!restored){toast('存档已损坏');return;}
-    store.set('dateSession',restored);
-    d.remove();
-    toast(`已载入槽位 ${idx+1} · 继续约会`);
-    self._view='date';
-    Promise.resolve(self.renderDate(v,restored)).catch(e=>{
-      console.error('[dating load fail]',e);
-      showErr('E-RENDER-001',{err:e});
-      self._view='setup';self.render(v);
-    });
-  };
-});
-
-          // 删除
-          d.querySelectorAll('[data-dtdel]').forEach(b=>{
-            b.onclick=()=>{
-              const idx=+b.dataset.dtdel;
-              if(!confirm(`确定清空约饭槽位 ${idx+1}？`)) return;
-              slots[idx]=null;
-              store.set('date_slots',slots);
-              d.querySelector('#dt_slot_container').innerHTML=renderDateSlots();
-              bindDateSlotEvents();
-            };
-          });
-        };
-
-        bindDateSlotEvents();
-
-        // 显式绑定关闭按钮
-        const closeBtn=d.querySelector('#dt_modal_close');
-        if(closeBtn) closeBtn.onclick=()=>d.remove();
-      };
-    }
-    /* 重置当前回合：清空 story/options，把回合数回退 1（若已是第 1 回合则保持），重新生成开场/当前场景 */
-    const resetBtn=v.querySelector('#dt_reset_turn');
-    if(resetBtn)resetBtn.onclick=()=>{
-      const cur=store.get('dateSession',null);if(!cur)return;
-      if(!confirm('重置当前回合？将清空本回合已生成的剧情与选项，并重新生成场景。之前的剧情文本不可恢复。'))return;
-      const prevTurn=Math.max(1,(cur.turn||1)-1);
-      /* 保留 place/spot/people/emoji/time/aff，清空 story/options，回退回合 */
-      const restored={...cur,turn:prevTurn,story:'',options:[]};
-      /* 若之前有 _turnStories 备份，则恢复到上一回合的剧情；否则留空触发重新生成 */
-      const tss=cur._turnStories||[];
-      if(tss.length>=prevTurn&&tss[prevTurn-1]){restored.story=tss[prevTurn-1].story;restored.options=tss[prevTurn-1].options;restored._turnStories=tss.slice(0,prevTurn);}
-      else{restored._turnStories=tss.slice(0,prevTurn);}
-      store.set('dateSession',restored);
-      toast('已重置到第 '+prevTurn+' 回合 · 重新生成场景');
-      self.renderDate(v,restored);
+          `).join('') : '<div class="empty">暂无约会记录</div>'}
+        </div>
+        <button class="btn ghost sm" data-close style="margin-top:10px">关闭</button>
+      `);
     };
   },
-  async renderResult(v,session){
-const self=this;
-session=self._safeSession(session)||self._safeSession(store.get('dateSession',null));
-if(!session){toast('会话已丢失，返回选择');self._view='setup';self.render(v);return;}
-// 组装完整约会剧情（所有回合）
-const fullStory=(session._turnStories||[]).map((t,i)=>`【第${i+1}回合】\n${t.story||''}`).join('\n\n');
-const storyForAI=fullStory||session.story||'';
-  
-  v.innerHTML=`<div class="pad">
-    <div class="card" style="text-align:center;padding:24px"><div style="font-size:38px">${esc(session.emoji)}</div>
-      <h2 style="font-family:var(--font-serif);margin:10px 0 6px">这场约会结束了</h2>
-      <div class="hint">${esc(session.place)} · ${esc(session.spot)}<br>同行：${esc(session.people.join('、'))} · 共 ${session.turn} 回合</div></div>
-    <div class="card"><h3>◉ AI 正在评判这场约会</h3>
-      <div class="loader" id="dt_judge_loading"><div class="spin"></div>根据全程氛围与剧情推演好感变动…</div>
-      <div id="dt_judge_result" style="display:none"></div>
-    </div>
-    <div class="hint" style="text-align:center">${en('The best part is the part nobody writes down.')}</div>
-  </div>`;
-  
-  // AI 评判
-  const sys=buildSystem('general',`你是约会情感评估器。根据玩家与${session.people.join('、')}这场约会的全程剧情，客观评判：
-1. 整场氛围属于下列哪一类：愉快 / 平淡 / 不愉快
-2. 好感度变动（整数），范围严格 -10 ~ +5。判定标准：
-   - 对方明显卸下防备、有肢体或语言上的靠近、留有余味 → +3~+5
-   - 有默契、不尴尬、符合彼此节奏 → +1~+2
-   - 平平无奇、无进展 → 0
-   - 玩家踩雷、触碰角色禁忌、被对方刻意拉开距离 → -3~-10
-3. 一段 40~80 字的点评，解释为什么是这个结果（写给玩家看）
-严格按格式输出，用三个 ||| 分隔，不要多余文字：
-氛围 ||| 数字 ||| 点评`);
-  
-  const r=await ai([{role:'user',content:`约会地点：${session.place} / ${session.spot}
-同行：${session.people.join('、')}
-共 ${session.turn} 回合
 
-【全程剧情】
-${storyForAI.slice(0,3500)}
+  async renderDate(v, session) {
+    const self = this, f = flags();
+    if (!session.story) {
+      v.innerHTML = '<div class="loader"><div class="spin"></div>正在入席布置现场…</div>';
+      const sys = buildSystem('worldline', `这是一场在【${session.place} · ${session.spot}】的约会聚餐场景。
+同行人物：${session.people.join('、')}。
+【文风与节奏要求】：
+细腻描摹环境（如异国夜色、市井烟火、或私人居所的惬意私密氛围）、食物香气、入座与肢体小动作。
+若是在私人居所（如托尼家、美队家或玩家家），着重刻画家庭私密感、卸下盔甲防备后的真实生活气息。
+每句出声台词必须写成："English Line"（中文译文），旁白环境纯中文。
+末尾另起一行输出【选项】A. ... B. ... C. ... D. ...`);
 
-请评判。`}],sys,()=>'平淡 ||| 1 ||| 场面维持得体，没有明显突破，也没有踩雷。下次可以再多推一步。','summary');
-  
-  const parts=r.split('|||').map(x=>x.trim());
-  const mood=parts[0]||'平淡';
-  let aff=parseInt(parts[1])||0;
-  aff=Math.max(-10,Math.min(5,aff));
-  const comment=parts[2]||'这场约会按部就班地结束了。';
-  const moodEmoji=/愉快|好|融洽|亲密/.test(mood)?'☺️':/不愉快|糟|冷|尴尬|踩雷/.test(mood)?'😔':'🙂';
-  
-  const loading=v.querySelector('#dt_judge_loading');
-if(loading)loading.style.display='none';
-const box=v.querySelector('#dt_judge_result');
-if(!box){console.warn('[dating result DOM gone]');return;}
-box.style.display='block';
-  box.innerHTML=`<div style="text-align:center;margin:8px 0 14px">
-      <div style="font-size:32px">${moodEmoji}</div>
-      <div style="font-family:var(--font-serif);font-size:15px;font-weight:700;margin-top:4px">${esc(mood)}</div>
-      <div class="affval" style="font-size:22px;margin-top:6px;color:${aff>0?'var(--gold)':aff<0?'var(--red)':'var(--muted)'}">好感 ${aff>0?'+':''}${aff}</div>
-    </div>
-    <div class="story" style="font-size:13px;background:var(--panel2);padding:11px;border-radius:10px;border-left:3px solid var(--cyan)">${fmtStory(comment)}</div>
-    <div class="row" style="margin-top:12px">
-      <button class="btn gold" id="dt_save">💾 保存记录并结算好感</button>
-      <button class="btn ghost" id="dt_more">↩ 再续一回合</button>
-    </div>
-    <div class="hint" style="margin-top:8px;text-align:center">评判由 AI 根据全程剧情推演，不可手动调整</div>`;
-  
-  v.querySelector('#dt_more').onclick=()=>{self._view='date';self.render(v);};
-  v.querySelector('#dt_save').onclick=()=>{
-    const h=store.get('dateHistory',[]);
-    h.unshift({
-      ...session,
-      mood:moodEmoji+' '+mood,
-      aff,
-      comment,
-      fullStory:storyForAI,  // 保存完整剧情（所有回合）
-      turnStories:(session._turnStories||[]).slice()  // 保留分回合结构
-    });
-    store.set('dateHistory',h);
-    applyAffinity(((store.state()||{}).affinity||0)+aff);
-    store.set('dateSession',null);
-    self._view='setup';self.spot=null;self.people=[];
-    
-    // 托尼日记 + 哈皮抓拍（保留原连锁）
-    (async()=>{
-      try{
-        const sys2=buildSystem('worldline',`替托尼·斯塔克写一面 3~5 行日记（刚结束一场在${session.place}的饭局，氛围：${mood}）。只用物件、动作、技术细节，不出现情绪词，不解释。`);
-        const dr=await ai([{role:'user',content:'场所：'+session.place+' / '+session.spot+'。同行：'+session.people.join('、')+'。氛围：'+mood}],sys2,
-          ()=>'酒单第 2 页没人翻。\n杯沿缺口朝里放好了。\n侍者记住了不要冰。\n回去的车里比来时安静。够了，不写了。');
-        const a2=store.get('diary',[]);a2.unshift({id:'d'+Date.now(),author:'托尼·斯塔克',text:dr,paper:1,time:nowTime()});store.set('diary',a2);
-        const ps=store.posts();ps.twitter=ps.twitter||[];
-        ps.twitter.unshift({name:'哈皮·霍根',handle:'@happy_hogan',text:'（抓拍）'+session.emoji+' '+session.place+'。'+(aff>=3?'他今晚没迟到——这次真是意外。':aff<=-3?'气氛有点凉。别问我细节。':'正常的一晚。')+'别转了，我会被问。',likes:Math.floor(Math.random()*120)+20,comments:[]});
-        store.setPosts(ps);
-        banner('约饭 · 连锁记录','托尼写了一面日记；哈皮的抓拍推文已发出',()=>openApp('diary'));
-      }catch(e){}
-    })();
-    
-    self.render(v);
-    toast('已保存 · AI 判定好感 '+(aff>0?'+':'')+aff);
-  };
-},
+      const r = await ai([{ role: 'user', content: '请推进这场约会的开场第一幕。' }], sys, () => {
+        const lead = session.people[0] || '托尼·斯塔克';
+        return `${session.emoji} ${session.place} · ${session.spot}\n\n夜色正浓。门在身后悄然合上，屋里弥漫着令人放松的气息。\n\n${lead}转过身，将外套随手搭在一旁：「坐吧。这里没有记者，也没有排得密密麻麻的会议日程。」\n\n【选项】\nA. 笑着环顾四周，点评房间的陈设\nB. 顺手接过杯子，走到窗前看夜色\nC. 靠在沙发上，深吸了一口气卸下疲惫\nD. 聊起刚才在路上遇到的趣事`;
+      });
+
+      const parts = r.split(/【选项】/);
+      session.story = (parts[0] || '').replace(/【剧情】/, '').trim();
+      session.options = (parts[1] || 'A. 继续聊聊\nB. 尝尝准备好的餐点\nC. 举杯致意\nD. 聊点工作外的事').trim();
+      session._turnStories = session._turnStories || [];
+      session._turnStories[0] = { story: session.story, options: session.options };
+      store.set('dateSession', session);
+    }
+
+    const opts = session.options.split('\n').filter(l => /^[A-DＡ-Ｄ]\s*[\.、]/.test(l.trim()));
+    v.innerHTML = `
+      <div class="pad">
+        <div class="card" style="padding:10px 12px;margin-bottom:8px">
+          <div class="eyebrow">${esc(session.emoji)} ${esc(session.place)}</div>
+          <div style="font-family:var(--font-serif);font-size:14px;font-weight:700;margin:3px 0">${esc(session.spot)}</div>
+          <div class="hint" style="font-size:11px">同行伙伴：<b>${esc(session.people.join('、'))}</b> · 第 ${session.turn} 回合</div>
+        </div>
+
+        <div class="story" style="font-size:12.5px;line-height:1.75;margin-bottom:10px">${fmtStory(session.story)}</div>
+
+        <div id="dt_opts" style="margin-bottom:8px">
+          ${opts.map(o => `<button class="opt" data-o="${esc(o).replace(/"/g, '&quot;')}" style="font-size:12px;padding:9px 12px;margin-bottom:6px">${fmt(o)}</button>`).join('')}
+        </div>
+
+        <div class="card" style="padding:10px">
+          <div class="hint" style="font-size:10px;margin-bottom:4px;color:var(--gold)">
+            💡 （括号内）写指令纠偏，括号外写你的行动与台词
+          </div>
+          <input id="dt_act" class="inp" value="（）" placeholder="（行动要求）具体行动与台词…" style="font-size:12px;margin-bottom:6px">
+          <div class="row" style="gap:6px">
+            <button class="btn sm" id="dt_send" style="flex:1">推进情节</button>
+            <button class="btn ghost sm" id="dt_end" style="flex:1">结束约会</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const pick = async (choice) => {
+      const s = store.get('dateSession', session);
+      v.innerHTML = '<div class="loader"><div class="spin"></div>剧情深入推演中…</div>';
+      const sys = buildSystem('worldline', `继续约会。地点：${s.place} · ${s.spot}。同行：${s.people.join('、')}。玩家行动：${choice}。\n每句出声台词必须写成："English"（中文翻译）。末尾输出【选项】A. ... B. ...`);
+      const r = await ai([{ role: 'user', content: `【前文剧情】\n${s.story.slice(-400)}\n\n玩家选择：${choice}\n请承接推进下一幕。` }], sys, () => '空气里微光流转，对方眼中带着若有所思的笑意。\n\n【选项】\nA. 继续交谈\nB. 准备结束');
+      const parts = r.split(/【选项】/);
+      s.story = (parts[0] || '').trim();
+      s.options = (parts[1] || 'A. 离开\nB. 留步').trim();
+      s.turn++;
+      s._turnStories = s._turnStories || [];
+      s._turnStories[s.turn - 1] = { story: s.story, options: s.options };
+      store.set('dateSession', s);
+      self.renderDate(v, s);
+    };
+
+    v.querySelectorAll('[data-o]').forEach(b => b.onclick = () => pick(b.dataset.o));
+    v.querySelector('#dt_send').onclick = () => {
+      let raw = v.querySelector('#dt_act').value.trim();
+      if (!raw || raw === '（）') return toast('请输入行动内容');
+      pick(raw);
+    };
+    v.querySelector('#dt_end').onclick = () => {
+      self._view = 'result';
+      self.renderResult(v, session);
+    };
+  },
+
+  async renderResult(v, session) {
+    const self = this;
+    const fullStory = (session._turnStories || []).map((t, i) => `【第${i + 1}幕】\n${t.story || ''}`).join('\n\n') || session.story || '';
+
+    v.innerHTML = `
+      <div class="pad" style="text-align:center">
+        <div class="card" style="padding:20px 14px">
+          <div style="font-size:36px;margin-bottom:6px">${session.emoji || '🍷'}</div>
+          <h2 style="font-family:var(--font-serif);font-size:16px;margin:0 0 6px">这场聚会圆满收束</h2>
+          <div class="hint" style="font-size:11.5px">${esc(session.place)} · ${esc(session.spot)}<br>同行伙伴：${esc(session.people.join('、'))}</div>
+          <div class="divider"></div>
+          <div id="dt_result_eval" class="hint">正在进行情感共鸣结算…</div>
+        </div>
+      </div>
+    `;
+
+    const sys = buildSystem('general', `你是情感与好感判定器。评估这场聚会/约会全过程：
+1. 氛围判定（愉快 / 融洽 / 平淡 / 拘谨）；
+2. 好感结算（整数 -5 ~ +5）；
+3. 50字内走心评语。
+格式严格为：氛围 ||| 整数数字 ||| 评语`);
+    const r = await ai([{ role: 'user', content: `约会地点：${session.place} · ${session.spot}\n同行：${session.people.join('、')}\n剧情回顾：\n${fullStory.slice(0, 1800)}` }], sys, () => '愉快 ||| 2 ||| 彼此在不被打扰的时光里卸下了防备。', 'summary');
+
+    const [mood, rawAff, comment] = r.split('|||').map(x => x.trim());
+    const aff = Math.max(-5, Math.min(5, parseInt(rawAff) || 2));
+
+    const evalBox = v.querySelector('#dt_result_eval');
+    if (evalBox) {
+      evalBox.innerHTML = `
+        <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px">氛围感受：${esc(mood)}</div>
+        <div style="font-size:18px;font-weight:800;color:var(--gold);margin-bottom:8px">好感变动 ${aff >= 0 ? '+' : ''}${aff}</div>
+        <div class="story" style="font-size:12px;background:var(--panel2);padding:8px 10px;border-radius:8px;text-align:left">${fmtStory(comment || '美好的相聚')}</div>
+        <button class="btn gold sm" id="dt_res_save_btn" style="width:100%;margin-top:12px">💾 结算并保存归档</button>
+      `;
+
+      v.querySelector('#dt_res_save_btn').onclick = () => {
+        // 保存历史
+        const h = store.get('dateHistory', []);
+        h.unshift({
+          ...session,
+          mood,
+          aff,
+          comment,
+          fullStory,
+          time: nowTime()
+        });
+        store.set('dateHistory', h);
+
+        // 结算好感
+        applyAffinity(((store.state() || {}).affinity || 0) + aff);
+        store.set('dateSession', null);
+
+        // 根据开关决定是否触发同行伙伴主动发短信
+        if (dtAutoMsgOn() && session.people.length) {
+          const mainPeer = session.people[0];
+          setTimeout(async () => {
+            try {
+              const smsSys = buildSystem('chat', `你扮演【${mainPeer}】。你刚刚和玩家结束了一场在【${session.place} · ${session.spot}】的聚餐/相聚。
+请发一条短消息（15~35字），自然提起刚才的小插曲，表达意犹未尽或随口吐槽。严禁动作神态描写，纯口语短信。`);
+              const sms = await ai([{ role: 'user', content: '发一条约饭结束后的随笔短信。' }], smsSys, () => `“到家了？刚才聊得不错，下次再聚。”`, 'social');
+              const cleanSms = cleanSlur(sms).replace(/[*"（）()]/g, '').trim();
+
+              const ch = store.chats();
+              (ch[mainPeer] = ch[mainPeer] || []).push({
+                role: 'them',
+                who: mainPeer,
+                content: cleanSms,
+                time: storyMsgTime(),
+                worldEvent: true
+              });
+              store.setChats(ch);
+
+              notifyBanner(`💬 ${mainPeer}`, cleanSms, () => {
+                openApp('messages');
+                apps.messages.cur = mainPeer;
+                apps.messages.view = 'chat';
+                safeRender('messages', $('#appBody'));
+              });
+            } catch (err) {}
+          }, 3500);
+        }
+
+        toast(`约会已归档！好感变动 ${aff >= 0 ? '+' : ''}${aff}`);
+        self._view = 'setup';
+        self.render(v);
+      };
+    }
+  }
 };
 
 /* ============================================================
