@@ -7066,29 +7066,22 @@ function getCurrentAnchor() {
   }
 }
 
-// ✅ 修复后代码：直接定位同一数组内部对象的索引，确保修改绝对落盘与自动进阶
+// 推进当前锚点回合：严格支持中途任意扩展回合
 function advanceCurrentAnchorTurn() {
   try {
     let anchors = normalizeAnchorList(store.get('wl_anchors', []));
     if (!anchors || !anchors.length) return;
 
-    // 1. 严格在当前同一个 anchors 数组中寻找正在推进的锚点索引
     const pid = wlPinnedId();
     let curIndex = -1;
-    if (pid) {
-      curIndex = anchors.findIndex(a => a.id === pid && !a.done);
-    }
-    if (curIndex === -1) {
-      curIndex = anchors.findIndex(a => !a.done);
-    }
-    if (curIndex === -1) {
-      curIndex = anchors.length - 1; // 全部达成时锁定在最后一个
-    }
+    if (pid) curIndex = anchors.findIndex(a => a.id === pid && !a.done);
+    if (curIndex === -1) curIndex = anchors.findIndex(a => !a.done);
+    if (curIndex === -1) curIndex = anchors.length - 1;
 
     const cur = anchors[curIndex];
     if (!cur) return;
 
-    // 2. 推进回合计数
+    // 推进回合计数
     cur.curTurns = (cur.curTurns || 0) + 1;
     const max = cur.maxTurns || 3;
 
@@ -7096,31 +7089,26 @@ function advanceCurrentAnchorTurn() {
       cur.curTurns = max;
       cur.done = true;
 
-      // 顺位寻找下一个未完成的事件锚点
+      // 顺位寻找下一个未完成的事件
       let nextAnchor = null;
       for (let i = curIndex + 1; i < anchors.length; i++) {
-        if (!anchors[i].done) {
-          nextAnchor = anchors[i];
-          break;
-        }
+        if (!anchors[i].done) { nextAnchor = anchors[i]; break; }
       }
-      if (!nextAnchor) {
-        nextAnchor = anchors.find(a => !a.done && a.id !== cur.id);
-      }
+      if (!nextAnchor) nextAnchor = anchors.find(a => !a.done && a.id !== cur.id);
 
       if (nextAnchor) {
         wlSetPinned(nextAnchor.id);
-        toast(`🎯 阶段目标【${cur.title}】达成！平滑切入下一事件：【${nextAnchor.title}】`);
+        toast(`🎯【${cur.title}】圆满达成！即将进入下一事件：【${nextAnchor.title}】`);
       } else {
         wlSetPinned(cur.id);
-        toast(`🏆 当前时期的所有核心事件锚点已全部推演完成！`);
+        toast(`🏆 全部阶段的所有事件已全部推演完成！`);
       }
     } else {
+      // 保持当前锁定，绝不跳转
       wlSetPinned(cur.id);
       toast(`⏳ 事件推进中：【${cur.title}】(第 ${cur.curTurns}/${max} 回合)`);
     }
 
-    // 3. 强制落库，确保下次渲染或读档状态100%同步
     store.set('wl_anchors', anchors);
   } catch(e) {
     console.error('advanceCurrentAnchorTurn error:', e);
@@ -7213,269 +7201,318 @@ function openAnchorManagerModal(onRefresh) {
     }
   };
 
-  // ==================== 1. 图 1 界面：全阶段大纲列表 ====================
-  const renderListViewHtml = () => {
-    return `
-      <style>
-        .p-panel { background: var(--panel2, #171f2a); border-radius: 12px; border: 1px solid var(--line, #1e2a38); margin-bottom: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
-        .p-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--line, #1e2a38); gap: 6px; }
-        .p-title-btn { font-size: 13.5px; font-weight: 700; color: var(--text, #eaf4ff); font-family: var(--font-serif); cursor: pointer; display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .p-title-btn:hover { color: var(--cyan, #35d0ff); }
-        .p-ops { display: flex; gap: 5px; flex-shrink: 0; }
-        .p-btn-sm { font-size: 11px; padding: 3px 8px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel, #10151c); color: var(--cyan); cursor: pointer; display: inline-flex; align-items: center; gap: 2px; }
-        .p-btn-sm:hover { background: rgba(53,208,255,0.1); border-color: var(--cyan); }
-        .a-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px dashed var(--line, #1e2a38); transition: background .15s; font-size: 12.5px; }
-        .a-row:last-child { border-bottom: none; }
-        .a-row:hover { background: rgba(255,255,255,0.02); }
-        .a-status { width: 18px; height: 18px; flex-shrink: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; border-radius: 4px; }
-        .a-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; color: var(--text, #eaf4ff); }
-        .a-title:hover { color: var(--cyan); }
-        .a-row.done .a-title { text-decoration: line-through; opacity: 0.55; }
-        .a-row.current { background: rgba(53,208,255,0.08); border-left: 3px solid var(--cyan); }
-        .a-row.current .a-title { color: var(--cyan); font-weight: 700; }
-        .a-ctrls { display: flex; gap: 6px; flex-shrink: 0; color: var(--muted); font-size: 13px; }
-        .a-ctrls span { cursor: pointer; padding: 0 3px; }
-        .a-ctrls span:hover { color: var(--cyan); }
-        .a-ctrls span.del:hover { color: var(--red, #e23636); }
-      </style>
+  // ==================== 1. 图 1 界面：全阶段大纲列表 (带回合修改与防重置保障) ====================
+const renderListViewHtml = () => {
+  return `
+    <style>
+      .p-panel { background: var(--panel2, #171f2a); border-radius: 12px; border: 1px solid var(--line, #1e2a38); margin-bottom: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+      .p-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--line, #1e2a38); gap: 6px; }
+      .p-title-btn { font-size: 13.5px; font-weight: 700; color: var(--text, #eaf4ff); font-family: var(--font-serif); cursor: pointer; display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .p-title-btn:hover { color: var(--cyan, #35d0ff); }
+      .p-ops { display: flex; gap: 5px; flex-shrink: 0; }
+      .p-btn-sm { font-size: 11px; padding: 3px 8px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel, #10151c); color: var(--cyan); cursor: pointer; display: inline-flex; align-items: center; gap: 2px; }
+      .p-btn-sm:hover { background: rgba(53,208,255,0.1); border-color: var(--cyan); }
+      .a-row { display: flex; align-items: center; gap: 6px; padding: 7px 10px; border-bottom: 1px dashed var(--line, #1e2a38); transition: background .15s; font-size: 12.5px; }
+      .a-row:last-child { border-bottom: none; }
+      .a-row:hover { background: rgba(255,255,255,0.02); }
+      .a-status { width: 20px; height: 20px; flex-shrink: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px; border-radius: 4px; }
+      .a-title-input { flex: 1; min-width: 0; background: transparent; border: 1px solid transparent; border-radius: 6px; color: var(--text, #eaf4ff); font-size: 10px; padding: 4px 6px; outline: none; }
+      .a-title-input:focus { background: var(--panel, #10151c); border-color: var(--cyan); }
+      .a-row.done .a-title-input { text-decoration: line-through; opacity: 0.55; }
+      .a-row.current { background: rgba(53,208,255,0.08); border-left: 3px solid var(--cyan); }
+      .a-row.current .a-title-input { color: var(--cyan); font-weight: 700; }
+      
+      /* 核心：精细紧凑的回合调节器 */
+      .a-turn-stepper { display: inline-flex; align-items: center; gap: 2px; background: var(--panel, #10151c); border: 1px solid var(--line); border-radius: 6px; padding: 2px 4px; flex-shrink: 0; }
+      .a-turn-stepper input { width: 24px; background: transparent; border: none; color: var(--gold); font-size: 11px; text-align: center; font-family: var(--font-mono); font-weight: 700; outline: none; -moz-appearance: textfield; }
+      .a-turn-stepper input::-webkit-outer-spin-button, .a-turn-stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+      .a-turn-stepper span { font-size: 10px; color: var(--muted); }
+      
+      .a-ctrls { display: flex; gap: 4px; flex-shrink: 0; color: var(--muted); font-size: 12px; align-items: center; }
+      .a-ctrls span { cursor: pointer; padding: 2px 4px; border-radius: 4px; }
+      .a-ctrls span:hover { color: var(--cyan); background: rgba(53,208,255,0.1); }
+      .a-ctrls span.del:hover { color: var(--red, #e23636); background: rgba(226,54,54,0.1); }
+    </style>
 
-      <!-- 顶部功能栏与说明 -->
-      <div style="margin-bottom: 10px">
-        <div style="font-size: 11.5px; line-height: 1.6; color: var(--muted); margin-bottom: 10px; padding: 0 2px">
-          <span style="color:var(--cyan)">☑ 已发生</span>　<span style="color:var(--gold)">▶ 当前阶段</span>　<span style="color:var(--muted)">⬜ 待发生</span>。<br>
-          点锚点标题可改名，✕ 删除，+ 锚点。阶段标题旁可改名/在此阶段后插入新阶段。
-        </div>
-
-        <div style="display: flex; gap: 8px; margin-bottom: 12px">
-          <button class="btn sm ghost" id="btn_insert_head" style="flex:1; border-color: rgba(53,208,255,0.5); color: var(--cyan); font-weight:700">
-            🧩 插在最前面
-          </button>
-          <button class="btn sm ghost" id="btn_restore_default" style="flex:1; border-color: rgba(226,54,54,0.4); color: var(--red)">
-            🔄 恢复默认阶段划分
-          </button>
-        </div>
+    <!-- 顶部功能栏与说明 -->
+    <div style="margin-bottom: 10px">
+      <div style="font-size: 11.5px; line-height: 1.6; color: var(--muted); margin-bottom: 10px; padding: 0 2px">
+        <span style="color:var(--cyan)">☑ 已达成</span>　<span style="color:var(--gold)">▶ 当前事件</span>　<span style="color:var(--muted)">⬜ 未开始</span>。<br>
+        <b>标题、已完成回合、总回合均可实时修改</b>。中途加减回合会即时无缝生效，绝不重开！
       </div>
 
-      <!-- 阶段大卡片循环 -->
-      <div style="max-height: 58vh; overflow-y: auto; padding-right: 2px" id="phase_cards_scroll">
-        ${phases.map((p, pIdx) => `
-          <div class="p-panel" data-phase-idx="${pIdx}">
-            <div class="p-head">
-              <div class="p-title-btn" data-edit-phase="${pIdx}" title="点击编辑阶段设置与限制">
-                <span>${esc(p.name)}</span>
-                <span style="font-size:10px; color:var(--muted)">✏</span>
-              </div>
-              <div class="p-ops">
-                <button class="p-btn-sm" data-add-anchor="${pIdx}" title="向本阶段添加新事件">＋ 锚点</button>
-                <button class="p-btn-sm" data-insert-after="${pIdx}" title="在此阶段后插入新阶段">🧩 此后插</button>
-                <button class="p-btn-sm" data-del-phase="${pIdx}" style="color:var(--red)" title="删除阶段">✕</button>
-              </div>
+      <div style="display: flex; gap: 8px; margin-bottom: 12px">
+        <button class="btn sm ghost" id="btn_insert_head" style="flex:1; border-color: rgba(53,208,255,0.5); color: var(--cyan); font-weight:700">
+          🧩 插在最前面
+        </button>
+        <button class="btn sm ghost" id="btn_restore_default" style="flex:1; border-color: rgba(226,54,54,0.4); color: var(--red)">
+          🔄 恢复默认全阶段
+        </button>
+      </div>
+    </div>
+
+    <!-- 阶段大卡片循环 -->
+    <div style="max-height: 56vh; overflow-y: auto; padding-right: 2px" id="phase_cards_scroll">
+      ${phases.map((p, pIdx) => `
+        <div class="p-panel" data-phase-idx="${pIdx}">
+          <div class="p-head">
+            <div class="p-title-btn" data-edit-phase="${pIdx}" title="点击编辑阶段设置与限制">
+              <span>${esc(p.name)}</span>
+              <span style="font-size:10px; color:var(--muted)">✏</span>
             </div>
-
-            <!-- 本阶段子锚点 -->
-            <div class="p-body">
-              ${(p.anchors && p.anchors.length) ? p.anchors.map((a, aIdx) => {
-                const isCur = curAnchorId === a.id;
-                const isDone = !!a.done;
-                let statusIcon = '⬜';
-                if (isDone) statusIcon = '☑';
-                else if (isCur) statusIcon = '▶';
-
-                return `
-                  <div class="a-row ${isDone ? 'done' : ''} ${isCur ? 'current' : ''}" data-anchor-id="${a.id}">
-                    <div class="a-status" data-toggle-anchor="${a.id}" title="点击切换达成状态" style="color:${isDone ? 'var(--cyan)' : isCur ? 'var(--gold)' : 'var(--muted)'}">
-                      ${statusIcon}
-                    </div>
-                    <div class="a-title" data-rename-anchor="${a.id}" title="${esc(a.desc || '点击改名')}">
-                      ${esc(a.title)}
-                      <span style="font-size:10px; opacity:0.65; font-family:var(--font-mono)">(${a.curTurns || 0}/${a.maxTurns || 3}回)</span>
-                    </div>
-                    <div class="a-ctrls">
-                      <span data-a-move="up" data-p-idx="${pIdx}" data-a-idx="${aIdx}" title="上移">↑</span>
-                      <span data-a-move="down" data-p-idx="${pIdx}" data-a-idx="${aIdx}" title="下移">↓</span>
-                      <span class="del" data-a-del data-p-idx="${pIdx}" data-a-idx="${aIdx}" title="删除">✕</span>
-                    </div>
-                  </div>
-                `;
-              }).join('') : `
-                <div style="padding: 12px; text-align: center; color: var(--muted); font-size: 11.5px">
-                  本阶段暂无锚点，点击右上角「＋ 锚点」添加
-                </div>
-              `}
+            <div class="p-ops">
+              <button class="p-btn-sm" data-add-anchor="${pIdx}" title="向本阶段添加新事件">＋ 锚点</button>
+              <button class="p-btn-sm" data-insert-after="${pIdx}" title="在此阶段后插入新阶段">🧩 此后插</button>
+              <button class="p-btn-sm" data-del-phase="${pIdx}" style="color:var(--red)" title="删除阶段">✕</button>
             </div>
           </div>
-        `).join('')}
-      </div>
 
-      <!-- 底部保存按钮 -->
-      <div style="margin-top: 12px; display: flex; gap: 8px">
-        <button class="btn gold sm" id="btn_save_all_phases" style="flex:1">💾 保存并应用全部修改</button>
-        <button class="btn ghost sm" data-close style="flex:0 0 70px">关闭</button>
-      </div>
-    `;
+          <!-- 本阶段子锚点 -->
+          <div class="p-body">
+            ${(p.anchors && p.anchors.length) ? p.anchors.map((a, aIdx) => {
+              const isCur = curAnchorId === a.id;
+              const isDone = !!a.done;
+              let statusIcon = '⬜';
+              if (isDone) statusIcon = '☑';
+              else if (isCur) statusIcon = '▶';
+
+              const curT = (typeof a.curTurns === 'number') ? a.curTurns : (isDone ? (a.maxTurns || 3) : 0);
+              const maxT = a.maxTurns || 3;
+
+              return `
+                <div class="a-row ${isDone ? 'done' : ''} ${isCur ? 'current' : ''}" data-anchor-id="${a.id}">
+                  <div class="a-status" data-toggle-anchor="${a.id}" title="点击翻转达成状态" style="color:${isDone ? 'var(--cyan)' : isCur ? 'var(--gold)' : 'var(--muted)'}">
+                    ${statusIcon}
+                  </div>
+
+                  <!-- 标题可直接点击内联编辑 -->
+                  <input class="a-title-input" data-input-anchor-title="${a.id}" value="${esc(a.title)}" placeholder="事件标题" title="点击可直接修改标题">
+
+                  <!-- 回合数调节器：[已完成] / [总规划] -->
+                  <div class="a-turn-stepper" title="【已跑完回合 / 规划总回合】可直接手动改数字，或用上下箭头">
+                    <input type="number" min="0" max="30" value="${curT}" data-set-cur-turn="${a.id}" title="已完成回合数">
+                    <span>/</span>
+                    <input type="number" min="1" max="30" value="${maxT}" data-set-max-turn="${a.id}" title="规划总回合数（在此修改回合上限）">
+                    <span>回</span>
+                  </div>
+
+                  <div class="a-ctrls">
+                    <span data-a-move="up" data-p-idx="${pIdx}" data-a-idx="${aIdx}" title="上移">↑</span>
+                    <span data-a-move="down" data-p-idx="${pIdx}" data-a-idx="${aIdx}" title="下移">↓</span>
+                    <span class="del" data-a-del data-p-idx="${pIdx}" data-a-idx="${aIdx}" title="删除此事件">✕</span>
+                  </div>
+                </div>
+              `;
+            }).join('') : `
+              <div style="padding: 12px; text-align: center; color: var(--muted); font-size: 11.5px">
+                本阶段暂无锚点，点击右上角「＋ 锚点」添加
+              </div>
+            `}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+
+    <!-- 底部保存按钮 -->
+    <div style="margin-top: 12px; display: flex; gap: 8px">
+      <button class="btn gold sm" id="btn_save_all_phases" style="flex:1">💾 保存并应用全部修改</button>
+      <button class="btn ghost sm" id="btn_close_anchor_modal" style="flex:0 0 70px">关闭</button>
+    </div>
+  `;
+};
+
+// 绑定图 1 事件
+const bindListEvents = (host) => {
+  // 同步输入框内容到内存数组，防止改完输入框没失焦直接点保存导致丢失
+  const syncAllAnchorInputs = () => {
+    host.querySelectorAll('[data-input-anchor-title]').forEach(inp => {
+      const aId = inp.dataset.inputAnchorTitle;
+      for (const p of phases) {
+        const a = p.anchors.find(x => x.id === aId);
+        if (a) { a.title = inp.value.trim() || '未命名事件'; break; }
+      }
+    });
+    host.querySelectorAll('[data-set-cur-turn]').forEach(inp => {
+      const aId = inp.dataset.setCurTurn;
+      for (const p of phases) {
+        const a = p.anchors.find(x => x.id === aId);
+        if (a) {
+          a.curTurns = Math.max(0, parseInt(inp.value) || 0);
+          a.done = a.curTurns >= (a.maxTurns || 3);
+          break;
+        }
+      }
+    });
+    host.querySelectorAll('[data-set-max-turn]').forEach(inp => {
+      const aId = inp.dataset.setMaxTurn;
+      for (const p of phases) {
+        const a = p.anchors.find(x => x.id === aId);
+        if (a) {
+          a.maxTurns = Math.max(1, parseInt(inp.value) || 3);
+          a.done = (a.curTurns || 0) >= a.maxTurns;
+          break;
+        }
+      }
+    });
   };
 
-  // 绑定图 1 事件
-  const bindListEvents = (host) => {
-    // 1. 插在最前面
-    host.querySelector('#btn_insert_head').onclick = () => {
-      editingPhaseTarget = 'head';
+  // 1. 插在最前面
+  host.querySelector('#btn_insert_head').onclick = () => {
+    syncAllAnchorInputs();
+    editingPhaseTarget = 'head';
+    currentView = 'edit_phase';
+    refreshModalView();
+  };
+
+  // 2. 恢复默认阶段
+  host.querySelector('#btn_restore_default').onclick = () => {
+    if (!confirm('确定恢复原著 2007~2023 全时间线默认阶段？当前修改将被重置。')) return;
+    store.set('wl_anchors', null);
+    wlSetPinned('');
+    initOrGetAnchors().then(() => {
+      phases = wlGetPhasesFromAnchors();
+      refreshModalView();
+      toast('已恢复原著 2007~2023 全时间线编年史');
+    });
+  };
+
+  // 3. 点击阶段标题编辑该阶段
+  host.querySelectorAll('[data-edit-phase]').forEach(btn => {
+    btn.onclick = () => {
+      syncAllAnchorInputs();
+      const pIdx = +btn.dataset.editPhase;
+      editingPhaseTarget = phases[pIdx];
       currentView = 'edit_phase';
       refreshModalView();
     };
+  });
 
-    // 2. 恢复默认阶段
-    host.querySelector('#btn_restore_default').onclick = () => {
-      if (!confirm('确定恢复原著默认阶段划分？当前自定义的阶段和修改将重置。')) return;
-      store.set('wl_anchors', null);
-      wlSetPinned('');
-      initOrGetAnchors().then(() => {
-        phases = wlGetPhasesFromAnchors();
-        refreshModalView();
-        toast('已恢复默认原著阶段');
+  // 4. 此后插
+  host.querySelectorAll('[data-insert-after]').forEach(btn => {
+    btn.onclick = () => {
+      syncAllAnchorInputs();
+      const pIdx = +btn.dataset.insertAfter;
+      editingPhaseTarget = pIdx;
+      currentView = 'edit_phase';
+      refreshModalView();
+    };
+  });
+
+  // 5. 删除阶段
+  host.querySelectorAll('[data-del-phase]').forEach(btn => {
+    btn.onclick = () => {
+      syncAllAnchorInputs();
+      const pIdx = +btn.dataset.delPhase;
+      if (!confirm(`确定删除「${phases[pIdx].name}」及其内部的所有事件？`)) return;
+      phases.splice(pIdx, 1);
+      if (!phases.length) {
+        phases.push({ id: 'phase_new', name: '新阶段', year: flags().year, monthStart: 1, monthEnd: 12, desc: '', anchors: [] });
+      }
+      refreshModalView();
+    };
+  });
+
+  // 6. 添加锚点
+  host.querySelectorAll('[data-add-anchor]').forEach(btn => {
+    btn.onclick = () => {
+      syncAllAnchorInputs();
+      const pIdx = +btn.dataset.addAnchor;
+      const newTitle = prompt('输入新事件锚点标题：', '日常研发协同');
+      if (!newTitle || !newTitle.trim()) return;
+      phases[pIdx].anchors.push({
+        id: 'anc_u_' + Date.now() + Math.random().toString(36).slice(2, 5),
+        phaseTitle: phases[pIdx].name,
+        title: newTitle.trim(),
+        desc: '紧扣该事件展开剧情推演。',
+        curTurns: 0,
+        maxTurns: 4,
+        done: false
       });
+      refreshModalView();
     };
+  });
 
-    // 3. 点击阶段标题编辑该阶段
-    host.querySelectorAll('[data-edit-phase]').forEach(btn => {
-      btn.onclick = () => {
-        const pIdx = +btn.dataset.editPhase;
-        editingPhaseTarget = phases[pIdx];
-        currentView = 'edit_phase';
-        refreshModalView();
-      };
-    });
-
-    // 4. 此后插
-    host.querySelectorAll('[data-insert-after]').forEach(btn => {
-      btn.onclick = () => {
-        const pIdx = +btn.dataset.insertAfter;
-        editingPhaseTarget = pIdx; // 存索引，插在此索引后
-        currentView = 'edit_phase';
-        refreshModalView();
-      };
-    });
-
-    // 5. 删除阶段
-    host.querySelectorAll('[data-del-phase]').forEach(btn => {
-      btn.onclick = () => {
-        const pIdx = +btn.dataset.delPhase;
-        if (!confirm(`确定删除「${phases[pIdx].name}」及其内部的所有事件锚点？`)) return;
-        phases.splice(pIdx, 1);
-        if (!phases.length) {
-          phases.push({ id: 'phase_new', name: '新阶段', year: flags().year, monthStart: 1, monthEnd: 12, desc: '', anchors: [] });
+  // 7. 锚点状态切换 (☑ / ▶ / ⬜)
+  host.querySelectorAll('[data-toggle-anchor]').forEach(btn => {
+    btn.onclick = () => {
+      syncAllAnchorInputs();
+      const aId = btn.dataset.toggleAnchor;
+      for (const p of phases) {
+        const a = p.anchors.find(x => x.id === aId);
+        if (a) {
+          a.done = !a.done;
+          a.curTurns = a.done ? (a.maxTurns || 3) : 0;
+          break;
         }
-        refreshModalView();
-      };
-    });
-
-    // 6. 添加锚点
-    host.querySelectorAll('[data-add-anchor]').forEach(btn => {
-      btn.onclick = () => {
-        const pIdx = +btn.dataset.addAnchor;
-        const newTitle = prompt('输入新事件锚点标题：', '新日常与技术协同');
-        if (!newTitle || !newTitle.trim()) return;
-        phases[pIdx].anchors.push({
-          id: 'anc_u_' + Date.now() + Math.random().toString(36).slice(2, 5),
-          phaseTitle: phases[pIdx].name,
-          title: newTitle.trim(),
-          desc: '紧扣该事件展开剧情推演。',
-          curTurns: 0,
-          maxTurns: 3,
-          done: false
-        });
-        refreshModalView();
-      };
-    });
-
-    // 7. 锚点状态切换 (☑ / ▶ / ⬜)
-    host.querySelectorAll('[data-toggle-anchor]').forEach(btn => {
-      btn.onclick = () => {
-        const aId = btn.dataset.toggleAnchor;
-        for (const p of phases) {
-          const a = p.anchors.find(x => x.id === aId);
-          if (a) {
-            a.done = !a.done;
-            a.curTurns = a.done ? (a.maxTurns || 3) : 0;
-            break;
-          }
-        }
-        refreshModalView();
-      };
-    });
-
-    // 8. 锚点改名
-    host.querySelectorAll('[data-rename-anchor]').forEach(el => {
-      el.onclick = () => {
-        const aId = el.dataset.renameAnchor;
-        for (const p of phases) {
-          const a = p.anchors.find(x => x.id === aId);
-          if (a) {
-            const nv = prompt('修改锚点标题：', a.title);
-            if (nv && nv.trim()) {
-              a.title = nv.trim();
-              refreshModalView();
-            }
-            break;
-          }
-        }
-      };
-    });
-
-    // 9. 锚点移动 (上移/下移)
-    host.querySelectorAll('[data-a-move]').forEach(btn => {
-      btn.onclick = () => {
-        const dir = btn.dataset.aMove;
-        const pIdx = +btn.dataset.pIdx;
-        const aIdx = +btn.dataset.aIdx;
-        const targetArr = phases[pIdx].anchors;
-
-        if (dir === 'up') {
-          if (aIdx > 0) {
-            const [item] = targetArr.splice(aIdx, 1);
-            targetArr.splice(aIdx - 1, 0, item);
-          } else if (pIdx > 0) {
-            // 跨阶段向上移到上一阶段末尾
-            const [item] = targetArr.splice(aIdx, 1);
-            phases[pIdx - 1].anchors.push(item);
-          }
-        } else {
-          if (aIdx < targetArr.length - 1) {
-            const [item] = targetArr.splice(aIdx, 1);
-            targetArr.splice(aIdx + 1, 0, item);
-          } else if (pIdx < phases.length - 1) {
-            // 跨阶段向下移到下一阶段开头
-            const [item] = targetArr.splice(aIdx, 1);
-            phases[pIdx + 1].anchors.unshift(item);
-          }
-        }
-        refreshModalView();
-      };
-    });
-
-    // 10. 删除单个锚点
-    host.querySelectorAll('[data-a-del]').forEach(btn => {
-      btn.onclick = () => {
-        const pIdx = +btn.dataset.pIdx;
-        const aIdx = +btn.dataset.aIdx;
-        phases[pIdx].anchors.splice(aIdx, 1);
-        refreshModalView();
-      };
-    });
-
-    // 11. 保存所有修改
-    host.querySelector('#btn_save_all_phases').onclick = () => {
-      const flat = wlSavePhasesToAnchors(phases);
-      const curFirst = flat.find(a => !a.done) || flat[flat.length - 1];
-      if (curFirst) wlSetPinned(curFirst.id);
-      toast('✅ 阶段与事件架构已保存生效');
-      modalEl.remove();
-      if (onRefresh) onRefresh();
+      }
+      refreshModalView();
     };
-// 12. 显式绑定底部关闭按钮（彻底解决点击无反应）
-    const closeBtn = host.querySelector('[data-close]');
-    if (closeBtn) closeBtn.onclick = () => modalEl.remove();
+  });
+
+  // 8. 锚点移动 (上移/下移)
+  host.querySelectorAll('[data-a-move]').forEach(btn => {
+    btn.onclick = () => {
+      syncAllAnchorInputs();
+      const dir = btn.dataset.aMove;
+      const pIdx = +btn.dataset.pIdx;
+      const aIdx = +btn.dataset.aIdx;
+      const targetArr = phases[pIdx].anchors;
+
+      if (dir === 'up') {
+        if (aIdx > 0) {
+          const [item] = targetArr.splice(aIdx, 1);
+          targetArr.splice(aIdx - 1, 0, item);
+        } else if (pIdx > 0) {
+          const [item] = targetArr.splice(aIdx, 1);
+          phases[pIdx - 1].anchors.push(item);
+        }
+      } else {
+        if (aIdx < targetArr.length - 1) {
+          const [item] = targetArr.splice(aIdx, 1);
+          targetArr.splice(aIdx + 1, 0, item);
+        } else if (pIdx < phases.length - 1) {
+          const [item] = targetArr.splice(aIdx, 1);
+          phases[pIdx + 1].anchors.unshift(item);
+        }
+      }
+      refreshModalView();
+    };
+  });
+
+  // 9. 删除单个锚点
+  host.querySelectorAll('[data-a-del]').forEach(btn => {
+    btn.onclick = () => {
+      syncAllAnchorInputs();
+      const pIdx = +btn.dataset.pIdx;
+      const aIdx = +btn.dataset.aIdx;
+      phases[pIdx].anchors.splice(aIdx, 1);
+      refreshModalView();
+    };
+  });
+
+  // 10. 保存所有修改（核心：严格更新锚点，绝对不冲刷或重置当前正在推演的剧情正文）
+  host.querySelector('#btn_save_all_phases').onclick = () => {
+    syncAllAnchorInputs();
+    const flat = wlSavePhasesToAnchors(phases);
+
+    // 寻找当前未完成的锚点；若之前已锁定的锚点依然未完成，优先保持锁定，绝不重置为第1个！
+    const currentPinned = flat.find(a => a.id === curAnchorId && !a.done);
+    if (currentPinned) {
+      wlSetPinned(currentPinned.id);
+    } else {
+      const nextUnfinished = flat.find(a => !a.done) || flat[flat.length - 1];
+      if (nextUnfinished) wlSetPinned(nextUnfinished.id);
+    }
+
+    toast('✅ 阶段与回合配置已保存！当前剧情继续生效');
+    modalEl.remove();
+    if (onRefresh) onRefresh();
   };
+
+  // 11. 底部关闭按钮（直接退出，不阻塞）
+  const closeBtn = host.querySelector('#btn_close_anchor_modal');
+  if (closeBtn) closeBtn.onclick = () => modalEl.remove();
+};
 
   // ==================== 2. 图 2 界面：插入/编辑阶段表单 ====================
   const renderEditPhaseHtml = () => {
