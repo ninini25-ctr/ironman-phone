@@ -7110,191 +7110,261 @@ function advanceCurrentAnchorTurn() {
   }
 }
 
-// 弹出玩家自由修改、新增、标记锚点的管理弹窗
+// 弹出玩家自由修改、自定义阶段名称、紧凑折叠的锚点管理弹窗
 function openAnchorManagerModal(onRefresh) {
   let anchors = normalizeAnchorList(store.get('wl_anchors', []));
-  /* 草稿态：编辑 / 排序只改本地数组，点「保存所有修改」才落盘；orderBackup 供撤销 */
-  const orderBackup = anchors.map(a => a.id);
-  const curAtOpen = wlPickCurrent(anchors);
+  const curAtOpen = getCurrentAnchor();
+  let expandedSet = new Set(curAtOpen ? [curAtOpen.id] : []); // 默认只展开当前正在推进的阶段
+
   const renderList = () => {
     const n = anchors.length;
-    return anchors.map((a, idx) => `
-      <div class="card anc-card" style="padding:10px;margin-bottom:8px;background:var(--panel2);border-left:3px solid ${a.done ? 'var(--green)' : 'var(--gold)'}">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
-          <span class="anc-seq" style="flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:var(--sp-accent-soft);color:var(--cyan);font-family:var(--font-mono);font-size:11px;font-weight:700">${idx+1}</span>
-          <span class="eyebrow" style="font-size:10px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.phaseTitle)}</span>
-          <span class="tag ${a.done ? 'green' : 'gold'}" style="font-size:9px;flex:0 0 auto">${a.done ? `✓ 已达成 (${a.curTurns}/${a.maxTurns})` : `进行中 (${a.curTurns || 0}/${a.maxTurns || 3} 回合)`}</span>
-          ${(curAtOpen && curAtOpen.id === a.id) ? '<span class="tag" style="font-size:9px;flex:0 0 auto;color:var(--gold)">当前</span>' : ''}
+    return anchors.map((a, idx) => {
+      const isCur = curAtOpen && curAtOpen.id === a.id;
+      const isOpen = expandedSet.has(a.id);
+      const curT = a.curTurns || 0;
+      const maxT = a.maxTurns || 3;
+
+      return `
+      <div class="card anc-card" style="padding:0;margin-bottom:7px;background:var(--panel2);border-left:3px solid ${a.done ? 'var(--green)' : isCur ? 'var(--cyan)' : 'var(--gold)'};overflow:hidden">
+        <!-- 紧凑折叠摘要栏（点击即展开/收起） -->
+        <div data-anc-toggle-fold="${a.id}" style="display:flex;align-items:center;gap:7px;padding:9px 11px;cursor:pointer;user-select:none;background:${isOpen ? 'rgba(53,208,255,0.04)' : 'transparent'}">
+          <span style="font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--cyan);width:18px">${idx + 1}</span>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
+            <div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+              ${esc(a.phaseTitle || '自定义阶段')}
+            </div>
+            <div style="font-weight:700;font-size:12.5px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+              ${esc(a.title || '无标题事件')}
+            </div>
+          </div>
+          <span class="tag ${a.done ? 'green' : 'gold'}" style="font-size:9.5px;flex:0 0 auto;padding:2px 6px">
+            ${a.done ? `已完成 (${curT}/${maxT})` : isCur ? `推进中 (${curT}/${maxT})` : `待推进 (${curT}/${maxT})`}
+          </span>
+          <span style="font-size:12px;color:var(--muted);margin-left:2px">${isOpen ? '▲' : '▼'}</span>
         </div>
-        <div class="row anc-move" style="gap:4px;margin:6px 0 2px;flex-wrap:nowrap">
-          <span class="hint" style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10px">调整前后顺序</span>
-          <button type="button" class="btn sm ghost" data-anc-move="top" data-idx="${idx}" title="移到最前" ${idx===0?'disabled':''} style="flex:0 0 30px;padding:4px 0">⤒</button>
-          <button type="button" class="btn sm ghost" data-anc-move="up" data-idx="${idx}" title="上移一位" ${idx===0?'disabled':''} style="flex:0 0 30px;padding:4px 0">↑</button>
-          <button type="button" class="btn sm ghost" data-anc-move="down" data-idx="${idx}" title="下移一位" ${idx===n-1?'disabled':''} style="flex:0 0 30px;padding:4px 0">↓</button>
-          <button type="button" class="btn sm ghost" data-anc-move="bottom" data-idx="${idx}" title="移到最后" ${idx===n-1?'disabled':''} style="flex:0 0 30px;padding:4px 0">⤓</button>
-        </div>
-        <div class="row" style="margin:5px 0 4px;align-items:center">
-          <input class="inp anc_t_in" data-idx="${idx}" value="${esc(a.title)}" style="flex:1;font-weight:700;font-size:13px;padding:6px 8px">
-          <span class="hint" style="flex:0 0 auto;font-size:11px">进度</span>
-          <input type="number" min="0" max="10" class="inp anc_cur_in" data-idx="${idx}" value="${a.curTurns || 0}" style="flex:0 0 46px;padding:5px;text-align:center" title="已完成回合">
-          <span class="hint" style="flex:0 0 auto">/</span>
-          <input type="number" min="3" max="4" class="inp anc_max_in" data-idx="${idx}" value="${a.maxTurns || 3}" style="flex:0 0 46px;padding:5px;text-align:center" title="总回合数(3~4)">
-        </div>
-        <div class="field" style="margin:0 0 6px">
-          <textarea class="inp anc_d_in" data-idx="${idx}" rows="2" style="font-size:11.5px;padding:6px 8px;line-height:1.5">${esc(a.desc)}</textarea>
-        </div>
-        <div class="row" style="gap:6px">
-          <button class="btn sm ghost" data-anc-toggle="${idx}">${a.done ? '重置为未完成 (0/' + (a.maxTurns || 3) + ')' : '立即标为达成'}</button>
-          <button class="btn sm red ghost" data-anc-del="${idx}" style="flex:0 0 46px">删</button>
-        </div>
-      </div>
-    `).join('');
+
+        <!-- 展开编辑详情区域 -->
+        ${isOpen ? `
+        <div style="padding:10px 11px 12px;border-top:1px dashed var(--line);background:rgba(0,0,0,0.15)">
+          <div class="row anc-move" style="gap:4px;margin-bottom:8px;align-items:center">
+            <span class="hint" style="flex:1;font-size:10.5px">排序位置：</span>
+            <button type="button" class="btn sm ghost" data-anc-move="top" data-idx="${idx}" title="顶" ${idx === 0 ? 'disabled' : ''} style="flex:0 0 32px;padding:3px 0">⤒</button>
+            <button type="button" class="btn sm ghost" data-anc-move="up" data-idx="${idx}" title="上" ${idx === 0 ? 'disabled' : ''} style="flex:0 0 32px;padding:3px 0">↑</button>
+            <button type="button" class="btn sm ghost" data-anc-move="down" data-idx="${idx}" title="下" ${idx === n - 1 ? 'disabled' : ''} style="flex:0 0 32px;padding:3px 0">↓</button>
+            <button type="button" class="btn sm ghost" data-anc-move="bottom" data-idx="${idx}" title="底" ${idx === n - 1 ? 'disabled' : ''} style="flex:0 0 32px;padding:3px 0">⤓</button>
+          </div>
+
+          <div class="field" style="margin-bottom:6px">
+            <label style="font-size:11px;color:var(--muted)">阶段名称（可随意自由重命名）：</label>
+            <input class="inp anc_phase_in" data-idx="${idx}" value="${esc(a.phaseTitle || '')}" placeholder="如：第 1 阶段 · 荒漠破局" style="font-size:12px;padding:6px 8px">
+          </div>
+
+          <div class="field" style="margin-bottom:6px">
+            <label style="font-size:11px;color:var(--muted)">核心事件标题：</label>
+            <input class="inp anc_t_in" data-idx="${idx}" value="${esc(a.title || '')}" placeholder="事件名称" style="font-weight:700;font-size:13px;padding:6px 8px">
+          </div>
+
+          <div class="row" style="margin-bottom:6px;align-items:center;gap:6px">
+            <span class="hint" style="font-size:11px;flex:0 0 auto">已完成回合数:</span>
+            <input type="number" min="0" max="20" class="inp anc_cur_in" data-idx="${idx}" value="${curT}" style="flex:1;padding:5px;text-align:center" title="已完成回合">
+            <span class="hint" style="font-size:11px;flex:0 0 auto">/ 规划总回合:</span>
+            <input type="number" min="1" max="20" class="inp anc_max_in" data-idx="${idx}" value="${maxT}" style="flex:1;padding:5px;text-align:center" title="总回合数(可自由设置1~20)">
+          </div>
+
+          <div class="field" style="margin-bottom:8px">
+            <label style="font-size:11px;color:var(--muted)">事件背景细节与剧情指引：</label>
+            <textarea class="inp anc_d_in" data-idx="${idx}" rows="2" style="font-size:11.5px;padding:6px 8px;line-height:1.5">${esc(a.desc || '')}</textarea>
+          </div>
+
+          <div class="row" style="gap:6px">
+            <button class="btn sm ghost" data-anc-toggle="${idx}" style="font-size:11.5px">${a.done ? '标记为未完成' : '立即标记为达成'}</button>
+            <button class="btn sm red ghost" data-anc-del="${idx}" style="flex:0 0 50px;font-size:11.5px">删除</button>
+          </div>
+        </div>` : ''}
+      </div>`;
+    }).join('');
   };
 
   const d = modal(`
-    <h2 style="color:var(--gold);margin-top:0;font-size:16px">🎯 阶段与事件锚点管理器</h2>
-    <div class="hint" style="margin-bottom:10px">用 ⤒ ↑ ↓ ⤓ 调整锚点前后顺序（自定义锚点同样可用）；当前锚点已固定，排序不会让正在推演的剧情漂移。<b>所有改动均为草稿，点「💾 保存所有修改」后生效。</b></div>
-    <div id="anc_container" style="max-height:55vh;overflow-y:auto;padding-right:2px">${renderList()}</div>
+    <h2 style="color:var(--gold);margin-top:0;font-size:16px">🎯 阶段与事件锚点中心</h2>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span class="hint" style="font-size:11px">已收拢为紧凑提纲，点击卡片随时展开编辑：</span>
+      <button class="btn ghost sm" id="anc_fold_all" style="font-size:10px;padding:2px 6px">全部展开/收起</button>
+    </div>
     
+    <div id="anc_container" style="max-height:50vh;overflow-y:auto;padding-right:2px">${renderList()}</div>
+    
+    <!-- 新增锚点卡片 -->
     <div class="card" style="padding:10px;margin-top:10px">
-      <h3 style="margin:0 0 6px;font-size:12px;color:var(--cyan)">＋ 自定义添加新锚点</h3>
+      <h3 style="margin:0 0 6px;font-size:12px;color:var(--cyan)">＋ 自定义添加新事件阶段</h3>
       <div class="row" style="margin-bottom:6px">
-        <input id="new_anc_t" class="inp" style="flex:1" placeholder="事件标题，如：湖畔木屋的深夜量子建模">
-        <select id="new_anc_turns" class="inp" style="flex:0 0 92px">
-          <option value="3">3 回合</option>
-          <option value="4">4 回合</option>
-        </select>
+        <input id="new_anc_phase" class="inp" style="flex:1;font-size:11.5px" placeholder="阶段名，如：第 4 阶段 · 隐秘盟约">
+        <input id="new_anc_turns" type="number" min="1" max="20" value="4" class="inp" style="flex:0 0 80px;text-align:center" placeholder="总回合数">
       </div>
-      <div class="field"><textarea id="new_anc_d" class="inp" rows="2" placeholder="细节与生活情境描述，引导AI剧情走向…"></textarea></div>
+      <div class="field" style="margin-bottom:6px">
+        <input id="new_anc_t" class="inp" style="font-size:12.5px" placeholder="事件标题，如：深夜工坊的联合设计测试">
+      </div>
+      <div class="field" style="margin-bottom:6px">
+        <textarea id="new_anc_d" class="inp" rows="2" placeholder="细节与剧情指引，AI 将据此展开深层推演…"></textarea>
+      </div>
       <button class="btn sm gold" id="new_anc_btn">添加至锚点链</button>
     </div>
 
-    <div class="row" style="margin-top:10px;flex-wrap:wrap;gap:6px">
-      <button class="btn sm" id="anc_save_all">💾 保存所有修改</button>
-      <button class="btn ghost sm" id="anc_undo">↶ 撤销排序</button>
-      <button class="btn ghost sm" id="anc_reset_mcu" style="color:var(--red)">↺ 恢复默认MCU锚点</button>
-      <button class="btn ghost sm" data-close>关闭</button>
+    <div class="row" style="margin-top:10px;gap:6px">
+      <button class="btn sm" id="anc_save_all" style="flex:1">💾 保存所有修改</button>
+      <button class="btn ghost sm" id="anc_reset_mcu" style="color:var(--red);flex:0 0 auto">↺ 重置原著预设</button>
+      <button class="btn ghost sm" data-close style="flex:0 0 auto">关闭</button>
     </div>
   `);
 
-  /* 排序 / 重绘前必须先把输入框草稿同步回数组，否则标题、描述、回合数会串位 */
   const syncInputs = () => {
-    const put=(sel,fn)=>d.querySelectorAll(sel).forEach(i=>{
-      const idx=+i.dataset.idx;
-      if(!Number.isInteger(idx)||idx<0||idx>=anchors.length||!anchors[idx])return;
-      try{fn(anchors[idx],i,idx);}catch(e){showErr('E-ANCHOR-005',{err:e});}
+    d.querySelectorAll('.anc_phase_in').forEach(i => {
+      const idx = +i.dataset.idx; if (anchors[idx]) anchors[idx].phaseTitle = i.value.trim() || `第 ${idx + 1} 阶段`;
     });
-    put('.anc_t_in',(a,i)=>{a.title=String(i.value||'').trim();});
-    put('.anc_d_in',(a,i)=>{a.desc=String(i.value||'').trim();});
-    put('.anc_max_in',(a,i)=>{a.maxTurns=Math.max(3,Math.min(4,parseInt(i.value)||3));});
-    put('.anc_cur_in',(a,i)=>{
-      const c=Math.max(0,Math.min(a.maxTurns||3,parseInt(i.value)||0));
-      a.curTurns=c;a.done=c>=(a.maxTurns||3);
+    d.querySelectorAll('.anc_t_in').forEach(i => {
+      const idx = +i.dataset.idx; if (anchors[idx]) anchors[idx].title = i.value.trim() || '未命名事件';
+    });
+    d.querySelectorAll('.anc_d_in').forEach(i => {
+      const idx = +i.dataset.idx; if (anchors[idx]) anchors[idx].desc = i.value.trim() || '';
+    });
+    d.querySelectorAll('.anc_max_in').forEach(i => {
+      const idx = +i.dataset.idx; if (anchors[idx]) anchors[idx].maxTurns = Math.max(1, parseInt(i.value) || 3);
+    });
+    d.querySelectorAll('.anc_cur_in').forEach(i => {
+      const idx = +i.dataset.idx;
+      if (anchors[idx]) {
+        const c = Math.max(0, parseInt(i.value) || 0);
+        anchors[idx].curTurns = c;
+        anchors[idx].done = c >= anchors[idx].maxTurns;
+      }
     });
   };
-  const repaint=()=>{const c=d.querySelector('#anc_container');if(c)c.innerHTML=renderList();bindEvents();};
-  const moveAnchor=(idx,dir)=>{
-    if(!Number.isInteger(idx)||idx<0||idx>=anchors.length)return;
-    syncInputs();                        /* 关键：先同步草稿再动数组 */
-    const n=anchors.length;
-    let to=idx;
-    if(dir==='up')to=Math.max(0,idx-1);
-    else if(dir==='down')to=Math.min(n-1,idx+1);
-    else if(dir==='top')to=0;
-    else if(dir==='bottom')to=n-1;
-    else return;
-    if(to===idx)return;
-    try{const [item]=anchors.splice(idx,1);anchors.splice(to,0,item);}
-    catch(e){showErr('E-ANCHOR-005',{err:e});return;}
-    repaint();
-  };
-  const undoOrder=()=>{
-    syncInputs();
-    try{
-      const byId=new Map(anchors.map(a=>[a.id,a]));
-      const restored=[];
-      orderBackup.forEach(id=>{const a=byId.get(id);if(a){restored.push(a);byId.delete(id);}});
-      byId.forEach(a=>restored.push(a));   /* 新增的锚点保留在末尾 */
-      anchors=restored;
-      repaint();
-      toast('已撤销排序（编辑内容保留）');
-    }catch(e){showErr('E-ANCHOR-005',{err:e});}
+
+  const repaint = () => {
+    const c = d.querySelector('#anc_container');
+    if (c) c.innerHTML = renderList();
+    bindEvents();
   };
 
   const bindEvents = () => {
+    d.querySelectorAll('[data-anc-toggle-fold]').forEach(el => {
+      el.onclick = (e) => {
+        // 如果点击的是输入框本身，不触发折叠
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') return;
+        syncInputs();
+        const id = el.dataset.ancToggleFold;
+        if (expandedSet.has(id)) expandedSet.delete(id);
+        else expandedSet.add(id);
+        repaint();
+      };
+    });
+
     d.querySelectorAll('[data-anc-toggle]').forEach(b => {
       b.onclick = () => {
         syncInputs();
         const idx = +b.dataset.ancToggle;
-        if(!anchors[idx])return;
+        if (!anchors[idx]) return;
         anchors[idx].done = !anchors[idx].done;
-        anchors[idx].curTurns = anchors[idx].done ? (anchors[idx].maxTurns || 3) : 0;
+        anchors[idx].curTurns = anchors[idx].done ? anchors[idx].maxTurns : 0;
         repaint();
       };
     });
+
     d.querySelectorAll('[data-anc-del]').forEach(b => {
       b.onclick = () => {
         syncInputs();
         const idx = +b.dataset.ancDel;
-        if(!anchors[idx])return;
+        if (!anchors[idx]) return;
         anchors.splice(idx, 1);
         repaint();
       };
     });
-    d.querySelectorAll('[data-anc-move]').forEach(b=>{
-      b.onclick=()=>moveAnchor(+b.dataset.idx,b.dataset.ancMove);
+
+    d.querySelectorAll('[data-anc-move]').forEach(b => {
+      b.onclick = () => {
+        syncInputs();
+        const idx = +b.dataset.idx;
+        const dir = b.dataset.ancMove;
+        let to = idx;
+        if (dir === 'up') to = Math.max(0, idx - 1);
+        else if (dir === 'down') to = Math.min(anchors.length - 1, idx + 1);
+        else if (dir === 'top') to = 0;
+        else if (dir === 'bottom') to = anchors.length - 1;
+        if (to === idx) return;
+        const [item] = anchors.splice(idx, 1);
+        anchors.splice(to, 0, item);
+        repaint();
+      };
     });
   };
 
   bindEvents();
-  const bUndo=d.querySelector('#anc_undo');if(bUndo)bUndo.onclick=undoOrder;
 
+  // 全部展开/收起切换
+  d.querySelector('#anc_fold_all').onclick = () => {
+    syncInputs();
+    if (expandedSet.size >= anchors.length) expandedSet.clear();
+    else expandedSet = new Set(anchors.map(a => a.id));
+    repaint();
+  };
+
+  // 添加新锚点
   d.querySelector('#new_anc_btn').onclick = () => {
+    const phase = d.querySelector('#new_anc_phase').value.trim() || `第 ${anchors.length + 1} 阶段 · 自定义`;
     const t = d.querySelector('#new_anc_t').value.trim();
     const dc = d.querySelector('#new_anc_d').value.trim();
-    const turns = Math.max(3, Math.min(4, parseInt(d.querySelector('#new_anc_turns').value) || 3));
-    if (!t) return toast('请输入标题');
+    const turns = Math.max(1, parseInt(d.querySelector('#new_anc_turns').value) || 4);
+    if (!t) return toast('请输入事件标题');
+
     syncInputs();
+    const newId = 'anc_user_' + Date.now();
     anchors.push({
-      id: 'anc_user_' + Date.now(),
-      phaseTitle: `自定义专属阶段 (${anchors.length + 1})`,
+      id: newId,
+      phaseTitle: phase,
       title: t,
       desc: dc || '遵循此剧情指引展开深层推演。',
       curTurns: 0,
       maxTurns: turns,
       done: false
     });
+    expandedSet.add(newId);
     d.querySelector('#new_anc_t').value = '';
     d.querySelector('#new_anc_d').value = '';
     repaint();
-    toast('已添加新锚点（草稿，记得保存）');
+    toast('已添加新事件阶段');
   };
 
+  // 保存所有修改
   d.querySelector('#anc_save_all').onclick = () => {
     syncInputs();
-    /* 当前锚点漂移二次确认：排序后「第一个未完成」不再是打开时的当前锚点 */
-    const nextFirst = anchors.find(a=>!a.done)||anchors[anchors.length-1]||null;
-    let pin = wlPinnedId();
-    if(curAtOpen && nextFirst && nextFirst.id!==curAtOpen.id){
-      if(!confirm(`按新顺序，第一个未完成的锚点将变为【${nextFirst.title||'新锚点'}】，与当前推演中的【${curAtOpen.title||'原锚点'}】不同。\n\n「确定」＝保存并把推演目标切换为前者；「取消」＝放弃本次保存，返回继续调整。`)) return;
-      pin = nextFirst.id;
-    } else if(curAtOpen){ pin = curAtOpen.id; }
-    try{store.set('wl_anchors', anchors);wlSetPinned(pin);}
-    catch(e){showErr('E-ANCHOR-002',{err:e});return;}
-    toast('所有锚点修改已生效');
+    // 寻找当前应当锁定的目标
+    const firstUnfinished = anchors.find(a => !a.done) || anchors[anchors.length - 1];
+    let pinId = firstUnfinished ? firstUnfinished.id : '';
+    
+    // 如果之前锁定的依然在且未完成，优先沿用之前的锁定，保证绝对不跨跳
+    if (curAtOpen && anchors.some(a => a.id === curAtOpen.id && !a.done)) {
+      pinId = curAtOpen.id;
+    }
+
+    store.set('wl_anchors', anchors);
+    wlSetPinned(pinId);
+    toast('✅ 阶段与事件配置已保存');
     d.remove();
-    if (onRefresh) { try{onRefresh();}catch(e){showErr('E-WL-001',{err:e});} }
+    // 刷新页面状态，但不冲刷已生成的剧情文本
+    if (onRefresh) {
+      try { onRefresh(); } catch (e) {}
+    }
   };
 
   d.querySelector('#anc_reset_mcu').onclick = () => {
-    if (!confirm('重置所有锚点？将重新匹配原著电影与日常细节预设。')) return;
+    if (!confirm('确定重置为电影官方预设？自定义的阶段将被清空。')) return;
     store.set('wl_anchors', null);
     wlSetPinned('');
     d.remove();
     initOrGetAnchors().then(() => {
       if (onRefresh) onRefresh();
-      toast('锚点已恢复为电影全阶段编年史');
-    }).catch(e=>showErr('E-ANCHOR-001',{err:e}));
+      toast('已恢复为原著阶段编年史');
+    });
   };
 }
 
@@ -7398,16 +7468,17 @@ if (!s.story) {
         store.setState(s);
         addHint('未配置 API Key · 当前使用本地预设剧情', 'E-AI-001', true);
       } else {
-        const safeAnchor = curAnchor || { title: '日常技术协同', curTurns: 1, maxTurns: 3, done: false };
-        const ancStep = Math.max(1, Math.min(safeAnchor.curTurns || 1, safeAnchor.maxTurns || 3));
-        const ancMax = safeAnchor.maxTurns || 3;
+        const safeAnchor = curAnchor || { id: 'anc_default', phaseTitle: '核心剧情推进', title: '日常技术协同', curTurns: 0, maxTurns: 3, done: false };
+        const ancMax = Math.max(1, safeAnchor.maxTurns || 3);
+        // 核心修复：当前真正正在推演的回合是 (已完成数 + 1)
+        const currentTurnInAnchor = Math.min(ancMax, (safeAnchor.curTurns || 0) + 1);
 
         const st0 = v.querySelector('#wl_story');
         const optsContainer = v.querySelector('#w_opts');
         if (st0) {
           st0.innerHTML = `<div class="hint" style="line-height:1.8">
             <div class="spin" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px"></div>
-            贾维斯正在解析神经遥测（第 ${ancStep}/${ancMax} 回合，生成中）…
+            贾维斯正在解析神经遥测（【${esc(safeAnchor.title)}】第 ${currentTurnInAnchor}/${ancMax} 回合，生成中）…
           </div>`;
         }
 
@@ -7420,42 +7491,30 @@ if (!s.story) {
           const era = WORLD.eras.find(e => e.id === s.era) || WORLD.eras[2];
           const last = s.history.length ? s.history[s.history.length - 1] : null;
 
-          // 跨锚点自然时空转场协议
-          const isAnchorTransition = (ancStep === 1 && s.history.length > 0);
+          // 核心修复：只有【第一回合】且【确认刚刚完成过上一个锚点】时才允许时空大转场！
+          // 同一锚点内部的第 2, 3, 4 回合绝对不注入转场闭幕指令！
+          const isRealAnchorJump = (currentTurnInAnchor === 1 && s.history.length > 0 && last && last._anchorId && last._anchorId !== safeAnchor.id);
           let transitionDirective = '';
-          if (isAnchorTransition) {
-            const anchorsList = store.get('wl_anchors', []);
-            const curIdx = anchorsList.findIndex(a => a.id === safeAnchor.id);
-            const prevAnchor = (curIdx > 0) ? anchorsList[curIdx - 1] : null;
-            const prevTitle = prevAnchor ? prevAnchor.title : '上一阶段事件';
-
+          if (isRealAnchorJump) {
             transitionDirective = `
-【⚡⚡ 核心时空转场铁律 · 最高优先级】
-1. 上一事件【${prevTitle}】已经彻底闭幕收束。本回合是全新事件【${safeAnchor.title}】的【首次揭幕】！
-2. 【绝对严禁原地接续】：严禁在上一场景同一个房间或桌子前无缝继续说话！
-3. 【必须安排明确的时间推移与空间转换】：
-   - 时间跨度：剧情必须自然流逝（例如：“数天后”、“三周后的清晨”、“次月深夜”等）；
-   - 场景换新：根据【${safeAnchor.title}】的背景要求，必须彻底切换到全新地点；
-   - 镜头开端：开篇必须先用电影镜头刻画全新场景的环境光影、气温、声响底噪，交代时间推移的痕迹；
-   - 状态变化：角色穿戴与所持器物必须随时间和场景刷新！
-`;
+【时空转场提示】：上一阶段事件已告一段落。本回合进入全新事件【${safeAnchor.title}】，可自然交代时间或地点的适度推移。`;
           }
 
           let pacingGuide = '';
           if (safeAnchor.isBlip) {
-            pacingGuide = `\n【烁灭五年专属阶段】：当前第 ${ancStep}/3 回合，重点深化时代情绪与宿命感。`;
+            pacingGuide = `\n【烁灭五年专属阶段】：当前第 ${currentTurnInAnchor}/${ancMax} 回合，深化时代情绪。`;
           } else {
-            if (ancStep === 1) {
-              pacingGuide = `\n【新事件揭幕阶段：第 1/${ancMax} 回合 · 起势】${transitionDirective}\n展开事件【${safeAnchor.title}】的开端情境。`;
-            } else if (ancStep < ancMax) {
-              pacingGuide = `\n【本事件深入推演：第 ${ancStep}/${ancMax} 回合 · 进展】承接前文，紧扣当前事件环境推进【${safeAnchor.title}】的核心冲突。`;
+            if (currentTurnInAnchor === 1) {
+              pacingGuide = `\n【本事件开局：第 1/${ancMax} 回合】${transitionDirective}\n展开事件【${safeAnchor.title}】的冲突背景。`;
+            } else if (currentTurnInAnchor < ancMax) {
+              pacingGuide = `\n【本事件深入推进：第 ${currentTurnInAnchor}/${ancMax} 回合 · 紧密接续】必须无缝承接上一回合的场景、人物站位与未说完的对白！紧扣【${safeAnchor.title}】展开更深层的拉锯或技术交锋。`;
             } else {
-              pacingGuide = `\n【本事件收官阶段：第 ${ancStep}/${ancMax} 回合 · 终结】这是【${safeAnchor.title}】的最终幕，给出明确的阶段性解决，为后续转场预留余味。`;
+              pacingGuide = `\n【本事件终局收束：第 ${currentTurnInAnchor}/${ancMax} 回合 · 收尾】承接前文，给出【${safeAnchor.title}】的明确解决与收拢，留出余味。`;
             }
           }
 
           let ctx = last 
-            ? `\n【前情提要】：\n${last.story.slice(-300)}\n【玩家上一轮行动】：${last.choice}\n${pacingGuide}` 
+            ? `\n【上一回合场景回顾】：\n${last.story.slice(-500)}\n【玩家上一轮行动与纠偏】：\n${last.choice}\n${pacingGuide}` 
             : `\n开局第一回合。请写托尼·斯塔克与玩家的初会与磨合，紧扣首个事件锚点【${formatAnchorTitle(safeAnchor)}】。${pacingGuide}`;
 
           const sys = buildSystem('worldline');
@@ -7830,14 +7889,15 @@ if (s.localOnly && apiCfg('story').apiKey) {
       s = store.state();
       const anchorsSnap = JSON.parse(JSON.stringify(store.get('wl_anchors', [])));
       s.history.push({
-        story: s.story,
-        options: s.options,
-        choice,
-        _aff: s.affinity,
-        _year: flags().year,
-        _eraName: eraName(),
-        _anchorsSnap: anchorsSnap
-      });
+  story: s.story,
+  options: s.options,
+  choice,
+  _aff: s.affinity,
+  _year: flags().year,
+  _eraName: eraName(),
+  _anchorId: (curAnchor ? curAnchor.id : ''), // ← 加上这一行
+  _anchorsSnap: anchorsSnap
+});
 // ✅ 保持历史记录最多保留 50 回合，超出部分已经沉淀进长篇紧凑摘要(compactSummary)，杜绝本地存储超限
 if (s.history.length > 50) s.history = s.history.slice(-50);
 
