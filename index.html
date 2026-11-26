@@ -2026,8 +2026,21 @@ function storyMsgTime(){
   return `${yr}/${mm}/${dd} ${hh}:${min}`;
 }
 function todayStr(){const d=new Date();return d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日';}
-/* 世界线日期：年份取当前时间锚点，月日取今天 */
-function worldDate(){const f=flags();const d=new Date();return f.year+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日';}
+// 世界线当前专属日期：优先读取世界线保存的年月日，无则平滑回退
+function worldDateObj() {
+  const s = store.state() || {};
+  const f = flags();
+  const d = new Date();
+  const y = s.curYear || s.customYear || f.year;
+  const m = s.curMonth || (d.getMonth() + 1);
+  const day = s.curDay || d.getDate();
+  return { y, m, d: day };
+}
+
+function worldDate() {
+  const w = worldDateObj();
+  return `${w.y}年${w.m}月${w.d}日`;
+}
 let clockReady=false;
 function realClockText(){const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
 function syncClock(){
@@ -7459,6 +7472,9 @@ function openAnchorManagerModal(onRefresh) {
       modalEl.remove();
       if (onRefresh) onRefresh();
     };
+// 12. 显式绑定底部关闭按钮（彻底解决点击无反应）
+    const closeBtn = host.querySelector('[data-close]');
+    if (closeBtn) closeBtn.onclick = () => modalEl.remove();
   };
 
   // ==================== 2. 图 2 界面：插入/编辑阶段表单 ====================
@@ -7569,6 +7585,8 @@ function openAnchorManagerModal(onRefresh) {
       currentView = 'list';
       refreshModalView();
     };
+    const formCloseBtn = host.querySelector('[data-close]');
+    if (formCloseBtn) formCloseBtn.onclick = () => modalEl.remove();
 
     host.querySelector('#ef_submit').onclick = () => {
       const name = host.querySelector('#ef_name').value.trim();
@@ -7943,46 +7961,54 @@ if (!s.story) {
     // ===== 7. 分区填充 F1~F8 / story / opts：单区抛错只影响该区 =====
     const FB_OPTS='A. 把访客徽章别好，先问那行被划掉的数字\nB. 不碰任何东西，只把三份文件按日期理齐\nC. 回一句更快的俏皮话，把节奏抢回来\nD. 走到他身后，看他到底在改什么';
 
-    // F1 顶栏状态（TonyStatus.get / userAgeNow / relHTML 均在此回调内，抛错只降级 F1）
-    fill('wl_f1', ()=>{
-      const lv=s.affinity;
-      const icon=lv>=86?'❤️':lv>=61?'💛':lv>=31?'🧡':'🤍';
-      const st=TonyStatus.get();
-      return `<div class="statbar">
-        <div>
-          <div style="font-size:11px;color:var(--muted)">
-            ${esc(f.era.name)}<span class="tag">第 ${s.turn} 回合</span><span class="tag gold">托尼 ${f.tonyAge} 岁</span><span class="tag">${st.emoji} ${esc(st.label)}</span>
-          </div>
-          <div style="margin-top:4px"><span class="affval">好感度 ${s.affinity}/200</span></div>
-          <div class="hint" style="margin-top:2px">上回合变动：${s.lastDelta > 0 ? '+' : ''}${s.lastDelta || 0} · 你 ${userAgeNow()} 岁</div>
-          ${relHTML()}
-        </div>
-        <div style="font-size:26px">${icon}</div>
-      </div>`;
-    }, 'E-WL-002');
+    // F1 顶栏状态（支持点击日期直接自定义年月日）
+fill('wl_f1', ()=>{
+  const lv = s.affinity;
+  const icon = lv >= 86 ? '❤️' : lv >= 61 ? '💛' : lv >= 31 ? '🧡' : '🤍';
+  const st = TonyStatus.get();
+  const wDate = worldDate();
+  return `<div class="statbar">
+    <div style="flex:1; min-width:0">
+      <div style="font-size:11px;color:var(--muted); display:flex; align-items:center; flex-wrap:wrap; gap:4px">
+        <b>${esc(f.era.name)}</b>
+        <span class="tag" id="wl_change_date_btn" style="cursor:pointer; border:1px dashed var(--cyan); background:rgba(53,208,255,0.08); color:var(--cyan)" title="点击自定义世界线当前年月日">
+          📅 ${esc(wDate)} ✏
+        </span>
+        <span class="tag">第 ${s.turn} 回合</span>
+        <span class="tag gold">托尼 ${f.tonyAge} 岁</span>
+        <span class="tag">${st.emoji} ${esc(st.label)}</span>
+      </div>
+      <div style="margin-top:4px"><span class="affval">好感度 ${s.affinity}/200</span></div>
+      <div class="hint" style="margin-top:2px">上回合变动：${s.lastDelta > 0 ? '+' : ''}${s.lastDelta || 0} · 你 ${userAgeNow()} 岁</div>
+      ${relHTML()}
+    </div>
+    <div style="font-size:24px; flex-shrink:0; margin-left:6px">${icon}</div>
+  </div>`;
+}, 'E-WL-002');
 
-    // F2 顶端锚点条
-    fill('wl_f2', ()=>curAnchor ? `
-        <div class="card" style="padding:10px 12px;margin-bottom:8px;border-left:3px solid var(--gold);background:var(--panel2)">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <span class="eyebrow" style="color:var(--gold);font-size:10px">${esc(curAnchor.phaseTitle)}</span>
-            <span class="chip mini" id="wl_open_anc_mgr" style="cursor:pointer;margin:0;color:var(--cyan)">⚙ 锚点管理 / 更改</span>
-          </div>
-          <div style="font-family:var(--font-serif);font-size:13.5px;font-weight:700;margin:3px 0;color:var(--text)">
-            📌 当前推进：${esc(formatAnchorTitle(curAnchor))}
-          </div>
-          <div class="hint" style="font-size:11.5px;line-height:1.6;color:var(--muted)">
-            ${esc(curAnchor.desc)}
-          </div>
-        </div>` : '', 'E-WL-002');
+// F2 顶端锚点条
+fill('wl_f2', ()=>curAnchor ? `
+    <div class="card" style="padding:10px 12px;margin-bottom:8px;border-left:3px solid var(--gold);background:var(--panel2)">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span class="eyebrow" style="color:var(--gold);font-size:10px">${esc(curAnchor.phaseTitle)}</span>
+        <span class="chip mini" id="wl_open_anc_mgr" style="cursor:pointer;margin:0;color:var(--cyan)">⚙ 锚点管理 / 更改</span>
+      </div>
+      <div style="font-family:var(--font-serif);font-size:13.5px;font-weight:700;margin:3px 0;color:var(--text)">
+        📌 当前推进：${esc(formatAnchorTitle(curAnchor))}
+      </div>
+      <div class="hint" style="font-size:11.5px;line-height:1.6;color:var(--muted)">
+        ${esc(curAnchor.desc)}
+      </div>
+    </div>` : '', 'E-WL-002');
 
-    // F3 控制按钮行
-    fill('wl_f3', ()=>`<div class="row" style="margin-bottom:8px">
-        <button class="btn ghost" id="w_back" ${(s.history||[]).length ? '' : 'disabled'} title="彻底废弃当前回合，回退到前一回合的历史状态">↩ 回到上一回合</button>
-        <button class="btn ghost" id="w_reset_turn" title="保留当前回合计数，重新生成当前回合的叙事与选项">↺ 重置本回合</button>
-        <button class="btn ghost" id="w_save_slot">💾 剧情存读档</button>
-        <button class="btn ghost" id="w_mem">📜 回忆</button>
-      </div>`, 'E-WL-002');
+// F3 控制按钮行（加入「📅 校对时间」入口）
+fill('wl_f3', ()=>`<div class="row" style="margin-bottom:8px; flex-wrap:wrap; gap:6px">
+    <button class="btn ghost sm" id="w_back" ${(s.history||[]).length ? '' : 'disabled'} title="彻底废弃当前回合，回退到前一回合的历史状态" style="flex:1">↩ 上一回合</button>
+    <button class="btn ghost sm" id="w_reset_turn" title="保留当前回合计数，重新生成当前回合的叙事与选项" style="flex:1">↺ 重置本回合</button>
+    <button class="btn ghost sm" id="w_custom_time" style="flex:1; color:var(--cyan); font-weight:700" title="设定世界线年月日">📅 设定时间</button>
+    <button class="btn ghost sm" id="w_save_slot" style="flex:1">💾 存读档</button>
+    <button class="btn ghost sm" id="w_mem" style="flex:0 0 54px">📜 回忆</button>
+  </div>`, 'E-WL-002');
 
     // F4 字数区间 + 时间跳跃 / 分支树
     fill('wl_f4', ()=>`<div class="card" style="padding:10px;margin-bottom:8px">
@@ -8031,6 +8057,146 @@ if (s.localOnly && apiCfg('story').apiKey) {
 }
     // 最终 hint：显示所有状态条并启用三出路
     paintHint();
+
+// 弹出自定义年月日弹窗，严格检测阶段时间范围与跨阶段跳转
+const openWorldlineDateModal = () => {
+  const curW = worldDateObj();
+  const phasesList = wlGetPhasesFromAnchors();
+  const activeAnchor = getCurrentAnchor();
+  
+  // 定位当前锚点所属的阶段
+  const curPhase = phasesList.find(p => p.anchors.some(a => a.id === (activeAnchor ? activeAnchor.id : ''))) || phasesList[0];
+  const pYear = curPhase ? curPhase.year : curW.y;
+  const pMStart = curPhase ? (curPhase.monthStart || 1) : 1;
+  const pMEnd = curPhase ? (curPhase.monthEnd || 12) : 12;
+
+  const d = modal(`
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
+      <h2 style="font-size:16px; margin:0; font-family:var(--font-serif); color:var(--text); display:flex; align-items:center; gap:6px">
+        <span>📅</span> <span>世界线时间设定</span>
+      </h2>
+      <button class="btn sm ghost" data-close style="padding:2px 8px; font-size:11px">关闭</button>
+    </div>
+
+    <div class="card" style="padding:10px 12px; margin-bottom:12px; background:var(--panel2); border-left:3px solid var(--gold)">
+      <div style="font-size:11px; color:var(--muted)">当前推进阶段：</div>
+      <div style="font-weight:700; font-size:13px; color:var(--text); margin:2px 0 4px">${esc(curPhase ? curPhase.name : '未知阶段')}</div>
+      <div style="font-size:11px; color:var(--gold)">
+        ⏳ 本阶段允许的时间区间：<b>${pYear}年 ${pMStart}月 ~ ${pMEnd}月</b>
+      </div>
+    </div>
+
+    <div class="card" style="padding:12px; margin-bottom:12px">
+      <div class="field" style="margin-bottom:10px">
+        <label style="font-size:11.5px; font-weight:700; color:var(--text); margin-bottom:5px; display:block">世界线年份 (2007 ~ 2026)</label>
+        <input type="number" min="2007" max="2026" class="inp" id="wd_year" value="${curW.y}" style="font-size:14px; font-weight:700; font-family:var(--font-mono)">
+      </div>
+
+      <div class="row" style="gap:8px; margin-bottom:6px">
+        <div class="field" style="flex:1">
+          <label style="font-size:11.5px; font-weight:700; color:var(--text); margin-bottom:5px; display:block">月份 (1 ~ 12)</label>
+          <input type="number" min="1" max="12" class="inp" id="wd_month" value="${curW.m}" style="text-align:center; font-size:14px; font-weight:700; font-family:var(--font-mono)">
+        </div>
+        <div class="field" style="flex:1">
+          <label style="font-size:11.5px; font-weight:700; color:var(--text); margin-bottom:5px; display:block">日期 (1 ~ 31)</label>
+          <input type="number" min="1" max="31" class="inp" id="wd_day" value="${curW.d}" style="text-align:center; font-size:14px; font-weight:700; font-family:var(--font-mono)">
+        </div>
+      </div>
+    </div>
+
+    <div class="hint" style="font-size:11px; line-height:1.6; margin-bottom:12px; color:var(--muted); padding:0 2px">
+      ⚠️ <b>时间跨越规则说明</b>：<br>
+      · 若在当前阶段区间内微调，世界线剧情与事件平滑承接。<br>
+      · 若将时间修改至当前阶段之外（提前或往后跨年/跨月），系统将<b>自动跳跃至该时间点对应的世界线阶段</b>，并同步调整前置事件状态！
+    </div>
+
+    <div style="display:flex; gap:8px">
+      <button class="btn gold sm" id="wd_submit" style="flex:1; font-weight:700">✓ 确认调整时间</button>
+      <button class="btn ghost sm" data-close style="flex:0 0 70px">取消</button>
+    </div>
+  `);
+
+  d.querySelector('#wd_submit').onclick = () => {
+    const inputY = parseInt(d.querySelector('#wd_year').value) || curW.y;
+    const inputM = Math.max(1, Math.min(12, parseInt(d.querySelector('#wd_month').value) || 1));
+    const inputD = Math.max(1, Math.min(31, parseInt(d.querySelector('#wd_day').value) || 1));
+
+    // 判断是否超出了当前阶段的时间范围
+    const isYearOutOfPhase = inputY !== pYear;
+    const isMonthOutOfPhase = (inputM < pMStart || inputM > pMEnd);
+    const isOutOfPhase = isYearOutOfPhase || isMonthOutOfPhase;
+
+    if (!isOutOfPhase) {
+      // 在当前阶段内，直接修改并保存
+      const curSt = store.state() || {};
+      curSt.curYear = inputY;
+      curSt.curMonth = inputM;
+      curSt.curDay = inputD;
+      store.setState(curSt);
+
+      d.remove();
+      toast(`✅ 世界线时间已调整为：${inputY}年${inputM}月${inputD}日`);
+      self.render(v);
+      return;
+    }
+
+    // 跨越阶段：智能寻找目标阶段
+    let targetPhase = phasesList.find(p => p.year === inputY && inputM >= (p.monthStart || 1) && inputM <= (p.monthEnd || 12));
+    if (!targetPhase) {
+      targetPhase = phasesList.find(p => p.year === inputY);
+    }
+    if (!targetPhase) {
+      // 按年份临近寻找
+      targetPhase = phasesList.filter(p => p.year <= inputY).pop() || phasesList[0];
+    }
+
+    const confirmMsg = `⚠️ 跨阶段时间跳跃确认：\n\n您选择的时间为【${inputY}年${inputM}月${inputD}日】，已超出当前【${curPhase ? curPhase.name : ''}】的时间范围。\n\n系统将自动将世界线跳转至：\n【${targetPhase.name}】！\n\n是否立即执行时空跳跃？`;
+
+    if (!confirm(confirmMsg)) return;
+
+    // 执行跨阶段跳跃
+    const curSt = store.state() || {};
+    curSt.curYear = inputY;
+    curSt.curMonth = inputM;
+    curSt.curDay = inputD;
+    curSt.customYear = inputY;
+    curSt.gameYear = inputY;
+
+    // 刷新所处的时代 ID
+    const matchedEra = WORLD.eras.filter(e => e.year <= inputY).pop();
+    if (matchedEra) curSt.era = matchedEra.id;
+
+    // 自动完成该目标阶段之前的所有事件锚点
+    const flatAnchors = normalizeAnchorList(store.get('wl_anchors', []));
+    let passedTarget = false;
+    let newCurrentId = '';
+
+    flatAnchors.forEach(a => {
+      if (a.phaseTitle === targetPhase.name) {
+        passedTarget = true;
+        if (!newCurrentId) newCurrentId = a.id;
+        a.done = false;
+      } else if (!passedTarget) {
+        a.done = true; // 目标之前的自动标为已发生
+        a.curTurns = a.maxTurns || 3;
+      }
+    });
+
+    if (newCurrentId) wlSetPinned(newCurrentId);
+    store.set('wl_anchors', flatAnchors);
+    store.setState(curSt);
+
+    d.remove();
+    toast(`⏩ 时间已跃迁至 ${inputY}年${inputM}月${inputD}日，进入【${targetPhase.name}】`);
+    self.render(v);
+  };
+};
+
+// 绑定点击日期的交互入口
+const dateBtn = v.querySelector('#wl_change_date_btn');
+if (dateBtn) dateBtn.onclick = openWorldlineDateModal;
+const customTimeBtn = v.querySelector('#w_custom_time');
+if (customTimeBtn) customTimeBtn.onclick = openWorldlineDateModal;
 
     // 打开锚点管理器
     const mgrBtn = v.querySelector('#wl_open_anc_mgr');
