@@ -16415,15 +16415,6 @@ function dtGetAllPlaces() {
   const presets = datePlacesFor();
   const customs = dtCustomPlaces();
   const map = new Map();
-function dtCustomPlaces() { return store.get('dt_custom_places', []); }
-function dtSaveCustomPlaces(list) { store.set('dt_custom_places', list); }
-function dtAutoMsgOn() { return store.get('dt_auto_msg', true) !== false; }
-function dtSetAutoMsg(b) { store.set('dt_auto_msg', !!b); }
-
-function dtGetAllPlaces() {
-  const presets = datePlacesFor();
-  const customs = dtCustomPlaces();
-  const map = new Map();
   presets.forEach(p => {
     map.set(p.key, { ...p, spots: Array.isArray(p.spots) ? [...p.spots] : [], isCustom: false });
   });
