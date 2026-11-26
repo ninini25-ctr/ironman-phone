@@ -7110,75 +7110,130 @@ function advanceCurrentAnchorTurn() {
   }
 }
 
-// 弹出玩家自由修改、自定义阶段名称、紧凑折叠的锚点管理弹窗
+// ====== 全阶段 · 阶段与锚点控制中心 (All-Phase Cinematic Master Hub) ======
 function openAnchorManagerModal(onRefresh) {
   let anchors = normalizeAnchorList(store.get('wl_anchors', []));
   const curAtOpen = getCurrentAnchor();
-  let expandedSet = new Set(curAtOpen ? [curAtOpen.id] : []); // 默认只展开当前正在推进的阶段
+  
+  // 提取全部唯一的阶段名称（保留出现顺序）
+  const getUniquePhases = (list) => {
+    const set = new Set();
+    const arr = [];
+    list.forEach(a => {
+      const p = a.phaseTitle || '未分类阶段';
+      if (!set.has(p)) { set.add(p); arr.push(p); }
+    });
+    return arr.length ? arr : ['第 1 阶段'];
+  };
 
-  const renderList = () => {
-    const n = anchors.length;
-    return anchors.map((a, idx) => {
+  let allPhases = getUniquePhases(anchors);
+  // 当前聚焦选中的阶段标签：优先显示当前正在推演的阶段
+  let activePhase = (curAtOpen && curAtOpen.phaseTitle) ? curAtOpen.phaseTitle : allPhases[0];
+  if (!allPhases.includes(activePhase)) activePhase = allPhases[0];
+
+  let expandedSet = new Set(curAtOpen ? [curAtOpen.id] : []);
+
+  // 渲染顶部全阶段横向切换栏
+  const renderPhaseTabs = () => {
+    return allPhases.map(pName => {
+      const pAnchors = anchors.filter(a => (a.phaseTitle || '未分类阶段') === pName);
+      const doneCount = pAnchors.filter(a => a.done).length;
+      const isCurPhase = curAtOpen && (curAtOpen.phaseTitle || '未分类阶段') === pName;
+      const isActive = activePhase === pName;
+
+      return `
+        <button type="button" class="chip ${isActive ? 'on' : ''}" data-switch-phase="${esc(pName)}" style="padding:5px 10px;font-size:11px;flex:0 0 auto;border-radius:12px;margin-right:6px;transition:.15s;${isCurPhase ? 'border-color:var(--gold);box-shadow:0 0 6px rgba(245,185,66,.25);' : ''}">
+          ${isCurPhase ? '★ ' : ''}${esc(pName)}
+          <span style="opacity:0.75;font-size:9.5px;margin-left:3px">(${doneCount}/${pAnchors.length})</span>
+        </button>
+      `;
+    }).join('') + `
+      <button type="button" class="chip" id="hub_add_new_phase_btn" style="border-style:dashed;color:var(--cyan);padding:5px 9px;font-size:11px;flex:0 0 auto">
+        ＋ 新建阶段
+      </button>
+    `;
+  };
+
+  // 渲染当前阶段内部的事件列表
+  const renderAnchorCards = () => {
+    const list = anchors.filter(a => (a.phaseTitle || '未分类阶段') === activePhase);
+    if (!list.length) {
+      return `<div class="empty" style="padding:30px 10px;background:var(--panel2);border-radius:12px;border:1px dashed var(--line)">
+        该阶段暂无事件。点击下方「＋ 为本阶段添加新事件」创建。
+      </div>`;
+    }
+
+    return list.map((a) => {
+      const globalIdx = anchors.findIndex(x => x.id === a.id);
       const isCur = curAtOpen && curAtOpen.id === a.id;
       const isOpen = expandedSet.has(a.id);
       const curT = a.curTurns || 0;
       const maxT = a.maxTurns || 3;
 
       return `
-      <div class="card anc-card" style="padding:0;margin-bottom:7px;background:var(--panel2);border-left:3px solid ${a.done ? 'var(--green)' : isCur ? 'var(--cyan)' : 'var(--gold)'};overflow:hidden">
-        <!-- 紧凑折叠摘要栏（点击即展开/收起） -->
-        <div data-anc-toggle-fold="${a.id}" style="display:flex;align-items:center;gap:7px;padding:9px 11px;cursor:pointer;user-select:none;background:${isOpen ? 'rgba(53,208,255,0.04)' : 'transparent'}">
-          <span style="font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--cyan);width:18px">${idx + 1}</span>
-          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
-            <div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-              ${esc(a.phaseTitle || '自定义阶段')}
+      <div class="card anc-card" style="padding:0;margin-bottom:8px;background:var(--panel2);border-radius:12px;border:1px solid ${isCur ? 'var(--cyan)' : 'var(--line)'};border-left:4px solid ${a.done ? 'var(--green)' : isCur ? 'var(--cyan)' : 'var(--gold)'};box-shadow:${isCur ? '0 0 10px var(--cyanGlow)' : '0 2px 6px rgba(0,0,0,.15)'};overflow:hidden">
+        <!-- 紧凑折叠条 -->
+        <div data-anc-fold="${a.id}" style="display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;background:${isOpen ? 'rgba(53,208,255,0.06)' : 'transparent'}">
+          <span style="font-family:var(--font-mono);font-size:11px;font-weight:700;color:${isCur ? 'var(--cyan)' : 'var(--muted)'};width:20px">
+            #${globalIdx + 1}
+          </span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+              ${isCur ? '<span style="color:var(--cyan)">● 正在推进: </span>' : ''}${esc(a.title || '未命名事件')}
             </div>
-            <div style="font-weight:700;font-size:12.5px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-              ${esc(a.title || '无标题事件')}
+            <div style="font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px">
+              ${esc(a.desc || '暂无描述')}
             </div>
           </div>
-          <span class="tag ${a.done ? 'green' : 'gold'}" style="font-size:9.5px;flex:0 0 auto;padding:2px 6px">
-            ${a.done ? `已完成 (${curT}/${maxT})` : isCur ? `推进中 (${curT}/${maxT})` : `待推进 (${curT}/${maxT})`}
+          <span class="tag ${a.done ? 'green' : isCur ? '' : 'gold'}" style="font-size:9.5px;flex:0 0 auto;padding:2px 6px">
+            ${a.done ? `已达成 (${curT}/${maxT})` : isCur ? `推进中 (${curT}/${maxT})` : `计划 (${curT}/${maxT})`}
           </span>
-          <span style="font-size:12px;color:var(--muted);margin-left:2px">${isOpen ? '▲' : '▼'}</span>
+          <span style="font-size:10px;color:var(--muted)">${isOpen ? '▲' : '▼'}</span>
         </div>
 
-        <!-- 展开编辑详情区域 -->
+        <!-- 展开编辑详情 -->
         ${isOpen ? `
-        <div style="padding:10px 11px 12px;border-top:1px dashed var(--line);background:rgba(0,0,0,0.15)">
-          <div class="row anc-move" style="gap:4px;margin-bottom:8px;align-items:center">
-            <span class="hint" style="flex:1;font-size:10.5px">排序位置：</span>
-            <button type="button" class="btn sm ghost" data-anc-move="top" data-idx="${idx}" title="顶" ${idx === 0 ? 'disabled' : ''} style="flex:0 0 32px;padding:3px 0">⤒</button>
-            <button type="button" class="btn sm ghost" data-anc-move="up" data-idx="${idx}" title="上" ${idx === 0 ? 'disabled' : ''} style="flex:0 0 32px;padding:3px 0">↑</button>
-            <button type="button" class="btn sm ghost" data-anc-move="down" data-idx="${idx}" title="下" ${idx === n - 1 ? 'disabled' : ''} style="flex:0 0 32px;padding:3px 0">↓</button>
-            <button type="button" class="btn sm ghost" data-anc-move="bottom" data-idx="${idx}" title="底" ${idx === n - 1 ? 'disabled' : ''} style="flex:0 0 32px;padding:3px 0">⤓</button>
+        <div style="padding:10px 12px 12px;border-top:1px dashed var(--line);background:rgba(0,0,0,0.18)">
+          <!-- 跨阶段调整与排序工具条 -->
+          <div style="display:flex;gap:5px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+            <span class="hint" style="font-size:10.5px;margin-right:auto">当前位于全局第 ${globalIdx + 1} 位</span>
+            <button type="button" class="btn sm ghost" data-anc-set-active="${a.id}" style="padding:3px 7px;font-size:10px;color:var(--cyan)" title="直接将此事件设为当前正在推进">
+              🎯 设为当前推演
+            </button>
+            <button type="button" class="btn sm ghost" data-anc-move="up" data-idx="${globalIdx}" title="上移" ${globalIdx === 0 ? 'disabled' : ''} style="flex:0 0 28px;padding:3px 0">↑</button>
+            <button type="button" class="btn sm ghost" data-anc-move="down" data-idx="${globalIdx}" title="下移" ${globalIdx === anchors.length - 1 ? 'disabled' : ''} style="flex:0 0 28px;padding:3px 0">↓</button>
+          </div>
+
+          <!-- 所属阶段输入（改动这里可把该事件直接搬移至其他阶段） -->
+          <div class="field" style="margin-bottom:6px">
+            <label style="font-size:10.5px;color:var(--muted)">所属阶段名称（支持任意修改或归并）：</label>
+            <input class="inp anc_phase_in" data-id="${a.id}" value="${esc(a.phaseTitle || activePhase)}" placeholder="阶段名称" style="font-size:11.5px;padding:5px 8px">
           </div>
 
           <div class="field" style="margin-bottom:6px">
-            <label style="font-size:11px;color:var(--muted)">阶段名称（可随意自由重命名）：</label>
-            <input class="inp anc_phase_in" data-idx="${idx}" value="${esc(a.phaseTitle || '')}" placeholder="如：第 1 阶段 · 荒漠破局" style="font-size:12px;padding:6px 8px">
-          </div>
-
-          <div class="field" style="margin-bottom:6px">
-            <label style="font-size:11px;color:var(--muted)">核心事件标题：</label>
-            <input class="inp anc_t_in" data-idx="${idx}" value="${esc(a.title || '')}" placeholder="事件名称" style="font-weight:700;font-size:13px;padding:6px 8px">
+            <label style="font-size:10.5px;color:var(--muted)">事件标题：</label>
+            <input class="inp anc_t_in" data-id="${a.id}" value="${esc(a.title || '')}" placeholder="事件标题" style="font-weight:700;font-size:12.5px;padding:6px 8px">
           </div>
 
           <div class="row" style="margin-bottom:6px;align-items:center;gap:6px">
-            <span class="hint" style="font-size:11px;flex:0 0 auto">已完成回合数:</span>
-            <input type="number" min="0" max="20" class="inp anc_cur_in" data-idx="${idx}" value="${curT}" style="flex:1;padding:5px;text-align:center" title="已完成回合">
+            <span class="hint" style="font-size:11px;flex:0 0 auto">已完成回合:</span>
+            <input type="number" min="0" max="20" class="inp anc_cur_in" data-id="${a.id}" value="${curT}" style="flex:1;padding:5px;text-align:center">
             <span class="hint" style="font-size:11px;flex:0 0 auto">/ 规划总回合:</span>
-            <input type="number" min="1" max="20" class="inp anc_max_in" data-idx="${idx}" value="${maxT}" style="flex:1;padding:5px;text-align:center" title="总回合数(可自由设置1~20)">
+            <input type="number" min="1" max="20" class="inp anc_max_in" data-id="${a.id}" value="${maxT}" style="flex:1;padding:5px;text-align:center" title="支持自由设定 1~20 回合">
           </div>
 
           <div class="field" style="margin-bottom:8px">
-            <label style="font-size:11px;color:var(--muted)">事件背景细节与剧情指引：</label>
-            <textarea class="inp anc_d_in" data-idx="${idx}" rows="2" style="font-size:11.5px;padding:6px 8px;line-height:1.5">${esc(a.desc || '')}</textarea>
+            <label style="font-size:10.5px;color:var(--muted)">剧情背景与引导细节：</label>
+            <textarea class="inp anc_d_in" data-id="${a.id}" rows="2" style="font-size:11.5px;padding:6px 8px;line-height:1.5">${esc(a.desc || '')}</textarea>
           </div>
 
           <div class="row" style="gap:6px">
-            <button class="btn sm ghost" data-anc-toggle="${idx}" style="font-size:11.5px">${a.done ? '标记为未完成' : '立即标记为达成'}</button>
-            <button class="btn sm red ghost" data-anc-del="${idx}" style="flex:0 0 50px;font-size:11.5px">删除</button>
+            <button type="button" class="btn sm ghost" data-anc-toggle="${a.id}" style="font-size:11px;flex:1">
+              ${a.done ? '重置为未完成' : '立即标为已达成'}
+            </button>
+            <button type="button" class="btn sm red ghost" data-anc-del="${a.id}" style="flex:0 0 52px;font-size:11px">
+              删除
+            </button>
           </div>
         </div>` : ''}
       </div>`;
@@ -7186,100 +7241,211 @@ function openAnchorManagerModal(onRefresh) {
   };
 
   const d = modal(`
-    <h2 style="color:var(--gold);margin-top:0;font-size:16px">🎯 阶段与事件锚点中心</h2>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <span class="hint" style="font-size:11px">已收拢为紧凑提纲，点击卡片随时展开编辑：</span>
-      <button class="btn ghost sm" id="anc_fold_all" style="font-size:10px;padding:2px 6px">全部展开/收起</button>
-    </div>
-    
-    <div id="anc_container" style="max-height:50vh;overflow-y:auto;padding-right:2px">${renderList()}</div>
-    
-    <!-- 新增锚点卡片 -->
-    <div class="card" style="padding:10px;margin-top:10px">
-      <h3 style="margin:0 0 6px;font-size:12px;color:var(--cyan)">＋ 自定义添加新事件阶段</h3>
-      <div class="row" style="margin-bottom:6px">
-        <input id="new_anc_phase" class="inp" style="flex:1;font-size:11.5px" placeholder="阶段名，如：第 4 阶段 · 隐秘盟约">
-        <input id="new_anc_turns" type="number" min="1" max="20" value="4" class="inp" style="flex:0 0 80px;text-align:center" placeholder="总回合数">
+    <style>
+      .hub-phase-nav::-webkit-scrollbar { display: none; }
+      .hub-phase-nav { scrollbar-width: none; }
+    </style>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div>
+        <h2 style="color:var(--gold);margin:0;font-size:16px;display:flex;align-items:center;gap:6px">
+          <span>🎯</span> 全阶段与事件总控中心
+        </h2>
+        <div class="hint" style="font-size:10.5px;margin-top:2px">全阶段穿梭管理 · 自由修改阶段名、事件与回合</div>
       </div>
-      <div class="field" style="margin-bottom:6px">
-        <input id="new_anc_t" class="inp" style="font-size:12.5px" placeholder="事件标题，如：深夜工坊的联合设计测试">
-      </div>
-      <div class="field" style="margin-bottom:6px">
-        <textarea id="new_anc_d" class="inp" rows="2" placeholder="细节与剧情指引，AI 将据此展开深层推演…"></textarea>
-      </div>
-      <button class="btn sm gold" id="new_anc_btn">添加至锚点链</button>
+      <button class="btn ghost sm" id="hub_fold_all" style="font-size:10.5px;padding:3px 7px">全部展开/折叠</button>
     </div>
 
+    <!-- 顶部横向全阶段滚动切换胶囊栏 -->
+    <div class="hub-phase-nav" id="hub_phase_bar" style="display:flex;overflow-x:auto;padding-bottom:6px;margin-bottom:8px;border-bottom:1px solid var(--line)">
+      ${renderPhaseTabs()}
+    </div>
+
+    <!-- 当前阶段的阶段名一键重命名行 -->
+    <div class="card" style="padding:8px 10px;margin-bottom:8px;background:var(--panel);border-color:var(--line);display:flex;align-items:center;gap:8px">
+      <span class="hint" style="flex:0 0 auto;font-size:11px;font-weight:700;color:var(--cyan)">当前阶段名:</span>
+      <input id="hub_rename_active_phase" class="inp" value="${esc(activePhase)}" style="flex:1;padding:4px 8px;font-size:12px;font-weight:600">
+      <button type="button" class="btn sm ghost" id="hub_rename_phase_btn" style="flex:0 0 auto;font-size:10.5px;padding:4px 8px">重命名本阶段</button>
+    </div>
+
+    <!-- 主事件卡片列表视口 -->
+    <div id="hub_anchor_container" style="max-height:46vh;overflow-y:auto;padding-right:2px">
+      ${renderAnchorCards()}
+    </div>
+
+    <!-- 为当前阶段添加新事件 -->
+    <div class="card" style="padding:10px;margin-top:10px;background:var(--panel2)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-size:11.5px;font-weight:700;color:var(--cyan)">＋ 为【${esc(activePhase)}】添加新事件</span>
+        <div style="display:flex;align-items:center;gap:4px">
+          <span class="hint" style="font-size:10.5px">规划回合:</span>
+          <input id="new_anc_turns" type="number" min="1" max="20" value="4" class="inp" style="width:50px;padding:2px 5px;text-align:center;font-size:11px">
+        </div>
+      </div>
+      <input id="new_anc_t" class="inp" style="font-size:12px;margin-bottom:6px" placeholder="事件标题，如：地下车库的冷调初遇">
+      <textarea id="new_anc_d" class="inp" rows="2" style="font-size:11.5px;margin-bottom:6px" placeholder="细节描述与情节导向，AI 推演时将严格围绕此展开…"></textarea>
+      <button type="button" class="btn sm gold" id="new_anc_btn" style="width:100%">添加至本阶段</button>
+    </div>
+
+    <!-- 底部操作按钮 -->
     <div class="row" style="margin-top:10px;gap:6px">
-      <button class="btn sm" id="anc_save_all" style="flex:1">💾 保存所有修改</button>
-      <button class="btn ghost sm" id="anc_reset_mcu" style="color:var(--red);flex:0 0 auto">↺ 重置原著预设</button>
-      <button class="btn ghost sm" data-close style="flex:0 0 auto">关闭</button>
+      <button class="btn sm" id="hub_save_all" style="flex:1;padding:8px">💾 保存全部修改</button>
+      <button class="btn ghost sm" id="hub_reset_mcu" style="color:var(--red);flex:0 0 auto;padding:8px">↺ 恢复原著预设</button>
+      <button class="btn ghost sm" data-close style="flex:0 0 auto;padding:8px">关闭</button>
     </div>
   `);
 
+  // 提取输入框所有实时修改（通过 a.id 唯一定位，避免排序或切换阶段时数据错乱）
   const syncInputs = () => {
     d.querySelectorAll('.anc_phase_in').forEach(i => {
-      const idx = +i.dataset.idx; if (anchors[idx]) anchors[idx].phaseTitle = i.value.trim() || `第 ${idx + 1} 阶段`;
+      const target = anchors.find(x => x.id === i.dataset.id);
+      if (target) target.phaseTitle = i.value.trim() || '未分类阶段';
     });
     d.querySelectorAll('.anc_t_in').forEach(i => {
-      const idx = +i.dataset.idx; if (anchors[idx]) anchors[idx].title = i.value.trim() || '未命名事件';
+      const target = anchors.find(x => x.id === i.dataset.id);
+      if (target) target.title = i.value.trim() || '未命名事件';
     });
     d.querySelectorAll('.anc_d_in').forEach(i => {
-      const idx = +i.dataset.idx; if (anchors[idx]) anchors[idx].desc = i.value.trim() || '';
+      const target = anchors.find(x => x.id === i.dataset.id);
+      if (target) target.desc = i.value.trim() || '';
     });
     d.querySelectorAll('.anc_max_in').forEach(i => {
-      const idx = +i.dataset.idx; if (anchors[idx]) anchors[idx].maxTurns = Math.max(1, parseInt(i.value) || 3);
+      const target = anchors.find(x => x.id === i.dataset.id);
+      if (target) target.maxTurns = Math.max(1, parseInt(i.value) || 3);
     });
     d.querySelectorAll('.anc_cur_in').forEach(i => {
-      const idx = +i.dataset.idx;
-      if (anchors[idx]) {
+      const target = anchors.find(x => x.id === i.dataset.id);
+      if (target) {
         const c = Math.max(0, parseInt(i.value) || 0);
-        anchors[idx].curTurns = c;
-        anchors[idx].done = c >= anchors[idx].maxTurns;
+        target.curTurns = c;
+        target.done = c >= target.maxTurns;
       }
     });
   };
 
-  const repaint = () => {
-    const c = d.querySelector('#anc_container');
-    if (c) c.innerHTML = renderList();
+  const fullRepaint = () => {
+    allPhases = getUniquePhases(anchors);
+    if (!allPhases.includes(activePhase)) activePhase = allPhases[0] || '第 1 阶段';
+    
+    const pBar = d.querySelector('#hub_phase_bar');
+    if (pBar) pBar.innerHTML = renderPhaseTabs();
+
+    const renInp = d.querySelector('#hub_rename_active_phase');
+    if (renInp) renInp.value = activePhase;
+
+    const cont = d.querySelector('#hub_anchor_container');
+    if (cont) cont.innerHTML = renderAnchorCards();
+
     bindEvents();
   };
 
   const bindEvents = () => {
-    d.querySelectorAll('[data-anc-toggle-fold]').forEach(el => {
-      el.onclick = (e) => {
-        // 如果点击的是输入框本身，不触发折叠
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') return;
+    // 阶段切换
+    d.querySelectorAll('[data-switch-phase]').forEach(b => {
+      b.onclick = () => {
         syncInputs();
-        const id = el.dataset.ancToggleFold;
-        if (expandedSet.has(id)) expandedSet.delete(id);
-        else expandedSet.add(id);
-        repaint();
+        activePhase = b.dataset.switchPhase;
+        fullRepaint();
       };
     });
 
+    // 新建阶段
+    const newPhaseBtn = d.querySelector('#hub_add_new_phase_btn');
+    if (newPhaseBtn) {
+      newPhaseBtn.onclick = () => {
+        syncInputs();
+        const nextNum = allPhases.length + 1;
+        const phaseName = prompt(`请输入新阶段名称：`, `第 ${nextNum} 阶段 · 自定义篇章`);
+        if (!phaseName || !phaseName.trim()) return;
+        const cleanName = phaseName.trim();
+        // 自动新建一个初始事件放入该阶段
+        const newId = 'anc_u_' + Date.now();
+        anchors.push({
+          id: newId,
+          phaseTitle: cleanName,
+          title: `${cleanName} · 序章`,
+          desc: '在此开始展开全新篇章的剧情推演。',
+          curTurns: 0,
+          maxTurns: 4,
+          done: false
+        });
+        activePhase = cleanName;
+        expandedSet.add(newId);
+        fullRepaint();
+        toast(`已新建并切换到【${cleanName}】`);
+      };
+    }
+
+    // 重命名当前阶段
+    const renBtn = d.querySelector('#hub_rename_phase_btn');
+    if (renBtn) {
+      renBtn.onclick = () => {
+        syncInputs();
+        const newName = d.querySelector('#hub_rename_active_phase').value.trim();
+        if (!newName || newName === activePhase) return toast('名称未发生变化');
+        // 将属于当前阶段的所有事件的 phaseTitle 全部更新
+        anchors.forEach(a => {
+          if ((a.phaseTitle || '未分类阶段') === activePhase) a.phaseTitle = newName;
+        });
+        activePhase = newName;
+        fullRepaint();
+        toast('阶段重命名成功');
+      };
+    }
+
+    // 折叠展开
+    d.querySelectorAll('[data-anc-fold]').forEach(el => {
+      el.onclick = (e) => {
+        if (['INPUT', 'TEXTAREA', 'BUTTON'].includes(e.target.tagName)) return;
+        syncInputs();
+        const id = el.dataset.ancFold;
+        if (expandedSet.has(id)) expandedSet.delete(id);
+        else expandedSet.add(id);
+        const cont = d.querySelector('#hub_anchor_container');
+        if (cont) cont.innerHTML = renderAnchorCards();
+        bindEvents();
+      };
+    });
+
+    // 直接设为当前正在推进事件
+    d.querySelectorAll('[data-anc-set-active]').forEach(b => {
+      b.onclick = () => {
+        syncInputs();
+        const targetId = b.dataset.ancSetActive;
+        wlSetPinned(targetId);
+        // 将该事件标记为未完成（确保推演不会跳过）
+        const it = anchors.find(x => x.id === targetId);
+        if (it) it.done = false;
+        fullRepaint();
+        toast(`已将【${it ? it.title : '目标事件'}】设为当前核心推进目标！`);
+      };
+    });
+
+    // 达成状态切换
     d.querySelectorAll('[data-anc-toggle]').forEach(b => {
       b.onclick = () => {
         syncInputs();
-        const idx = +b.dataset.ancToggle;
-        if (!anchors[idx]) return;
-        anchors[idx].done = !anchors[idx].done;
-        anchors[idx].curTurns = anchors[idx].done ? anchors[idx].maxTurns : 0;
-        repaint();
+        const it = anchors.find(x => x.id === b.dataset.ancToggle);
+        if (!it) return;
+        it.done = !it.done;
+        it.curTurns = it.done ? it.maxTurns : 0;
+        fullRepaint();
       };
     });
 
+    // 删除事件
     d.querySelectorAll('[data-anc-del]').forEach(b => {
       b.onclick = () => {
         syncInputs();
-        const idx = +b.dataset.ancDel;
-        if (!anchors[idx]) return;
-        anchors.splice(idx, 1);
-        repaint();
+        const itIdx = anchors.findIndex(x => x.id === b.dataset.ancDel);
+        if (itIdx < 0) return;
+        const delTitle = anchors[itIdx].title;
+        anchors.splice(itIdx, 1);
+        fullRepaint();
+        toast(`已删除事件【${delTitle}】`);
       };
     });
 
+    // 排序
     d.querySelectorAll('[data-anc-move]').forEach(b => {
       b.onclick = () => {
         syncInputs();
@@ -7288,39 +7454,39 @@ function openAnchorManagerModal(onRefresh) {
         let to = idx;
         if (dir === 'up') to = Math.max(0, idx - 1);
         else if (dir === 'down') to = Math.min(anchors.length - 1, idx + 1);
-        else if (dir === 'top') to = 0;
-        else if (dir === 'bottom') to = anchors.length - 1;
         if (to === idx) return;
-        const [item] = anchors.splice(idx, 1);
-        anchors.splice(to, 0, item);
-        repaint();
+        const [moved] = anchors.splice(idx, 1);
+        anchors.splice(to, 0, moved);
+        fullRepaint();
       };
     });
   };
 
   bindEvents();
 
-  // 全部展开/收起切换
-  d.querySelector('#anc_fold_all').onclick = () => {
+  // 全部展开/收起
+  d.querySelector('#hub_fold_all').onclick = () => {
     syncInputs();
-    if (expandedSet.size >= anchors.length) expandedSet.clear();
-    else expandedSet = new Set(anchors.map(a => a.id));
-    repaint();
+    const curList = anchors.filter(a => (a.phaseTitle || '未分类阶段') === activePhase);
+    if (expandedSet.size >= curList.length) expandedSet.clear();
+    else expandedSet = new Set(curList.map(a => a.id));
+    const cont = d.querySelector('#hub_anchor_container');
+    if (cont) cont.innerHTML = renderAnchorCards();
+    bindEvents();
   };
 
-  // 添加新锚点
+  // 为当前阶段添加事件
   d.querySelector('#new_anc_btn').onclick = () => {
-    const phase = d.querySelector('#new_anc_phase').value.trim() || `第 ${anchors.length + 1} 阶段 · 自定义`;
     const t = d.querySelector('#new_anc_t').value.trim();
     const dc = d.querySelector('#new_anc_d').value.trim();
     const turns = Math.max(1, parseInt(d.querySelector('#new_anc_turns').value) || 4);
     if (!t) return toast('请输入事件标题');
 
     syncInputs();
-    const newId = 'anc_user_' + Date.now();
+    const newId = 'anc_u_' + Date.now();
     anchors.push({
       id: newId,
-      phaseTitle: phase,
+      phaseTitle: activePhase,
       title: t,
       desc: dc || '遵循此剧情指引展开深层推演。',
       curTurns: 0,
@@ -7330,40 +7496,43 @@ function openAnchorManagerModal(onRefresh) {
     expandedSet.add(newId);
     d.querySelector('#new_anc_t').value = '';
     d.querySelector('#new_anc_d').value = '';
-    repaint();
-    toast('已添加新事件阶段');
+    fullRepaint();
+    toast(`已添加至【${activePhase}】`);
   };
 
-  // 保存所有修改
-  d.querySelector('#anc_save_all').onclick = () => {
+  // 保存所有修改并落盘
+  d.querySelector('#hub_save_all').onclick = () => {
     syncInputs();
-    // 寻找当前应当锁定的目标
-    const firstUnfinished = anchors.find(a => !a.done) || anchors[anchors.length - 1];
-    let pinId = firstUnfinished ? firstUnfinished.id : '';
-    
-    // 如果之前锁定的依然在且未完成，优先沿用之前的锁定，保证绝对不跨跳
-    if (curAtOpen && anchors.some(a => a.id === curAtOpen.id && !a.done)) {
-      pinId = curAtOpen.id;
+    if (!anchors.length) {
+      toast('至少需要保留一个事件锚点');
+      return;
+    }
+
+    // 确保当前锁定有效
+    const pid = wlPinnedId();
+    let validPin = anchors.find(a => a.id === pid && !a.done);
+    if (!validPin) {
+      const firstUnfinished = anchors.find(a => !a.done) || anchors[anchors.length - 1];
+      wlSetPinned(firstUnfinished ? firstUnfinished.id : anchors[0].id);
     }
 
     store.set('wl_anchors', anchors);
-    wlSetPinned(pinId);
-    toast('✅ 阶段与事件配置已保存');
+    toast('✅ 全阶段与事件锚点已成功保存生效');
     d.remove();
-    // 刷新页面状态，但不冲刷已生成的剧情文本
     if (onRefresh) {
       try { onRefresh(); } catch (e) {}
     }
   };
 
-  d.querySelector('#anc_reset_mcu').onclick = () => {
-    if (!confirm('确定重置为电影官方预设？自定义的阶段将被清空。')) return;
+  // 重置回电影预设
+  d.querySelector('#hub_reset_mcu').onclick = () => {
+    if (!confirm('确定重置回电影官方预设？所有自定义阶段和新加的事件将被清空。')) return;
     store.set('wl_anchors', null);
     wlSetPinned('');
     d.remove();
     initOrGetAnchors().then(() => {
       if (onRefresh) onRefresh();
-      toast('已恢复为原著阶段编年史');
+      toast('已恢复原著阶段编年史');
     });
   };
 }
