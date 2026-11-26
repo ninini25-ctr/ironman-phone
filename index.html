@@ -25,13 +25,17 @@
     --font-en:"Iowan Old Style","Palatino Linotype","Book Antiqua","EB Garamond",Georgia,"Times New Roman",serif;
   --font-mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
   --font-body:var(--font-ui);
-  --font-size-base:14px;
-  --radius:16px;
-  /* ---- UI 密度 / 间距 / 行高 / 圆角（可由外观设置自定义） ---- */
-  --ui-card-pad:15px;       /* 卡片内边距 */
-  --ui-card-gap:12px;       /* 卡片间距 */
-  --ui-pad:14px;            /* 页面外边距 */
-  --ui-line-h:1.95;         /* 正文行高 */
+  --font-size-base:12.5px;   /* 缩小全局基础字号（原 14px） */
+  --radius:14px;
+  /* ---- 全局紧凑排版微调 ---- */
+  --ui-card-pad:11px;       /* 卡片内边距紧凑化 */
+  --ui-card-gap:8px;        /* 卡片间距缩小 */
+  --ui-pad:10px;            /* 页面外边距缩小 */
+  --ui-line-h:1.75;         /* 正文行高更加紧凑 */
+  --ui-bub-pad-y:7px;       /* 气泡纵向内边距 */
+  --ui-bub-pad-x:11px;      /* 气泡横向内边距 */
+  --ui-radius:12px;         /* 卡片圆角微缩 */
+  --ui-bub-radius:14px;     /* 气泡圆角微缩 */
   --ui-bub-pad-y:8px;       /* 气泡纵向内边距 */
   --ui-bub-pad-x:12px;      /* 气泡横向内边距 */
   --ui-radius:16px;         /* 卡片圆角 */
@@ -68,13 +72,19 @@ body.theme-light{background:#dfe6ef;}
 .device{position:relative;width:100%;max-width:430px;height:100vh;height:100dvh;background:var(--bg);display:flex;flex-direction:column;overflow:hidden;margin:0 auto;font-size:var(--font-size-base, 14px);}
 /* 强制气泡、卡片、世界线等关键区域直接挂钩根字号变量，杜绝写死像素导致滑块失效 */
 .bub, .story, .card, .post .tx, .mail-detail, .opt, .field input, .field textarea {
-  font-size: var(--font-size-base, 14px) !important;
+  font-size: var(--font-size-base, 12.5px) !important;
 }
 .bubwrap .who {
-  font-size: calc(var(--font-size-base, 14px) * 0.82) !important;
+  font-size: calc(var(--font-size-base, 12.5px) * 0.85) !important;
 }
 .bubwrap .tm {
-  font-size: calc(var(--font-size-base, 14px) * 0.72) !important;
+  font-size: calc(var(--font-size-base, 12.5px) * 0.75) !important;
+}
+.appbar h1 {
+  font-size: 14.5px !important; /* 顶栏标题微缩 */
+}
+.card h3 {
+  font-size: 12.5px !important;
 }
 @media(min-width:500px){
   .device{width:392px;height:846px;max-height:96vh;border-radius:46px;
@@ -6938,84 +6948,78 @@ function wlRestoreAnchors(snap){
   }catch(e){showErr('E-WL-002',{err:e});return store.get('wl_anchors',[]);}
 }
 
-// 获取或初始化当前世界线的锚点链条（保证每个阶段不少于 8 个，且每个锚点 3~4 回合）
+// ============================================================
+// 2007~2023 MCU 全时间线多阶段全量编年史初始化器
+// 涵盖 9 大核心时代阶段，全部不少于 8 个电影级锚点，支持自由编辑回合与插段
+// ============================================================
 async function initOrGetAnchors() {
   let anchors = store.get('wl_anchors', null);
-  if (anchors && anchors.length >= 8) {
+  // 若本地已经存在大于 20 个锚点的完整编年链，直接返回并规范化
+  if (anchors && anchors.length >= 20) {
     const ok = normalizeAnchorList(anchors);
-    if(!wlPinnedId()){const c=wlPickCurrent(ok);wlSetPinned(c?c.id:'');}
+    if (!wlPinnedId()) {
+      const c = wlPickCurrent(ok);
+      wlSetPinned(c ? c.id : '');
+    }
     return ok;
   }
 
-  const p = store.profile() || {};
   const f = flags();
+  const curStartYear = f.year || 2008;
 
-  // 1. 开局前 2 个小事件锚点：AI 抓取玩家真实人设深度生成
-  let dynAnchors = [];
-  try {
-    const sys = buildSystem('terminal', `你是漫威剧情导演。根据玩家人设，在【${f.year}年 · ${f.era.name}】设计开局前【2个】极具生活质感与技术磨合的小事件锚点。
-玩家信息：姓名【${p.name}】，职业【${p.identity}】，性格【${p.personality}】，背景【${p.background}】。
-要求：
-1. 严禁只写战斗冲突！必须包含实验室细节、生活习惯碰撞或默契试探。
-2. 每行输出 1 个，格式严格为：事件标题 ||| 40字以内具体情境描述。严禁多余文字！`);
-
-    const r = await callAI([{ role: 'user', content: '请生成开局前两个专属小事件锚点。' }], sys, 'story');
-    const lines = r.split('\n').filter(l => l.includes('|||')).slice(0, 2);
-    lines.forEach((l, idx) => {
-      const [t, d] = l.split('|||').map(x => x.trim());
-      dynAnchors.push({ id: `anc_init_${idx}`, phaseTitle: `第 1 阶段 · 序幕交错 (${idx + 1}/8)`, title: t, desc: d, curTurns: 0, maxTurns: 3, done: false });
-    });
-  } catch (e) {
-    dynAnchors = [
-      { id: 'anc_init_0', phaseTitle: '第 1 阶段 · 序幕交错 (1/8)', title: '4号台保密审查与冷调初遇', desc: `托尼在装甲分析屏前审阅你作为【${p.identity||'顾问'}】的调令，顺手扔过一个烧坏的逆变器测试你的反应。`, curTurns: 0, maxTurns: 3, done: false },
-      { id: 'anc_init_1', phaseTitle: '第 1 阶段 · 序幕交错 (2/8)', title: '高压线圈谐振过载排查', desc: '一次地下车库并网调试中地线接触不良引发大面积电弧，你必须在浓烟中协助托尼稳住主控回路。', curTurns: 0, maxTurns: 3, done: false }
-    ];
-  }
-
-  // 为第 1 阶段自动补齐后 6 个充满生活细节与磨合的锚点（使第 1 阶段严格满 8 个）
-  const stage1Daily = [
-    { title: '备用工位上那把调低两指的工学椅', turns: 3, desc: '他借口反光把椅子换成了阻燃皮面，高度调到了刚好够得着4号台的位置，却坚称这只是后勤采购失误。' },
-    { title: '凌晨三点换掉带倒计时蜂鸣的咖啡机', turns: 3, desc: '你随口抱怨过倒计时吵人，第二天地下室多了一台静音萃取机，杯沿依然带他咬出的缺口。' },
-    { title: '呆呆机械臂递错规格的合金螺母', turns: 3, desc: '气动扳手卡在螺纹上，托尼头也不抬地向你伸手要配件，这是他第一次不经确认直接接过你的工具。' },
-    { title: '全息发生器上未签收的保密协议', turns: 4, desc: '一份涉及底层代码豁免权的文件在屏幕上亮着，他假装去吧台倒酒，留出足够的时间让你看清条款。' },
-    { title: '大厦外部风雨夜的停机坪远眺', turns: 3, desc: '避开所有监控与繁琐事务，两人坐在湿润的金属护栏旁喝一杯常温苏打水，任凭狂风吹翻图纸。' },
-    { title: '抽屉里多出的手写标记备用保险丝', turns: 4, desc: '拉开第二个抽屉，里面整齐摆着备件，标签用记号笔写着：“别让我知道是谁拿的——算了随你”。' }
+  // 9 大阶段元数据定义
+  const STAGES_CHRONICLE = [
+    { year: 2007, phaseTitle: '阶段一：2007 · 战火年代（阿富汗前夕 · 巅峰军火商）', desc: '库纳尔省杰里科导弹测试与军火帝国的极盛狂欢。' },
+    { year: 2008, phaseTitle: '阶段二：2008 · 铁壳初啼（劫后余生 · 「I am Iron Man」）', desc: '山洞逃生后关闭武器部，车库试飞与首次金红实战。' },
+    { year: 2010, phaseTitle: '阶段三：2010 · 倒计时（钯毒危机 · 狂欢赴死与新元素）', desc: '血液钯中毒进入倒计时，摩纳哥遭遇鞭锁，粒子加速器合成新元素。' },
+    { year: 2012, phaseTitle: '阶段四：2012 · 纽约集结（虫洞侵袭 · 废墟与创伤）', desc: '纽约之战复仇者集结，扛核弹入虫洞与重度 PTSD 战甲成瘾。' },
+    { year: 2013, phaseTitle: '阶段五：2013 · 卸甲绝境（豪宅沉海 · 雪夜与浪子协议）', desc: '马里布豪宅被毁，田纳西雪夜突围与 Clean Slate 烟火自毁。' },
+    { year: 2015, phaseTitle: '阶段六：2015 · 奥创纪元（维和妄想 · 索科维亚之痛）', desc: '心灵宝石幻象造出奥创，索科维亚反重力地核升空决战。' },
+    { year: 2016, phaseTitle: '阶段七：2016 · 英雄内战（协议撕裂 · 机场大战与西伯利亚）', desc: '索科维亚协议撕碎复联，莱比锡机场混战与西伯利亚冰原决裂。' },
+    { year: 2018, phaseTitle: '阶段八：2018 · 灰烬与烁灭（瓦坎达失守 · 泰坦风沙与五年守望）', desc: '泰坦星陨石雨决战，半数生命化灰与漫长五年的湖畔静谧守望。' },
+    { year: 2023, phaseTitle: '阶段九：2023 · 终局之战（时空劫持 · 凡人弑神与终局）', desc: '莫比乌斯环逆转时间，重返 1970 与终局之战的红金响指。' }
   ];
-  stage1Daily.forEach((a, idx) => {
-    dynAnchors.push({ id: `anc_init_daily_${idx}`, phaseTitle: `第 1 阶段 · 序幕交错 (${idx + 3}/8)`, title: a.title, desc: a.desc, curTurns: 0, maxTurns: a.turns || 3, done: false });
+
+  const fullChronicleAnchors = [];
+  let foundCurrent = false;
+
+  STAGES_CHRONICLE.forEach((stage, sIdx) => {
+    const rawList = MCU_DETAILED_ANCHORS[stage.year] || [];
+    const isPastYear = stage.year < curStartYear;
+    const isCurrentYear = stage.year === curStartYear;
+
+    rawList.forEach((a, aIdx) => {
+      const aId = `anc_${stage.year}_${aIdx}`;
+      // 早于当前开局年份的，自动标记为已达成；当前及未来的待完成
+      let isDone = isPastYear;
+      let curT = isDone ? (a.turns || 3) : 0;
+
+      // 锁定当前玩家所处年份的第一个锚点为正在进行
+      if (isCurrentYear && !foundCurrent) {
+        foundCurrent = true;
+        wlSetPinned(aId);
+      }
+
+      fullChronicleAnchors.push({
+        id: aId,
+        phaseId: `phase_${stage.year}`,
+        phaseTitle: stage.phaseTitle,
+        phaseYear: stage.year,
+        phaseMonthStart: 1,
+        phaseMonthEnd: 12,
+        phaseDesc: stage.desc,
+        title: a.title,
+        desc: a.desc,
+        isBlip: !!a.isBlip,
+        curTurns: curT,
+        maxTurns: a.turns || 3,
+        done: isDone
+      });
+    });
   });
 
-  // 2. 匹配该年份及后续的经典原著电影锚点（全部不少于 8 个，每个 3~4 回合）
-  const eraList = MCU_DETAILED_ANCHORS[f.year] || MCU_DETAILED_ANCHORS[2008];
-  const fixedAnchors = eraList.map((a, idx) => ({
-    id: `anc_mcu_${f.year}_${idx}`,
-    phaseTitle: `第 2 阶段 · 宿命浪潮 (${idx + 1}/${eraList.length})`,
-    title: a.title,
-    desc: a.desc,
-    isBlip: !!a.isBlip,
-    curTurns: 0,
-    maxTurns: a.turns || 3,
-    done: false
-  }));
-
-  // 3. 若当前在 2018 年（响指/烁灭），自动在末尾衔接 2023《复联4 · 终局之战》阶段（中间已包含 3 回合烁灭五年铺垫）
-  let endgameAnchors = [];
-  if (f.year === 2018) {
-    const egList = MCU_DETAILED_ANCHORS[2023].filter(x => !x.isBlip);
-    endgameAnchors = egList.map((a, idx) => ({
-      id: `anc_mcu_2023_${idx}`,
-      phaseTitle: `第 3 阶段 · 终局之战 (${idx + 1}/${egList.length})`,
-      title: a.title,
-      desc: a.desc,
-      curTurns: 0,
-      maxTurns: a.turns || 3,
-      done: false
-    }));
-  }
-
-  anchors = normalizeAnchorList([...dynAnchors, ...fixedAnchors, ...endgameAnchors]);
+  anchors = normalizeAnchorList(fullChronicleAnchors);
   store.set('wl_anchors', anchors);
-  wlSetPinned((anchors[0]&&anchors[0].id)||'');
   return anchors;
 }
 
@@ -15112,23 +15116,21 @@ function userRules(){
 }
 function saveUserRules(a){store.set('userRules',a);}
 function intimacyOn(){return store.get('intimacyRule',true)!==false;}
-/* 供 buildSystem 注入的规则文本 · 按当前场景过滤（global 恒注入） */
-/* 供 buildSystem 注入的规则/词条文本 · 支持多选作用域与全局匹配 */
+/* 供 buildSystem 注入的规则文本 · 按多作用域精准过滤（包含 global 恒注入） */
 function rulesForPrompt(scope) {
   const out = [];
   if (intimacyOn()) {
     out.push(INTIMACY_PRESET);
     out.push(TONY_INTIMACY);
   }
-  userRules()
-    .filter(r => r.on !== false && r.text && r.text.trim())
+  userRules().filter(r => r.on !== false && r.text && r.text.trim())
     .filter(r => {
-      // 兼容多选 scopes 数组与旧版单个 scope 字符串
-      const scopes = Array.isArray(r.scopes) ? r.scopes : [r.scope || 'global'];
-      return scopes.includes('global') || scopes.includes(scope);
+      // 兼容多选数组 scopes 与旧单选字段 scope
+      const scList = Array.isArray(r.scopes) ? r.scopes : [r.scope || 'global'];
+      return scList.includes('global') || scList.includes(scope);
     })
     .forEach(r => {
-      out.push(`【世界书准则 · ${r.title ? r.title.trim() : '通用条目'}】\n${r.text.trim()}`);
+      out.push('【玩家自定义准则 · ' + (r.title ? r.title.trim() : '最高执行') + '】：\n' + r.text.trim());
     });
   return out;
 }
@@ -15178,458 +15180,522 @@ function wbMerged(){
   return [...base,...extra];
 }
 /* ============================================================
-   世界书 App · 现代卡片式条目管理
-   支持多选作用范围、3行折叠防撑爆、独立开关、快捷编辑与彻底删除
+   世界书 · 终极版 (World Book & System Rules)
+   复刻卡片式多选作用域网格 + 手风琴紧凑折叠 + 完整增删改查
    ============================================================ */
+
+// 12 个专属作用域定义（深度覆盖 STARK OS 的各个模块）
+const WB_SCOPE_OPTIONS = [
+  { k: 'global', name: '全局', desc: '所有 AI 场景都强制读取', icon: '🌐' },
+  { k: 'worldline', name: '世界线', desc: '主线 / 支线剧情推演', icon: '🌐' },
+  { k: 'chat', name: '信息', desc: '短信单聊 / 心声生成', icon: '💬' },
+  { k: 'twitter', name: '推特', desc: '推特动态与全员互评', icon: '🕮' },
+  { k: 'instagram', name: 'Instagram', desc: 'IG 图文帖与评论', icon: '📷' },
+  { k: 'theater', name: '小剧场', desc: '平行宇宙独立剧场', icon: '🎭' },
+  { k: 'diary', name: '双人日记', desc: '日记生成与对方回应', icon: '📔' },
+  { k: 'notes', name: '工作笔记', desc: '哈皮笔记 / 贾维斯日报', icon: '🧳' },
+  { k: 'news', name: '社交圈', desc: '报纸社论 / 读者来信', icon: '👥' },
+  { k: 'academy', name: '斯塔克工业', desc: '公司议程 / 答辩复盘', icon: '🏢' },
+  { k: 'dating', name: '约饭', desc: '高端场所约会 / 聚餐', icon: '🍷' },
+  { k: 'terminal', name: '斯塔克终端', desc: '终端命令 / 遥测应答', icon: '⌨️' }
+];
+
 apps.worldbook = {
   title: '世界书',
-  view: 'list', // 'list' (图1列表) | 'edit' (图2表单)
-  editTargetId: null,
-  expandedIds: new Set(),
-
-  // 12 大作用域配置项（与 STARK OS 系统深度绑定）
-  SCOPES: [
-    { k: 'global', n: '全局', d: '所有 AI 场景都强制读取', ico: '🌐' },
-    { k: 'worldline', n: '世界线', d: '主线 / 支线剧情', ico: '🌐' },
-    { k: 'chat', n: '信息', d: '聊天 / 短信', ico: '💬' },
-    { k: 'twitter', n: '推特', d: '推特动态与评论', ico: '🐦' },
-    { k: 'instagram', n: 'Instagram', d: 'IG 帖子与评论', ico: '📷' },
-    { k: 'theater', n: '小剧场', d: '平行宇宙剧场', ico: '🎭' },
-    { k: 'diary', n: '双人日记', d: '日记生成与回应', ico: '📓' },
-    { k: 'notes', n: '工作笔记', d: '笔记 / 胶囊 / 备忘', ico: '🧳' },
-    { k: 'news', n: '报纸', d: '号角日报 / 纽时等', ico: '📰' },
-    { k: 'group', n: '复仇者频道', d: '群聊 / 战术通讯', ico: '🛡️' },
-    { k: 'dating', n: '约饭', d: '约会 / 聚餐剧情', ico: '🍷' },
-    { k: 'terminal', n: '斯塔克终端', d: '终端指令 / HUD', ico: '⌨️' }
-  ],
-
+  cat: '规则', // 默认打开规则页
+  q: '',
   render(v) {
-    const self = this;
+    const self = this, f = flags();
     $('#actBtn').style.display = 'none';
-
-    // 确保默认包含经典电影剧情条目（新玩家开箱即用）
-    let rules = userRules();
-    if (!rules.length) {
-      rules = [
-        {
-          id: 'wb_default_1',
-          on: true,
-          title: '🎬 电影原剧情锚点（可编辑）',
-          scopes: ['global'],
-          text: '【使用说明】这是一条给“想走原电影剧情”的用户使用的锚点设定。它按时间详细描述每个阶段电影里具体发生了什么（不含感情线），包含具体场景、地点与历史事实约束。'
-        },
-        {
-          id: 'wb_default_2',
-          on: true,
-          title: '格式与对白规范',
-          scopes: ['global'],
-          text: '保持剧情正文格式正确！出声台词必须符合角色口吻，严禁输出任何粗俗脏话，严禁替玩家代打台词与心理活动。'
-        }
-      ];
-      saveUserRules(rules);
-    }
-
-    if (self.view === 'edit') {
-      self.renderEdit(v);
-    } else {
-      self.renderList(v);
-    }
-  },
-
-  /* ---------- 图 1：世界书条目列表 ---------- */
-  renderList(v) {
-    const self = this;
-    const rules = userRules();
+    const cats = ['规则', '全部', '人物', '事件', '地点', '技术', '组织'];
 
     v.innerHTML = `
       <style>
-        .wb-hero-card {
-          background: var(--panel, #10151c);
-          border: 1px solid var(--line, #1e2a38);
-          border-radius: 18px;
-          padding: 24px 16px;
-          text-align: center;
-          margin-bottom: 12px;
-          box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-        }
-        .wb-hero-ico { font-size: 42px; margin-bottom: 8px; line-height: 1; }
-        .wb-hero-title { font-family: var(--font-serif); font-size: 20px; font-weight: 700; color: var(--text, #eaf4ff); margin: 0 0 6px; }
-        .wb-hero-sub { font-size: 11.5px; color: var(--muted, #7c8da0); letter-spacing: 0.5px; }
-
-        .wb-btn-add {
-          width: 100%;
-          background: #3b82f6;
-          background: linear-gradient(135deg, #3b82f6, #2563eb);
-          color: #ffffff;
-          border: none;
-          border-radius: 12px;
-          padding: 13px;
-          font-weight: 700;
-          font-size: 14.5px;
-          cursor: pointer;
-          margin-bottom: 14px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 6px;
-          box-shadow: 0 4px 14px rgba(37,99,235,0.3);
-          transition: transform .15s, opacity .15s;
-        }
-        .wb-btn-add:active { transform: scale(0.98); opacity: 0.9; }
-
-        .wb-card {
-          background: var(--panel, #10151c);
-          border: 1px solid var(--line, #1e2a38);
-          border-radius: 14px;
-          padding: 14px;
-          margin-bottom: 11px;
-          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-          transition: border-color .15s;
-        }
-        .wb-card.active { border-color: rgba(59,130,246,0.5); }
-        .wb-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
-        .wb-card-title { font-size: 14.5px; font-weight: 700; color: var(--text, #eaf4ff); font-family: var(--font-serif); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        
-        .wb-scope-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          font-size: 10px;
-          padding: 2px 8px;
-          border-radius: 12px;
-          background: rgba(147,51,234,0.12);
-          border: 1px solid rgba(147,51,234,0.3);
-          color: #c084fc;
-          margin-bottom: 8px;
-        }
-
-        .wb-card-text {
-          font-size: 12.5px;
-          line-height: 1.65;
-          color: var(--text, #eaf4ff);
-          opacity: 0.85;
-          cursor: pointer;
-          word-break: break-all;
-          white-space: pre-wrap;
-        }
-        /* 核心：三行折叠截断（防撑爆屏幕） */
-        .wb-card-text.clamped {
-          display: -webkit-box;
-          -webkit-line-clamp: 3;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .wb-expand-tip { font-size: 10px; color: var(--cyan); margin-top: 4px; cursor: pointer; user-select: none; }
-
-        .wb-btn-row { display: flex; gap: 8px; margin-top: 12px; }
-        .wb-btn-action {
-          flex: 1;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 4px;
-          padding: 8px;
-          border-radius: 9px;
-          border: 1px solid var(--line, #1e2a38);
-          background: var(--panel2, #171f2a);
-          font-size: 12px;
-          font-weight: 600;
-          color: var(--text, #eaf4ff);
-          cursor: pointer;
-          transition: background .15s;
-        }
-        .wb-btn-action:hover { background: rgba(255,255,255,0.06); }
-        .wb-btn-action.del:hover { color: var(--red); border-color: rgba(226,54,54,0.3); }
+        .wb-scope-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0 14px; }
+        .wb-scope-card { background: var(--panel2, #171f2a); border: 1.5px solid var(--line, #1e2a38); border-radius: 12px; padding: 10px; cursor: pointer; transition: all .15s ease; user-select: none; }
+        .wb-scope-card.on { border-color: #9d5cf2; background: rgba(157, 92, 242, 0.08); box-shadow: 0 0 0 1px #9d5cf2; }
+        .wb-scope-title { font-size: 13px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 5px; }
+        .wb-scope-desc { font-size: 10.5px; color: var(--muted); margin-top: 3px; line-height: 1.35; }
+        .wb-rule-card { background: var(--panel, #10151c); border: 1px solid var(--line, #1e2a38); border-radius: 12px; padding: 11px 12px; margin-bottom: 8px; transition: border-color .15s; }
+        .wb-rule-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; }
+        .wb-rule-title { font-weight: 700; font-size: 13.5px; color: var(--text); font-family: var(--font-serif); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .wb-rule-preview { font-size: 11.5px; color: var(--muted); line-height: 1.55; margin-top: 5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+        .wb-rule-full { font-size: 12.5px; color: var(--text); line-height: 1.8; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); white-space: pre-wrap; font-family: var(--font-serif); }
+        .wb-rule-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+        .wb-rule-tag { font-size: 9.5px; padding: 1px 6px; border-radius: 6px; background: rgba(53,208,255,0.1); color: var(--cyan); border: 1px solid rgba(53,208,255,0.25); }
       </style>
 
       <div class="pad">
-        <!-- 顶部横幅卡片 -->
-        <div class="wb-hero-card">
-          <div class="wb-hero-ico">📖</div>
-          <h2 class="wb-hero-title">世界书</h2>
-          <div class="wb-hero-sub">为不同场景设定专属规则 · 开启即强制生效</div>
+        <div class="card" style="padding:12px; margin-bottom:10px">
+          <div class="eyebrow">THE WORLD BOOK &amp; RULES</div>
+          <div style="font-family:var(--font-serif); font-size:15px; font-weight:700; margin:4px 0">📖 核心设定与行为准则</div>
+          <div class="hint">规则与词条均在推演时作为最高准则注入 AI 上下文，直接影响剧情发展、语言风格与人设界限。</div>
+          <div class="seg" style="margin:9px 0 0; flex-wrap:wrap">
+            ${cats.map(c => `<button data-wbc="${c}" class="${self.cat === c ? 'on' : ''}">${c === '规则' ? '⚡ 规则 (' + userRules().length + ')' : c}</button>`).join('')}
+          </div>
+          ${self.cat !== '规则' ? `<input id="wb_search_inp" class="inp" style="margin-top:9px; font-size:12px; padding:7px 10px" placeholder="🔍 检索词条名称或内容…" value="${esc(self.q)}">` : ''}
         </div>
 
-        <!-- 显眼的新建按钮 -->
-        <button class="wb-btn-add" id="wb_btn_new">
-          <span>＋</span> <span>新建条目</span>
-        </button>
-
-        <!-- 条目列表容器 -->
-        <div id="wb_list_box">
-          ${rules.map(r => {
-            const isOpen = r.on !== false;
-            const isExpanded = self.expandedIds.has(r.id);
-            const scopes = Array.isArray(r.scopes) ? r.scopes : [r.scope || 'global'];
-            const scopeLabels = scopes.map(sk => {
-              const obj = self.SCOPES.find(x => x.k === sk);
-              return obj ? `${obj.ico} ${obj.n}` : sk;
-            }).join(' / ');
-
-            return `
-              <div class="wb-card ${isOpen ? 'active' : ''}" data-rule-card="${r.id}">
-                <div class="wb-card-head">
-                  <div class="wb-card-title">${esc(r.title || '未命名条目')}</div>
-                  <label class="switch" style="margin:0; flex-shrink:0">
-                    <input type="checkbox" data-rule-toggle="${r.id}" ${isOpen ? 'checked' : ''}>
-                    <span class="slider"></span>
-                  </label>
-                </div>
-
-                <div class="wb-scope-badge">
-                  <span>${esc(scopeLabels || '🌐 全局')}</span>
-                </div>
-
-                <!-- 截断显示的内容区 -->
-                <div class="wb-card-text ${isExpanded ? '' : 'clamped'}" data-rule-text="${r.id}">
-                  ${esc(r.text || '（无设定内容）')}
-                </div>
-                ${(r.text && r.text.length > 80) ? `
-                  <div class="wb-expand-tip" data-rule-expand-btn="${r.id}">
-                    ${isExpanded ? '▲ 收起内容' : '▼ 点击展开全文'}
-                  </div>` : ''}
-
-                <!-- 编辑与删除双按钮 -->
-                <div class="wb-btn-row">
-                  <button class="wb-btn-action" data-rule-edit="${r.id}">
-                    <span>✏️</span> <span>编辑</span>
-                  </button>
-                  <button class="wb-btn-action del" data-rule-delete="${r.id}">
-                    <span>🗑️</span> <span>删除</span>
-                  </button>
-                </div>
-              </div>
-            `;
-          }).join('')}
-        </div>
+        <div id="wb_main_view"></div>
       </div>
     `;
 
-    // 绑定事件
-    v.querySelector('#wb_btn_new').onclick = () => {
-      self.editTargetId = null; // 新建
-      self.view = 'edit';
-      self.render(v);
-    };
-
-    v.querySelectorAll('[data-rule-toggle]').forEach(sw => {
-      sw.onchange = () => {
-        const id = sw.dataset.ruleToggle;
-        const list = userRules();
-        const item = list.find(x => x.id === id);
-        if (item) {
-          item.on = sw.checked;
-          saveUserRules(list);
-          toast(sw.checked ? '已启用该条目设定' : '已停用该条目设定');
-          self.render(v);
-        }
-      };
+    // 切换分类
+    v.querySelectorAll('[data-wbc]').forEach(b => {
+      b.onclick = () => { self.cat = b.dataset.wbc; self.render(v); };
     });
 
-    // 展开/收起长文本切换
-    v.querySelectorAll('[data-rule-text], [data-rule-expand-btn]').forEach(el => {
-      el.onclick = () => {
-        const id = el.dataset.ruleText || el.dataset.ruleExpandBtn;
-        if (self.expandedIds.has(id)) self.expandedIds.delete(id);
-        else self.expandedIds.add(id);
-        self.render(v);
+    const searchInp = v.querySelector('#wb_search_inp');
+    if (searchInp) {
+      searchInp.oninput = (e) => {
+        self.q = e.target.value.trim();
+        self.renderEntries(v.querySelector('#wb_main_view'));
       };
-    });
+    }
 
-    // 编辑
-    v.querySelectorAll('[data-rule-edit]').forEach(btn => {
-      btn.onclick = () => {
-        self.editTargetId = btn.dataset.ruleEdit;
-        self.view = 'edit';
-        self.render(v);
-      };
-    });
-
-    // 删除
-    v.querySelectorAll('[data-rule-delete]').forEach(btn => {
-      btn.onclick = () => {
-        const id = btn.dataset.ruleDelete;
-        const list = userRules();
-        const item = list.find(x => x.id === id);
-        if (!confirm(`确定彻底删除条目「${item ? item.title : '该条目'}」？`)) return;
-        saveUserRules(list.filter(x => x.id !== id));
-        toast('已删除条目');
-        self.render(v);
-      };
-    });
+    const host = v.querySelector('#wb_main_view');
+    if (self.cat === '规则') {
+      self.renderRules(host);
+    } else {
+      self.renderEntries(host);
+    }
   },
 
-  /* ---------- 图 2：新建 / 编辑条目全套表单 ---------- */
-  renderEdit(v) {
+  // ==================== 1. 规则管理视图（紧凑折叠 + 极速新增） ====================
+  renderRules(host) {
     const self = this;
-    const isEditing = !!self.editTargetId;
     const rules = userRules();
-    const target = isEditing ? rules.find(x => x.id === self.editTargetId) : null;
 
-    const currentTitle = target ? target.title : '';
-    const currentText = target ? target.text : '';
-    let selectedScopes = new Set(target ? (Array.isArray(target.scopes) ? target.scopes : [target.scope || 'global']) : ['global']);
-
-    v.innerHTML = `
-      <style>
-        .ef-container { padding: 14px; }
-        .ef-top-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-        .ef-back-btn { background: none; border: none; font-size: 26px; line-height: 1; color: var(--cyan); cursor: pointer; padding: 0 4px; }
-        .ef-page-title { font-size: 16px; font-weight: 700; color: var(--text, #eaf4ff); font-family: var(--font-serif); }
-
-        .ef-group { margin-bottom: 14px; }
-        .ef-label { font-size: 12px; color: var(--text, #eaf4ff); font-weight: 600; margin-bottom: 6px; display: block; }
-        .ef-label small { color: var(--muted, #7c8da0); font-weight: 400; font-size: 11px; margin-left: 4px; }
-        
-        .ef-input-text {
-          width: 100%;
-          background: var(--panel2, #171f2a);
-          border: 1px solid var(--line, #1e2a38);
-          border-radius: 10px;
-          padding: 11px 12px;
-          font-size: 13.5px;
-          color: var(--text, #eaf4ff);
-          outline: none;
-          font-family: var(--font-body);
-        }
-        .ef-input-text:focus { border-color: var(--cyan); box-shadow: 0 0 0 2px rgba(53,208,255,0.15); }
-
-        /* 双列作用域卡片网格 */
-        .ef-scope-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-        .ef-scope-card {
-          background: var(--panel2, #171f2a);
-          border: 1.5px solid var(--line, #1e2a38);
-          border-radius: 12px;
-          padding: 10px;
-          cursor: pointer;
-          transition: all .15s;
-          display: flex;
-          flex-direction: column;
-          gap: 2px;
-        }
-        .ef-scope-card:hover { border-color: rgba(59,130,246,0.4); }
-        .ef-scope-card.selected {
-          border-color: #8b5cf6;
-          background: rgba(139,92,246,0.08);
-          box-shadow: 0 0 0 1px #8b5cf6;
-        }
-        .ef-sc-head { font-size: 12.5px; font-weight: 700; color: var(--text, #eaf4ff); display: flex; align-items: center; gap: 4px; }
-        .ef-scope-card.selected .ef-sc-head { color: #c084fc; }
-        .ef-sc-desc { font-size: 10px; color: var(--muted, #7c8da0); line-height: 1.4; }
-      </style>
-
-      <div class="ef-container">
-        <!-- 顶栏返回 -->
-        <div class="ef-top-bar">
-          <button class="ef-back-btn" id="ef_btn_back">‹</button>
-          <div class="ef-page-title">${isEditing ? '编辑条目' : '新建条目'}</div>
-          <div style="width:24px"></div>
+    host.innerHTML = `
+      <!-- 新增按钮与预设开关 -->
+      <div class="card" style="padding:11px; margin-bottom:10px">
+        <button class="btn gold sm" id="btn_open_rule_editor" style="width:100%; font-weight:700; font-size:12.5px; padding:9px">
+          ＋ 新建规则条目
+        </button>
+        <div class="srow" style="margin-top:8px; padding-top:8px; border-top:1px dashed var(--line); border-bottom:none">
+          <div>
+            <div class="t" style="font-size:12px">启用「反套路亲密规则」预设</div>
+            <div class="d" style="font-size:10px">杜绝脸红/害羞等刻板套路，托尼采用专属若无其事与行动式亲密画像。</div>
+          </div>
+          <label class="switch" style="flex:0 0 auto">
+            <input type="checkbox" id="wb_intim_toggle" ${intimacyOn() ? 'checked' : ''}>
+            <span class="slider"></span>
+          </label>
         </div>
+      </div>
 
-        <!-- 1. 条目名称 -->
-        <div class="ef-group">
-          <label class="ef-label">条目名称</label>
-          <input class="ef-input-text" id="ef_input_title" placeholder="例如：电影原剧情设定 / 托尼性格修正" value="${esc(currentTitle)}">
-        </div>
+      <!-- 规则条目卡片列表（默认全部紧凑收拢，不占屏幕） -->
+      <div id="wb_rules_container">
+        ${rules.length ? rules.map((r, idx) => {
+          // 兼容单作用域与多作用域数组
+          const scopes = Array.isArray(r.scopes) ? r.scopes : [r.scope || 'global'];
+          const scopeNames = scopes.map(s => {
+            const found = WB_SCOPE_OPTIONS.find(x => x.k === s);
+            return found ? found.name : s;
+          });
 
-        <!-- 2. 作用范围（双列多选卡片） -->
-        <div class="ef-group">
-          <label class="ef-label">作用范围 <small>(可多选；选「全局」则所有场景强制生效)</small></label>
-          <div class="ef-scope-grid" id="ef_scope_grid">
-            ${self.SCOPES.map(sc => {
-              const isSel = selectedScopes.has(sc.k);
-              return `
-                <div class="ef-scope-card ${isSel ? 'selected' : ''}" data-scope-key="${sc.k}">
-                  <div class="ef-sc-head">${sc.ico} ${esc(sc.n)}</div>
-                  <div class="ef-sc-desc">${esc(sc.d)}</div>
+          return `
+            <div class="wb-rule-card" data-rule-idx="${idx}">
+              <div class="wb-rule-head">
+                <label class="switch" style="flex:0 0 auto; transform:scale(0.85); margin-left:-4px" onclick="event.stopPropagation()">
+                  <input type="checkbox" data-rule-toggle="${idx}" ${r.on !== false ? 'checked' : ''}>
+                  <span class="slider"></span>
+                </label>
+                <div class="wb-rule-title" data-expand-rule="${idx}" style="${r.on === false ? 'opacity:.45; text-decoration:line-through' : ''}">
+                  ${esc(r.title || '未命名规则')}
                 </div>
-              `;
-            }).join('')}
+                <div style="display:flex; gap:4px; flex-shrink:0" onclick="event.stopPropagation()">
+                  <button class="btn sm ghost" data-rule-edit="${idx}" style="padding:2px 7px; font-size:10.5px">✏ 改</button>
+                  <button class="btn sm red ghost" data-rule-del="${idx}" style="padding:2px 7px; font-size:10.5px">🗑 删</button>
+                </div>
+              </div>
+
+              <!-- 两行紧凑预览 -->
+              <div class="wb-rule-preview" data-expand-rule="${idx}">
+                ${esc(r.text)}
+              </div>
+
+              <!-- 展开后的全文（默认隐藏） -->
+              <div class="wb-rule-full" id="wb_rf_${idx}" style="display:none">
+                ${esc(r.text)}
+              </div>
+
+              <!-- 适用作用域标签 -->
+              <div class="wb-rule-tags">
+                ${scopeNames.map(sn => `<span class="wb-rule-tag">${esc(sn)}</span>`).join('')}
+              </div>
+            </div>
+          `;
+        }).join('') : `
+          <div class="empty" style="padding:35px 0">
+            暂无自定义规则条目。<br>点击上方「＋ 新建规则条目」配置您的 AI 准则。
+          </div>
+        `}
+      </div>
+    `;
+
+    // 绑定开闭展开事件
+    host.querySelectorAll('[data-expand-rule]').forEach(el => {
+      el.onclick = () => {
+        const idx = el.dataset.expandRule;
+        const fullEl = host.querySelector('#wb_rf_' + idx);
+        if (fullEl) {
+          const isOpen = fullEl.style.display !== 'none';
+          fullEl.style.display = isOpen ? 'none' : 'block';
+        }
+      };
+    });
+
+    // 启用/禁用切换
+    host.querySelectorAll('[data-rule-toggle]').forEach(inp => {
+      inp.onchange = () => {
+        const idx = +inp.dataset.ruleToggle;
+        rules[idx].on = inp.checked;
+        saveUserRules(rules);
+        toast(inp.checked ? '已启用该规则' : '已停用该规则');
+        self.renderRules(host);
+      };
+    });
+
+    // 编辑规则
+    host.querySelectorAll('[data-rule-edit]').forEach(btn => {
+      btn.onclick = () => {
+        const idx = +btn.dataset.ruleEdit;
+        self.openRuleEditor(rules[idx], (updated) => {
+          rules[idx] = updated;
+          saveUserRules(rules);
+          toast('规则已更新');
+          self.renderRules(host);
+        }, () => {
+          // 删除回调
+          rules.splice(idx, 1);
+          saveUserRules(rules);
+          toast('规则已删除');
+          self.renderRules(host);
+        });
+      };
+    });
+
+    // 快捷删除
+    host.querySelectorAll('[data-rule-del]').forEach(btn => {
+      btn.onclick = () => {
+        const idx = +btn.dataset.ruleDel;
+        if (!confirm(`确定删除规则「${rules[idx].title || '此条目'}」？`)) return;
+        rules.splice(idx, 1);
+        saveUserRules(rules);
+        toast('规则已删除');
+        self.renderRules(host);
+      };
+    });
+
+    // 新增规则按钮
+    host.querySelector('#btn_open_rule_editor').onclick = () => {
+      self.openRuleEditor(null, (newRule) => {
+        rules.push(newRule);
+        saveUserRules(rules);
+        toast('新规则已创建生效');
+        self.renderRules(host);
+      });
+    };
+
+    // 亲密规则开关
+    host.querySelector('#wb_intim_toggle').onchange = (e) => {
+      store.set('intimacyRule', e.target.checked);
+      toast(e.target.checked ? '已启用反套路亲密规则' : '已关闭');
+    };
+  },
+
+  // ==================== 2. 规则编辑器（1:1 复刻截图网格多选） ====================
+  openRuleEditor(existingItem, onSave, onDelete) {
+    const isEdit = !!existingItem;
+    const initialTitle = existingItem ? (existingItem.title || '') : '新条目';
+    const initialText = existingItem ? (existingItem.text || '') : '';
+    let selectedScopes = new Set(
+      existingItem
+        ? (Array.isArray(existingItem.scopes) ? existingItem.scopes : [existingItem.scope || 'global'])
+        : ['global']
+    );
+
+    const d = modal(`
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
+        <h2 style="font-size:16px; margin:0; font-family:var(--font-serif); color:var(--text)">
+          ${isEdit ? '✏ 编辑规则条目' : '＋ 新建规则条目'}
+        </h2>
+        <button class="btn sm ghost" data-close style="padding:2px 8px; font-size:11px">关闭</button>
+      </div>
+
+      <div style="max-height:68vh; overflow-y:auto; padding-right:2px">
+        <div class="field" style="margin-bottom:12px">
+          <label style="font-size:11.5px; font-weight:700; color:var(--text); margin-bottom:5px; display:block">条目名称</label>
+          <input class="inp" id="re_title" value="${esc(initialTitle)}" placeholder="例如：托尼言语动作准则" style="font-size:13px; font-weight:700">
+        </div>
+
+        <div class="field" style="margin-bottom:12px">
+          <label style="font-size:11.5px; font-weight:700; color:var(--text); margin-bottom:2px; display:block">作用范围 <span style="font-size:10.5px; font-weight:400; color:var(--muted)">（可多选；选「全局」则所有场景生效）</span></label>
+          <div class="wb-scope-grid" id="re_scope_box">
+            ${WB_SCOPE_OPTIONS.map(opt => `
+              <div class="wb-scope-card ${selectedScopes.has(opt.k) ? 'on' : ''}" data-scope-k="${opt.k}">
+                <div class="wb-scope-title">
+                  <span>${opt.icon}</span> <span>${esc(opt.name)}</span>
+                </div>
+                <div class="wb-scope-desc">${esc(opt.desc)}</div>
+              </div>
+            `).join('')}
           </div>
         </div>
 
-        <!-- 3. 设定内容 -->
-        <div class="ef-group">
-          <label class="ef-label">设定内容 <small>(开启后作为最高准则强制执行)</small></label>
-          <textarea class="ef-input-text" id="ef_input_text" rows="8" placeholder="输入强制 AI 遵守的设定、剧情锚点或性格边界…">${esc(currentText)}</textarea>
+        <div class="field" style="margin-bottom:14px">
+          <label style="font-size:11.5px; font-weight:700; color:var(--text); margin-bottom:5px; display:block">设定内容 <span style="font-size:10.5px; font-weight:400; color:var(--muted)">（开启后作为最高准则强制执行）</span></label>
+          <textarea class="inp" id="re_text" rows="8" placeholder="输入强制 AI 遵守的设定、对话风格、行为边界或违禁要求……" style="font-family:var(--font-serif); font-size:12.5px; line-height:1.75">${esc(initialText)}</textarea>
         </div>
-
-        <!-- 底部提交按钮 -->
-        <button class="btn gold" id="ef_btn_save" style="margin-top:6px; padding:12px; font-size:14px">
-          ${isEditing ? '💾 保存修改' : '＋ 创建并保存条目'}
-        </button>
       </div>
-    `;
 
-    // 绑定作用域卡片点击选择/反选
-    v.querySelectorAll('[data-scope-key]').forEach(card => {
+      <div style="display:flex; gap:8px; margin-top:8px">
+        <button class="btn gold sm" id="re_submit" style="flex:1; font-weight:700">
+          ${isEdit ? '✓ 保存修改' : '＋ 确认创建'}
+        </button>
+        ${(isEdit && onDelete) ? `<button class="btn red ghost sm" id="re_delete" style="flex:0 0 64px">🗑 删</button>` : ''}
+        <button class="btn ghost sm" data-close style="flex:0 0 60px">取消</button>
+      </div>
+    `);
+
+    // 绑定多选卡片逻辑
+    const scopeBox = d.querySelector('#re_scope_box');
+    scopeBox.querySelectorAll('[data-scope-k]').forEach(card => {
       card.onclick = () => {
-        const key = card.dataset.scopeKey;
-        if (key === 'global') {
-          // 选中全局时独占
+        const k = card.dataset.scopeK;
+        if (k === 'global') {
+          // 选中全局时，互斥清空其他
           selectedScopes.clear();
           selectedScopes.add('global');
         } else {
           selectedScopes.delete('global');
-          if (selectedScopes.has(key)) selectedScopes.delete(key);
-          else selectedScopes.add(key);
-          if (!selectedScopes.size) selectedScopes.add('global');
+          if (selectedScopes.has(k)) {
+            selectedScopes.delete(k);
+          } else {
+            selectedScopes.add(k);
+          }
+          if (selectedScopes.size === 0) selectedScopes.add('global');
         }
-
-        // 刷新卡片高亮
-        v.querySelectorAll('[data-scope-key]').forEach(c => {
-          c.classList.toggle('selected', selectedScopes.has(c.dataset.scopeKey));
+        // 刷新高亮
+        scopeBox.querySelectorAll('[data-scope-k]').forEach(c => {
+          c.classList.toggle('on', selectedScopes.has(c.dataset.scopeK));
         });
       };
     });
 
-    v.querySelector('#ef_btn_back').onclick = () => {
-      self.view = 'list';
-      self.render(v);
+    // 提交保存
+    d.querySelector('#re_submit').onclick = () => {
+      const title = d.querySelector('#re_title').value.trim();
+      const text = d.querySelector('#re_text').value.trim();
+      if (!text) return toast('设定内容不能为空');
+
+      const arr = Array.from(selectedScopes);
+      const ruleObj = {
+        id: existingItem ? existingItem.id : ('rule_' + Date.now()),
+        title: title || '未命名规则',
+        text: cleanSlur(text),
+        on: existingItem ? (existingItem.on !== false) : true,
+        scopes: arr,
+        scope: arr[0] || 'global' // 向下兼容旧字段
+      };
+
+      d.remove();
+      onSave(ruleObj);
     };
 
-    v.querySelector('#ef_btn_save').onclick = () => {
-      const title = v.querySelector('#ef_input_title').value.trim();
-      const text = v.querySelector('#ef_input_text').value.trim();
-      if (!title) return toast('请输入条目名称');
-      if (!text) return toast('请输入设定内容');
-
-      const list = userRules();
-      const finalScopes = Array.from(selectedScopes);
-
-      if (isEditing) {
-        const item = list.find(x => x.id === self.editTargetId);
-        if (item) {
-          item.title = title;
-          item.text = text;
-          item.scopes = finalScopes;
-        }
-        toast('条目修改已保存');
-      } else {
-        list.unshift({
-          id: 'wb_' + Date.now(),
-          on: true,
-          title,
-          text,
-          scopes: finalScopes
-        });
-        toast('已创建新条目');
-      }
-
-      saveUserRules(list);
-      self.view = 'list';
-      self.render(v);
-    };
+    // 删除
+    const delBtn = d.querySelector('#re_delete');
+    if (delBtn) {
+      delBtn.onclick = () => {
+        if (!confirm('确定彻底删除此条规则？')) return;
+        d.remove();
+        onDelete();
+      };
+    }
   },
 
-  onBack() {
-    if (this.view === 'edit') {
-      this.view = 'list';
-      this.render($('#appBody'));
-      return true;
+  // ==================== 3. 词条管理视图（人物/事件/地点/技术/组织） ====================
+  renderEntries(host) {
+    const self = this, f = flags();
+    const all = wbMerged();
+    const filtered = all.filter(x => {
+      const matchCat = (self.cat === '全部' || x.cat === self.cat);
+      const matchQ = !self.q || (x.t + x.d).toLowerCase().includes(self.q.toLowerCase());
+      return matchCat && matchQ;
+    });
+
+    host.innerHTML = `
+      <div style="display:flex; gap:8px; margin-bottom:10px">
+        <button class="btn sm" id="btn_new_entry" style="flex:1">＋ 新增自定义词条</button>
+        <button class="btn ghost sm" id="btn_ai_entry" style="flex:1">✨ AI 补充词条</button>
+      </div>
+
+      <div style="max-height:60vh; overflow-y:auto; padding-right:2px">
+        ${filtered.length ? filtered.map((item, idx) => `
+          <div class="card" style="padding:10px 12px; margin-bottom:8px; background:var(--panel2, #171f2a)">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:6px">
+              <div style="display:flex; align-items:center; gap:6px; flex:1; min-width:0">
+                <span class="tag ${item._base ? '' : 'gold'}" style="font-size:9.5px; padding:1px 5px">${esc(item.cat)}</span>
+                <b style="font-family:var(--font-serif); font-size:13.5px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(item.t)}</b>
+              </div>
+              <div style="display:flex; gap:4px; flex-shrink:0">
+                <button class="btn sm ghost" data-entry-edit="${idx}" style="padding:2px 7px; font-size:10.5px">✏ 改</button>
+                <button class="btn sm red ghost" data-entry-del="${idx}" style="padding:2px 7px; font-size:10.5px">🗑 删</button>
+              </div>
+            </div>
+            <div class="hint" style="font-size:12px; line-height:1.75; margin-top:6px; color:var(--text); opacity:0.85">
+              ${fmt(item.d)}
+            </div>
+            ${item._base ? `<div style="font-size:9.5px; color:var(--muted); margin-top:4px">🏛 漫威官方内置设定</div>` : `<div style="font-size:9.5px; color:var(--gold); margin-top:4px">★ 玩家自定义扩展设定</div>`}
+          </div>
+        `).join('') : `
+          <div class="empty" style="padding:30px 0">没有匹配的词条。点击上方按钮可自行添加。</div>
+        `}
+      </div>
+    `;
+
+    // 新增词条
+    host.querySelector('#btn_new_entry').onclick = () => {
+      self.openEntryEditor(null, (newEntry) => {
+        const extra = store.get('wbExtra', []);
+        extra.unshift(newEntry);
+        store.set('wbExtra', extra);
+        toast(`已创建词条「${newEntry.t}」`);
+        self.renderEntries(host);
+      });
+    };
+
+    // AI 补充词条
+    host.querySelector('#btn_ai_entry').onclick = async () => {
+      toast('AI 正在推演补充词条…');
+      const sys = buildSystem('general', `为世界书补充一条符合 ${f.year} 年漫威世界状态的新词条。只输出：分类 ||| 标题 ||| 80字以内描述。分类必须属于：人物、事件、地点、技术、组织之一。严禁剧透未来。`);
+      const r = await ai([{ role: 'user', content: '请补充一条与当前时间点密切相关的新词条。' }], sys, () => '技术 ||| 弧光微型反应堆 ||| 安装在托尼胸口的电磁发生器，负责吸附弹片同时为初版装甲提供高压电能。', 'story');
+      const p = r.split('|||').map(x => x.trim());
+      if (p.length >= 3) {
+        const extra = store.get('wbExtra', []);
+        extra.unshift({ cat: p[0] || '技术', t: p[1], d: p[2] });
+        store.set('wbExtra', extra);
+        toast(`已自动收录词条「${p[1]}」`);
+        self.renderEntries(host);
+      }
+    };
+
+    // 编辑词条
+    host.querySelectorAll('[data-entry-edit]').forEach(btn => {
+      btn.onclick = () => {
+        const target = filtered[+btn.dataset.entryEdit];
+        self.openEntryEditor(target, (saved) => {
+          if (target._base) {
+            const ov = store.get('wbOverrides', {});
+            ov[target._key] = { cat: saved.cat, d: saved.d };
+            store.set('wbOverrides', ov);
+          } else {
+            const extra = store.get('wbExtra', []);
+            if (extra[target._extraIdx]) {
+              extra[target._extraIdx] = { cat: saved.cat, t: saved.t, d: saved.d };
+              store.set('wbExtra', extra);
+            }
+          }
+          toast('词条已保存');
+          self.renderEntries(host);
+        }, () => {
+          // 删除
+          self.deleteEntry(target);
+          self.renderEntries(host);
+        });
+      };
+    });
+
+    // 直接点击列表删除
+    host.querySelectorAll('[data-entry-del]').forEach(btn => {
+      btn.onclick = () => {
+        const target = filtered[+btn.dataset.entryDel];
+        self.deleteEntry(target);
+        self.renderEntries(host);
+      };
+    });
+  },
+
+  // 删除词条通用方法
+  deleteEntry(target) {
+    if (target._base) {
+      if (!confirm(`「${target.t}」是官方内置核心词条，无法物理抹除。是否恢复为出厂默认设定？`)) return;
+      const ov = store.get('wbOverrides', {});
+      delete ov[target._key];
+      store.set('wbOverrides', ov);
+      toast('已恢复官方默认设定');
+    } else {
+      if (!confirm(`确定彻底删除自定义词条「${target.t}」？`)) return;
+      let extra = store.get('wbExtra', []);
+      extra = extra.filter((_, i) => i !== target._extraIdx);
+      store.set('wbExtra', extra);
+      toast('词条已彻底删除');
     }
-    return false;
+  },
+
+  // 词条编辑弹窗
+  openEntryEditor(target, onSave, onDelete) {
+    const isEdit = !!target;
+    const cats = ['人物', '事件', '地点', '技术', '组织'];
+    const curCat = target ? target.cat : '人物';
+    const curTitle = target ? target.t : '';
+    const curDesc = target ? target.d : '';
+
+    const d = modal(`
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
+        <h2 style="font-size:16px; margin:0; font-family:var(--font-serif); color:var(--text)">
+          ${isEdit ? '✏ 编辑设定词条' : '＋ 新增设定词条'}
+        </h2>
+        <button class="btn sm ghost" data-close style="padding:2px 8px; font-size:11px">关闭</button>
+      </div>
+
+      <div class="field" style="margin-bottom:10px">
+        <label style="font-size:11.5px; font-weight:700; color:var(--text); margin-bottom:5px; display:block">所属类别</label>
+        <select class="inp" id="ee_cat" style="font-size:13px">
+          ${cats.map(c => `<option value="${c}" ${c === curCat ? 'selected' : ''}>${c}</option>`).join('')}
+        </select>
+      </div>
+
+      <div class="field" style="margin-bottom:10px">
+        <label style="font-size:11.5px; font-weight:700; color:var(--text); margin-bottom:5px; display:block">
+          词条标题 ${target && target._base ? '<span style="font-size:10px; color:var(--muted)">（内置词条标题不可更改）</span>' : ''}
+        </label>
+        <input class="inp" id="ee_title" value="${esc(curTitle)}" placeholder="例如：新方舟反应堆合金" ${target && target._base ? 'disabled' : ''} style="font-size:13px; font-weight:700">
+      </div>
+
+      <div class="field" style="margin-bottom:14px">
+        <label style="font-size:11.5px; font-weight:700; color:var(--text); margin-bottom:5px; display:block">
+          词条详述 <span style="font-size:10.5px; font-weight:400; color:var(--muted)">（将作为背景知识常驻注入 AI 记忆）</span>
+        </label>
+        <textarea class="inp" id="ee_desc" rows="6" placeholder="输入该人物、地点或技术的详细设定……" style="font-family:var(--font-serif); font-size:12.5px; line-height:1.75">${esc(curDesc)}</textarea>
+      </div>
+
+      <div style="display:flex; gap:8px">
+        <button class="btn gold sm" id="ee_save" style="flex:1; font-weight:700">💾 保存词条</button>
+        ${(isEdit && onDelete) ? `<button class="btn red ghost sm" id="ee_del" style="flex:0 0 70px">${target._base ? '↺ 重置' : '🗑 删'}</button>` : ''}
+        <button class="btn ghost sm" data-close style="flex:0 0 60px">取消</button>
+      </div>
+    `);
+
+    d.querySelector('#ee_save').onclick = () => {
+      const cat = d.querySelector('#ee_cat').value;
+      const t = d.querySelector('#ee_title').value.trim();
+      const desc = d.querySelector('#ee_desc').value.trim();
+      if (!t) return toast('请输入词条标题');
+      if (!desc) return toast('请输入词条详述');
+
+      d.remove();
+      onSave({ cat, t, d: cleanSlur(desc) });
+    };
+
+    const delBtn = d.querySelector('#ee_del');
+    if (delBtn) {
+      delBtn.onclick = () => {
+        d.remove();
+        onDelete();
+      };
+    }
   }
 };
 /* ---------- 内置 MCU 角色生日字典 (MM-DD) ---------- */
@@ -16995,7 +17061,7 @@ function applyAppearance(){
   document.body.classList.toggle('theme-light',!!t.light);
   document.body.dataset.theme=id;
   try{localStorage.setItem('so_theme',t.light?'light':'dark');}catch(e){}
- const curSize = (a.size || t.size || 14) + 'px';
+ const curSize = (a.size || t.size || 12.5) + 'px';
 document.documentElement.style.setProperty('--font-size-base', curSize);
 document.body.style.setProperty('--font-size-base', curSize);
 document.body.style.fontSize = curSize;
@@ -17063,7 +17129,7 @@ function applyFullscreen(){
   }
 }
 function resetAppearance(){
-  store.set('appearance',{theme:'graphite',font:'elegant',size:14,enDecor:true,css:'',ui:{cardPad:15,cardGap:12,pad:14,lineH:1.95,bubPadY:8,bubPadX:12,radius:16,bubRadius:16,preset:'standard'}});
+  store.set('appearance',{theme:'graphite',font:'elegant',size:12.5,enDecor:true,css:'',ui:{cardPad:15,cardGap:12,pad:14,lineH:1.95,bubPadY:8,bubPadX:12,radius:16,bubRadius:16,preset:'standard'}});
   store.set('hiddenApps',[]);applyAppearance();renderGrid();
   if($('#skinPanel').style.display!=='none')renderSkinPanel();
   if(currentApp==='appearance')safeRender('appearance', $('#appBody'));
@@ -17113,7 +17179,7 @@ function toggleSkinPanel(){
 }
 $('#deskSkinBar').onclick=toggleSkinPanel;
 apps.appearance={title:'外观',render(v){
-  const self=this,a=store.get('appearance',{font:'elegant',size:14,enDecor:true,css:''}),cur=currentThemeId();
+  const self=this,a=store.get('appearance',{font:'elegant',size:12.5,enDecor:true,css:''}),cur=currentThemeId();
   const hidden=store.get('hiddenApps',[]);
   const ui=(a.ui||{});
   const UI_DENSITY_PRESETS={
