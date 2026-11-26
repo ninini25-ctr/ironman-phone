@@ -15023,6 +15023,7 @@ D. 向${s.dept}负责人提出一个尖锐的反问`,'story');
       store.set('academySession',s);
     }
 
+if (session.story) { const _p = self._parseStoryAndOptions(session.story + '\n' + (session.options || '')); session.story = _p.story; session.options = _p.options; }
     const opts=(s.options||'').split('\n').filter(l=>/^[A-DＡ-Ｄ]\s*[\.、]/.test(l.trim()));
     v.innerHTML=`<div class="pad">
       <div class="statbar">
@@ -16435,6 +16436,33 @@ function dtGetAllPlaces() {
   const list = Array.from(map.values());
   // 置顶城市排在前列
   return list.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+}
+function dtCustomPlaces() { return store.get('dt_custom_places', []); }
+function dtSaveCustomPlaces(list) { store.set('dt_custom_places', list); }
+function dtAutoMsgOn() { return store.get('dt_auto_msg', true) !== false; }
+function dtSetAutoMsg(b) { store.set('dt_auto_msg', !!b); }
+
+function dtGetAllPlaces() {
+  const presets = datePlacesFor();
+  const customs = dtCustomPlaces();
+  const map = new Map();
+  presets.forEach(p => {
+    map.set(p.key, { ...p, spots: Array.isArray(p.spots) ? [...p.spots] : [], isCustom: false });
+  });
+  customs.forEach(c => {
+    if (!c || !c.key) return;
+    if (map.has(c.key)) {
+      const target = map.get(c.key);
+      const existingNames = new Set(target.spots.map(s => s.name));
+      (c.spots || []).forEach(s => {
+        if (s && s.name && !existingNames.has(s.name)) target.spots.push(s);
+      });
+      if (c.pinned !== undefined) target.pinned = c.pinned;
+    } else {
+      map.set(c.key, { ...c, spots: Array.isArray(c.spots) ? [...c.spots] : [], isCustom: true });
+    }
+  });
+  return Array.from(map.values()).sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
 }
 
 apps.dating = {
