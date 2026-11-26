@@ -5828,46 +5828,122 @@ d.querySelector('#c_sv').onclick=()=>{
       }
     }
   }
-    // 方舟臻选 · 对方可能赠送礼物
-    try{
-      const giftCfg=emGiftCfg();
-      const contact=store.contacts().find(x=>x.name===targetPeer);
-      if(giftCfg.enabled&&contact&&!isAI(targetPeer)){
-        const aff=contact.affinity||0;
-        if(aff>=giftCfg.affThreshold){
-          const wealth=emWealthOf(targetPeer);
-          const hit=Math.random()*100 < (wealth.giftChance||giftCfg.baseChance);
-          // 话题触发：消息含「想要 / 喜欢 / 好看 / 买不起 / 生日 / 纪念」等
-          const kw=/想要|喜欢|好看|心动|买不起|有点贵|生日|纪念|送我|对我好/.test(text);
-          if(hit||kw){
-                        const minP = wealth.minGift || 0;
-            const pool = emAllGoods().filter(g => g.price >= minP && g.price <= wealth.total * 0.3);
-            if (pool.length) {
-              const pick = pool[Math.floor(Math.random() * pool.length)];
-              if (pick.price <= wealth.total) {
-                emSetWealth(targetPeer, { total: wealth.total - pick.price });
-                emAddInventory({ id: 'inv' + Date.now(), goodId: pick.id, from: targetPeer, to: 'me', time: nowTime(), msg: text.slice(0, 40) });
-                const ch2 = store.chats(), a4 = ch2[targetPeer] || [];
-                a4.push({
-                  role: 'them',
-                  who: targetPeer,
-                  content: `（送出礼物：${pick.name}）`,
-                  time: storyMsgTime(),
-                  isGift: true,
-                  giftId: pick.id,
-                  giftName: pick.name,
-                  giftIco: pick.ico || '🎁',
-                  giftPrice: pick.price
-                });
-                ch2[targetPeer] = a4; store.setChats(ch2);
-                repaintIfHere();
-                banner('🎁 ' + targetPeer + ' 送来了礼物', pick.name + ' · 已入库', () => openApp('emporium'));
-              }
+    // 方舟臻选 · 对方可能赠送礼物（严格基于聊天内容语义与角色画像精准选品）
+try {
+  const giftCfg = emGiftCfg();
+  const contact = store.contacts().find(x => x.name === targetPeer);
+  if (giftCfg.enabled && contact && !isAI(targetPeer)) {
+    const aff = contact.affinity || 0;
+    if (aff >= giftCfg.affThreshold) {
+      const wealth = emWealthOf(targetPeer);
+      const hit = Math.random() * 100 < (wealth.giftChance || giftCfg.baseChance);
+      
+      // 触发判定：消息含需求、心仪、生理疲态、纪念节点等
+      const kw = /想要|喜欢|好想|买不起|有点贵|送我|生日|纪念|累|困|没睡|疼|伤|饿|渴|冷|坏了|修|借我|好看/.test(text);
+      
+      if (hit || kw) {
+        const minP = wealth.minGift || 0;
+        const maxBudget = Math.max(minP + 10, wealth.total * 0.35);
+        const allGoods = emAllGoods().filter(g => g.price >= minP && g.price <= maxBudget);
+
+        // ====== 核心语义路由器：根据玩家上文内容，筛选对应匹配的品类 ======
+        const targetCats = new Set();
+        if (/咖啡|困|提神|熬夜|没睡|通宵|好累/.test(text)) {
+          targetCats.add('drink'); targetCats.add('food'); targetCats.add('misc');
+        } else if (/饿|吃|餐|饭|披萨|零食|甜点|卷饼/.test(text)) {
+          targetCats.add('food'); targetCats.add('drink');
+        } else if (/酒|喝一杯|庆祝|敬你|痛快/.test(text)) {
+          targetCats.add('drink');
+        } else if (/伤|疼|包扎|撞了|摔了|流血|药/.test(text)) {
+          targetCats.add('gear'); targetCats.add('misc');
+        } else if (/冷|衣服|穿|外套|大衣|换季|羽绒/.test(text)) {
+          targetCats.add('fashion');
+        } else if (/手链|项链|戒指|首饰|礼物|纪念日|漂亮|好看|心动/.test(text)) {
+          targetCats.add('jewel'); targetCats.add('watch'); targetCats.add('misc');
+        } else if (/车|走不动|堵车|赶时间|接我|跑车/.test(text)) {
+          targetCats.add('car');
+        } else if (/电脑|代码|屏幕|全息|算法|设备|芯片|黑科技/.test(text)) {
+          targetCats.add('tech'); targetCats.add('gear');
+        } else if (/弓|箭|瞄准|巡逻|防弹|任务|武器|靶/.test(text)) {
+          targetCats.add('gear');
+        }
+
+        // 1. 优先找【品类命中上下文】且【在该角色偏好列表中】的精准商品
+        let candidatePool = [];
+        if (targetCats.size > 0) {
+          candidatePool = allGoods.filter(g => targetCats.has(g.cat) && (g.likes || []).includes(targetPeer));
+          // 若没有角色专属偏好，放宽至该品类下所有商品
+          if (!candidatePool.length) {
+            candidatePool = allGoods.filter(g => targetCats.has(g.cat));
+          }
+        }
+
+        // 2. 如果玩家没有聊特定物品，但命中了送礼概率，则必须从【该角色专属常购/偏好】中挑选，绝不全库盲抽
+        if (!candidatePool.length) {
+          candidatePool = allGoods.filter(g => (g.likes || []).includes(targetPeer));
+        }
+
+        // 3. 最终兜底：如果该角色连偏好商品都没有，才从常购类别中取
+        if (!candidatePool.length) {
+          const charHabits = new Set(wealth.habits || []);
+          candidatePool = allGoods.filter(g => charHabits.has(g.cat));
+        }
+
+        if (candidatePool.length) {
+          const pick = candidatePool[Math.floor(Math.random() * candidatePool.length)];
+
+          if (pick.price <= wealth.total) {
+            emSetWealth(targetPeer, { total: wealth.total - pick.price });
+            emAddInventory({
+              id: 'inv' + Date.now(),
+              goodId: pick.id,
+              from: targetPeer,
+              to: 'me',
+              time: nowTime(),
+              msg: `因聊天中提到“${text.slice(0, 18)}”而赠送`
+            });
+
+            // 按角色与具体物品智能生成贴合语境的送礼随笔附言
+            let giftCardMsg = '';
+            if (/咖啡|困|提神/.test(text) && pick.cat === 'drink') {
+              giftCardMsg = targetPeer === '托尼·斯塔克' ? '别喝速溶了，这罐豆子刚烘出来。' : '看你犯困，顺手给你带的。';
+            } else if (/饿|吃/.test(text)) {
+              giftCardMsg = '看你刚才嚷嚷饿，热量够撑到明早。';
+            } else if (/伤|疼/.test(text)) {
+              giftCardMsg = '拿去用，别硬撑着。';
+            } else if (pick.cat === 'car') {
+              giftCardMsg = '钥匙在前台，自己去车库开。';
+            } else if (pick.cat === 'tech') {
+              giftCardMsg = '新调好的备件，顺手给你的终端配上了。';
+            } else {
+              giftCardMsg = targetPeer === '托尼·斯塔克' ? '随手拿的。别用那种眼神看我。' : '刚才聊到，觉得适合你就送过来了。';
             }
+
+            const ch2 = store.chats(), a4 = ch2[targetPeer] || [];
+            a4.push({
+              role: 'them',
+              who: targetPeer,
+              content: `（送出礼物：${pick.name}）`,
+              time: storyMsgTime(),
+              isGift: true,
+              giftId: pick.id,
+              giftName: pick.name,
+              giftIco: pick.ico || '🎁',
+              giftPrice: pick.price,
+              giftMsg: giftCardMsg
+            });
+            ch2[targetPeer] = a4;
+            store.setChats(ch2);
+            repaintIfHere();
+            banner('🎁 ' + targetPeer + ' 送来了礼物', `${pick.name} · “${giftCardMsg}”`, () => openApp('emporium'));
           }
         }
       }
-    }catch(e){console.warn(e);}
+    }
+  }
+} catch (e) {
+  console.warn('Gift delivery error:', e);
+}
         // 联系人主动发转账 / 红包
     try {
       const contact = store.contacts().find(x => x.name === targetPeer);
@@ -6311,7 +6387,33 @@ function socialApp(platform,title,hasImg){
       <div class="hint" style="margin-bottom:12px">${en('What\'s happening in the Stark universe?')} · 动态里的英文原句会自动套用优雅衬线斜体。</div>
       <div id="p_list">${posts.length?'':'<div class="empty">暂无动态，点「刷新动态」让世界活起来。</div>'}</div></div>`;
     const list=v.querySelector('#p_list');
-    const paint=()=>{const ps=store.posts()[platform]||[];list.innerHTML=ps.map((p,i)=>`
+    const paint = () => {
+  const ps = store.posts();
+  let dirtyFixed = false;
+  (ps[platform] || []).forEach(p => {
+    if (p.text && (p.text.includes(';;') || (p.text.includes('@') && p.text.includes(':')))) {
+      const rawComments = p.text.split(';;').map(c => {
+        const idx = c.indexOf(':') > -1 ? c.indexOf(':') : c.indexOf('：');
+        if (idx < 0) return null;
+        return { user: c.slice(0, idx).replace(/^.*@/, '@').trim(), text: c.slice(idx + 1).trim() };
+      }).filter(Boolean);
+      if (rawComments.length) {
+        p.comments = [...(p.comments || []), ...rawComments];
+        if (p.name.includes('号角') || p.name.includes('J.J.J.')) {
+          p.handle = '@dailybugle';
+          p.text = '【号角日报独家社论】钢铁侠又在市中心搞出巨响！市民要求说法！';
+        } else {
+          p.text = p.handle && !p.handle.startsWith('@') ? p.handle : '（最新现场目击）';
+          p.handle = '@' + p.name.slice(0, 8);
+        }
+        dirtyFixed = true;
+      }
+    }
+  });
+  if (dirtyFixed) store.setPosts(ps);
+
+  const psList = store.posts()[platform] || [];
+  list.innerHTML = psList.map((p, i) => `
       <div class="post" data-i="${i}">
         <div class="h"><div class="av" style="width:36px;height:36px;font-size:14px">${esc((p.name||'?')[0])}</div><div><div class="nm">${esc(p.name)}</div><div class="hd">${esc(p.handle||'@user')}</div></div></div>
         ${hasImg?(p.img?`<img src="${esc(p.img)}">`:(p.imgPrompt?`<div data-gen="${i}" style="aspect-ratio:1.4;background:var(--panel2);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;color:var(--muted);cursor:pointer;margin-bottom:10px"><div style="font-size:28px">🖼️</div><div style="font-size:12px">点击生成配图</div></div>`:'')):''}
@@ -6503,9 +6605,66 @@ ${handleRule}
 格式每行：发帖人 ||| @账号 ||| 正文 ||| 评论者1:内容 ;; 评论者2:内容 ;; ...（共${cc}条评论）`}],buildSystem('social'),fb,'social');
         const ps=store.posts();ps[platform]=ps[platform]||[];const nw=[];
         const me=store.profile().name||'我';
-res.split('\n').filter(l=>l.includes('|||')).slice(0,n).forEach(l=>{const pt=l.split('|||').map(x=>x.trim());const name=pt[0],handle=pt[1],text=pt[2];const cstr=pt.slice(3).join('|||');
-  const comments=(cstr||'').split(';;').map(c=>{const k=c.indexOf(':'),k2=c.indexOf('：');const p0=k>-1?k:k2;if(p0<0)return null;return{user:c.slice(0,p0).trim(),text:c.slice(p0+1).trim()};}).filter(c=>c&&c.user!==me);
-  if(name&&text)nw.push({name,handle:handle||'@user',text,imgPrompt:hasImg?'Cinematic Marvel-style photo, dramatic blue and gold lighting':'',likes:Math.floor(Math.random()*300)+10,comments,time:nowTime()});});
+res.split('\n').filter(l => l.includes('|||')).slice(0, n).forEach(l => {
+  const pt = l.split('|||').map(x => x.trim()).filter(Boolean);
+  if (pt.length < 2) return;
+
+  let name = pt[0] || '匿名用户';
+  let handle = '';
+  let text = '';
+  let cstr = '';
+
+  // 核心修复：智能判定是否漏掉了 @账号
+  if (pt.length >= 4) {
+    // 标准 4 段式
+    handle = pt[1];
+    text = pt[2];
+    cstr = pt.slice(3).join('|||');
+  } else if (pt.length === 3) {
+    // 3 段式：检测第二段是否包含 @
+    if (pt[1].startsWith('@')) {
+      handle = pt[1];
+      text = pt[2];
+    } else {
+      // 模型漏掉了 @handle，pt[1] 是正文，pt[2] 是评论串！
+      handle = '@' + name.replace(/[^a-zA-Z0-9_\u4e00-\u9fa5]/g, '').toLowerCase().slice(0, 10);
+      text = pt[1];
+      cstr = pt[2];
+    }
+  } else if (pt.length === 2) {
+    handle = '@' + name.replace(/[^a-zA-Z0-9_\u4e00-\u9fa5]/g, '').toLowerCase().slice(0, 10);
+    text = pt[1];
+  }
+
+  // 确保 handle 始终带 @
+  if (!handle.startsWith('@')) handle = '@' + handle;
+
+  // 解析评论并防止评论串渗入正文
+  const comments = (cstr || '').split(';;').map(c => {
+    const k = c.indexOf(':'), k2 = c.indexOf('：');
+    const p0 = k > -1 ? k : k2;
+    if (p0 < 0) return null;
+    return { user: c.slice(0, p0).trim(), text: c.slice(p0 + 1).trim() };
+  }).filter(c => c && c.user && c.text && c.user !== me);
+
+  // 二次防渗入：如果正文依然残留评论标记（如 @xxx:...），自动截断清洗
+  if (text.includes(';;') || /@\w+[:：]/.test(text)) {
+    const splitted = text.split(/;;|(?=@\w+[:：])/);
+    text = splitted[0].replace(/@\w+[:：].*$/, '').trim() || '（更新了动态）';
+  }
+
+  if (name && text) {
+    nw.push({
+      name,
+      handle,
+      text,
+      imgPrompt: hasImg ? 'Cinematic Marvel-style photo, dramatic blue and gold lighting' : '',
+      likes: Math.floor(Math.random() * 300) + 10,
+      comments,
+      time: nowTime()
+    });
+  }
+});
         if(!nw.length)throw new Error('未按格式返回');
         ps[platform]=[...nw,...ps[platform]];store.setPosts(ps);self.render(v);
       }catch(e){toast('刷新失败：'+e.message);self.render(v);}};
