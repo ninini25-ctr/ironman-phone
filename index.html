@@ -6272,8 +6272,14 @@ const targetPeer = self.cur; // ← 新增
   },
   openTransferModal(v, mode) {
     const self = this;
-const targetPeer = self.cur; // ← 新增
+    const targetPeer = self.cur;
     if (!targetPeer) return;
+    const repaintIfHere = () => {
+      const host = document.getElementById('appBody') || v;
+      if (currentApp === 'messages' && self.view === 'chat' && self.cur === targetPeer && host) {
+        try { self.render(host); } catch (e) {}
+      }
+    };
     const isPay = mode === 'pay';
     const wallet = emUserWallet();
     const d = modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:16px">${isPay ? '💸 发起转账' : '🧧 发送红包'} · ${esc(targetPeer)}</h2>
@@ -16400,30 +16406,15 @@ function datePlacesFor(){
    - 丰富全球地标与每城不少于9个专属点位
    - 支持在已有城市下添加自定义地点 / 新增自定义城市并置顶固化
    ============================================================ */
-  // 1. 先加入预设
-  presets.forEach(p => {
-    map.set(p.key, { ...p, spots: [...p.spots], isCustom: false });
-  });
+function dtCustomPlaces() { return store.get('dt_custom_places', []); }
+function dtSaveCustomPlaces(list) { store.set('dt_custom_places', list); }
+function dtAutoMsgOn() { return store.get('dt_auto_msg', true) !== false; }
+function dtSetAutoMsg(b) { store.set('dt_auto_msg', !!b); }
 
-  // 2. 合并或追加自定义城市及已有城市的自定义点位
-  customs.forEach(c => {
-    if (map.has(c.key)) {
-      // 在已有城市下追加自定义点位
-      const target = map.get(c.key);
-      const existingNames = new Set(target.spots.map(s => s.name));
-      (c.spots || []).forEach(s => {
-        if (!existingNames.has(s.name)) target.spots.push(s);
-      });
-    } else {
-      // 纯新增的自定义城市
-      map.set(c.key, { ...c, isCustom: true });
-    }
-  });
-
-  const list = Array.from(map.values());
-  // 置顶城市排在前列
-  return list.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
-}
+function dtGetAllPlaces() {
+  const presets = datePlacesFor();
+  const customs = dtCustomPlaces();
+  const map = new Map();
 function dtCustomPlaces() { return store.get('dt_custom_places', []); }
 function dtSaveCustomPlaces(list) { store.set('dt_custom_places', list); }
 function dtAutoMsgOn() { return store.get('dt_auto_msg', true) !== false; }
@@ -18459,7 +18450,7 @@ function avParseLines(rawText, allowedMembers) {
     if (!s || s === '你' || s === '我' || s === '玩家' || (me && s === me)) return null;
     return pool.find(m => m.name === s || m.short === s || m.name.includes(s) || s.includes(m.short))
       || allMem.find(m => m.name === s || m.short === s || m.name.includes(s) || s.includes(m.short))
-      || null; // ← 必须是双竖线 ||
+      || null;
   };
 
   const out = [];
@@ -18681,6 +18672,7 @@ const bindMsg = (liveThread) => {
   });
 };
 self._livePaint = paint; // 挂载到实例上，供任何异步回调随时刷新当前屏幕
+    paint(); // ✅ 立即执行首次消息流渲染
 
     const rq = body.querySelector('#av_rq');
     if (rq) rq.onclick = () => { self.reply = null; self.renderChat(body, v); };
