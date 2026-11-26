@@ -7110,431 +7110,559 @@ function advanceCurrentAnchorTurn() {
   }
 }
 
-// ====== 全阶段 · 阶段与锚点控制中心 (All-Phase Cinematic Master Hub) ======
-function openAnchorManagerModal(onRefresh) {
-  let anchors = normalizeAnchorList(store.get('wl_anchors', []));
-  const curAtOpen = getCurrentAnchor();
-  
-  // 提取全部唯一的阶段名称（保留出现顺序）
-  const getUniquePhases = (list) => {
-    const set = new Set();
-    const arr = [];
-    list.forEach(a => {
-      const p = a.phaseTitle || '未分类阶段';
-      if (!set.has(p)) { set.add(p); arr.push(p); }
+// ============================================================
+// 电影级·全阶段与事件锚点系统 (Phase & Anchor Hierarchy Manager)
+// 复刻两级阶段大纲架构：支持阶段增删改插、细化锚点节拍、状态切换与角色限制
+// ============================================================
+
+// 辅助：从扁平锚点链聚合为结构化的阶段列表 (Phases)
+function wlGetPhasesFromAnchors() {
+  const anchors = normalizeAnchorList(store.get('wl_anchors', []));
+  const phaseMap = new Map();
+  const phases = [];
+  const f = flags();
+
+  anchors.forEach((a, idx) => {
+    const pTitle = a.phaseTitle || '阶段一：初遇与日常';
+    if (!phaseMap.has(pTitle)) {
+      const pObj = {
+        id: a.phaseId || ('phase_' + phases.length),
+        name: pTitle,
+        year: a.phaseYear || f.year,
+        monthStart: a.phaseMonthStart || 1,
+        monthEnd: a.phaseMonthEnd || 12,
+        desc: a.phaseDesc || '本阶段的核心经历与生活细节磨合。',
+        allowedChars: a.allowedChars || '',
+        bannedChars: a.bannedChars || '',
+        mustEvents: a.mustEvents || '',
+        pacing: a.pacing || '',
+        anchors: []
+      };
+      phaseMap.set(pTitle, pObj);
+      phases.push(pObj);
+    }
+    phaseMap.get(pTitle).anchors.push(a);
+  });
+
+  return phases;
+}
+
+// 辅助：将阶段列表拍平回底层标准存储格式 (保持向下兼容)
+function wlSavePhasesToAnchors(phases) {
+  const flat = [];
+  phases.forEach(p => {
+    (p.anchors || []).forEach(a => {
+      a.phaseId = p.id;
+      a.phaseTitle = p.name;
+      a.phaseYear = p.year;
+      a.phaseMonthStart = p.monthStart;
+      a.phaseMonthEnd = p.monthEnd;
+      a.phaseDesc = p.desc;
+      a.allowedChars = p.allowedChars;
+      a.bannedChars = p.bannedChars;
+      a.mustEvents = p.mustEvents;
+      a.pacing = p.pacing;
+      flat.push(a);
     });
-    return arr.length ? arr : ['第 1 阶段'];
+  });
+  store.set('wl_anchors', flat);
+  return flat;
+}
+
+// 核心：全阶段与锚点管理器弹窗
+function openAnchorManagerModal(onRefresh) {
+  let phases = wlGetPhasesFromAnchors();
+  const curAnchor = getCurrentAnchor();
+  const curAnchorId = curAnchor ? curAnchor.id : null;
+
+  // 内部视图切换器：'list' (图1管理面板) | 'edit_phase' (图2新建/编辑表单)
+  let currentView = 'list';
+  let editingPhaseTarget = null; // null: 顶层插入, number: 某阶段后插入, object: 编辑该阶段
+
+  let modalEl = null;
+
+  // 渲染总调度
+  const refreshModalView = () => {
+    if (!modalEl) return;
+    const bodyBox = modalEl.querySelector('#anc_mgr_view_host');
+    if (!bodyBox) return;
+
+    if (currentView === 'list') {
+      bodyBox.innerHTML = renderListViewHtml();
+      bindListEvents(bodyBox);
+    } else {
+      bodyBox.innerHTML = renderEditPhaseHtml();
+      bindEditPhaseEvents(bodyBox);
+    }
   };
 
-  let allPhases = getUniquePhases(anchors);
-  // 当前聚焦选中的阶段标签：优先显示当前正在推演的阶段
-  let activePhase = (curAtOpen && curAtOpen.phaseTitle) ? curAtOpen.phaseTitle : allPhases[0];
-  if (!allPhases.includes(activePhase)) activePhase = allPhases[0];
+  // ==================== 1. 图 1 界面：全阶段大纲列表 ====================
+  const renderListViewHtml = () => {
+    return `
+      <style>
+        .p-panel { background: var(--panel2, #171f2a); border-radius: 12px; border: 1px solid var(--line, #1e2a38); margin-bottom: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+        .p-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--line, #1e2a38); gap: 6px; }
+        .p-title-btn { font-size: 13.5px; font-weight: 700; color: var(--text, #eaf4ff); font-family: var(--font-serif); cursor: pointer; display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .p-title-btn:hover { color: var(--cyan, #35d0ff); }
+        .p-ops { display: flex; gap: 5px; flex-shrink: 0; }
+        .p-btn-sm { font-size: 11px; padding: 3px 8px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel, #10151c); color: var(--cyan); cursor: pointer; display: inline-flex; align-items: center; gap: 2px; }
+        .p-btn-sm:hover { background: rgba(53,208,255,0.1); border-color: var(--cyan); }
+        .a-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px dashed var(--line, #1e2a38); transition: background .15s; font-size: 12.5px; }
+        .a-row:last-child { border-bottom: none; }
+        .a-row:hover { background: rgba(255,255,255,0.02); }
+        .a-status { width: 18px; height: 18px; flex-shrink: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; border-radius: 4px; }
+        .a-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; color: var(--text, #eaf4ff); }
+        .a-title:hover { color: var(--cyan); }
+        .a-row.done .a-title { text-decoration: line-through; opacity: 0.55; }
+        .a-row.current { background: rgba(53,208,255,0.08); border-left: 3px solid var(--cyan); }
+        .a-row.current .a-title { color: var(--cyan); font-weight: 700; }
+        .a-ctrls { display: flex; gap: 6px; flex-shrink: 0; color: var(--muted); font-size: 13px; }
+        .a-ctrls span { cursor: pointer; padding: 0 3px; }
+        .a-ctrls span:hover { color: var(--cyan); }
+        .a-ctrls span.del:hover { color: var(--red, #e23636); }
+      </style>
 
-  let expandedSet = new Set(curAtOpen ? [curAtOpen.id] : []);
+      <!-- 顶部功能栏与说明 -->
+      <div style="margin-bottom: 10px">
+        <div style="font-size: 11.5px; line-height: 1.6; color: var(--muted); margin-bottom: 10px; padding: 0 2px">
+          <span style="color:var(--cyan)">☑ 已发生</span>　<span style="color:var(--gold)">▶ 当前阶段</span>　<span style="color:var(--muted)">⬜ 待发生</span>。<br>
+          点锚点标题可改名，✕ 删除，+ 锚点。阶段标题旁可改名/在此阶段后插入新阶段。
+        </div>
 
-  // 渲染顶部全阶段横向切换栏
-  const renderPhaseTabs = () => {
-    return allPhases.map(pName => {
-      const pAnchors = anchors.filter(a => (a.phaseTitle || '未分类阶段') === pName);
-      const doneCount = pAnchors.filter(a => a.done).length;
-      const isCurPhase = curAtOpen && (curAtOpen.phaseTitle || '未分类阶段') === pName;
-      const isActive = activePhase === pName;
+        <div style="display: flex; gap: 8px; margin-bottom: 12px">
+          <button class="btn sm ghost" id="btn_insert_head" style="flex:1; border-color: rgba(53,208,255,0.5); color: var(--cyan); font-weight:700">
+            🧩 插在最前面
+          </button>
+          <button class="btn sm ghost" id="btn_restore_default" style="flex:1; border-color: rgba(226,54,54,0.4); color: var(--red)">
+            🔄 恢复默认阶段划分
+          </button>
+        </div>
+      </div>
 
-      return `
-        <button type="button" class="chip ${isActive ? 'on' : ''}" data-switch-phase="${esc(pName)}" style="padding:5px 10px;font-size:11px;flex:0 0 auto;border-radius:12px;margin-right:6px;transition:.15s;${isCurPhase ? 'border-color:var(--gold);box-shadow:0 0 6px rgba(245,185,66,.25);' : ''}">
-          ${isCurPhase ? '★ ' : ''}${esc(pName)}
-          <span style="opacity:0.75;font-size:9.5px;margin-left:3px">(${doneCount}/${pAnchors.length})</span>
-        </button>
-      `;
-    }).join('') + `
-      <button type="button" class="chip" id="hub_add_new_phase_btn" style="border-style:dashed;color:var(--cyan);padding:5px 9px;font-size:11px;flex:0 0 auto">
-        ＋ 新建阶段
-      </button>
+      <!-- 阶段大卡片循环 -->
+      <div style="max-height: 58vh; overflow-y: auto; padding-right: 2px" id="phase_cards_scroll">
+        ${phases.map((p, pIdx) => `
+          <div class="p-panel" data-phase-idx="${pIdx}">
+            <div class="p-head">
+              <div class="p-title-btn" data-edit-phase="${pIdx}" title="点击编辑阶段设置与限制">
+                <span>${esc(p.name)}</span>
+                <span style="font-size:10px; color:var(--muted)">✏</span>
+              </div>
+              <div class="p-ops">
+                <button class="p-btn-sm" data-add-anchor="${pIdx}" title="向本阶段添加新事件">＋ 锚点</button>
+                <button class="p-btn-sm" data-insert-after="${pIdx}" title="在此阶段后插入新阶段">🧩 此后插</button>
+                <button class="p-btn-sm" data-del-phase="${pIdx}" style="color:var(--red)" title="删除阶段">✕</button>
+              </div>
+            </div>
+
+            <!-- 本阶段子锚点 -->
+            <div class="p-body">
+              ${(p.anchors && p.anchors.length) ? p.anchors.map((a, aIdx) => {
+                const isCur = curAnchorId === a.id;
+                const isDone = !!a.done;
+                let statusIcon = '⬜';
+                if (isDone) statusIcon = '☑';
+                else if (isCur) statusIcon = '▶';
+
+                return `
+                  <div class="a-row ${isDone ? 'done' : ''} ${isCur ? 'current' : ''}" data-anchor-id="${a.id}">
+                    <div class="a-status" data-toggle-anchor="${a.id}" title="点击切换达成状态" style="color:${isDone ? 'var(--cyan)' : isCur ? 'var(--gold)' : 'var(--muted)'}">
+                      ${statusIcon}
+                    </div>
+                    <div class="a-title" data-rename-anchor="${a.id}" title="${esc(a.desc || '点击改名')}">
+                      ${esc(a.title)}
+                      <span style="font-size:10px; opacity:0.65; font-family:var(--font-mono)">(${a.curTurns || 0}/${a.maxTurns || 3}回)</span>
+                    </div>
+                    <div class="a-ctrls">
+                      <span data-a-move="up" data-p-idx="${pIdx}" data-a-idx="${aIdx}" title="上移">↑</span>
+                      <span data-a-move="down" data-p-idx="${pIdx}" data-a-idx="${aIdx}" title="下移">↓</span>
+                      <span class="del" data-a-del data-p-idx="${pIdx}" data-a-idx="${aIdx}" title="删除">✕</span>
+                    </div>
+                  </div>
+                `;
+              }).join('') : `
+                <div style="padding: 12px; text-align: center; color: var(--muted); font-size: 11.5px">
+                  本阶段暂无锚点，点击右上角「＋ 锚点」添加
+                </div>
+              `}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+
+      <!-- 底部保存按钮 -->
+      <div style="margin-top: 12px; display: flex; gap: 8px">
+        <button class="btn gold sm" id="btn_save_all_phases" style="flex:1">💾 保存并应用全部修改</button>
+        <button class="btn ghost sm" data-close style="flex:0 0 70px">关闭</button>
+      </div>
     `;
   };
 
-  // 渲染当前阶段内部的事件列表
-  const renderAnchorCards = () => {
-    const list = anchors.filter(a => (a.phaseTitle || '未分类阶段') === activePhase);
-    if (!list.length) {
-      return `<div class="empty" style="padding:30px 10px;background:var(--panel2);border-radius:12px;border:1px dashed var(--line)">
-        该阶段暂无事件。点击下方「＋ 为本阶段添加新事件」创建。
-      </div>`;
-    }
+  // 绑定图 1 事件
+  const bindListEvents = (host) => {
+    // 1. 插在最前面
+    host.querySelector('#btn_insert_head').onclick = () => {
+      editingPhaseTarget = 'head';
+      currentView = 'edit_phase';
+      refreshModalView();
+    };
 
-    return list.map((a) => {
-      const globalIdx = anchors.findIndex(x => x.id === a.id);
-      const isCur = curAtOpen && curAtOpen.id === a.id;
-      const isOpen = expandedSet.has(a.id);
-      const curT = a.curTurns || 0;
-      const maxT = a.maxTurns || 3;
+    // 2. 恢复默认阶段
+    host.querySelector('#btn_restore_default').onclick = () => {
+      if (!confirm('确定恢复原著默认阶段划分？当前自定义的阶段和修改将重置。')) return;
+      store.set('wl_anchors', null);
+      wlSetPinned('');
+      initOrGetAnchors().then(() => {
+        phases = wlGetPhasesFromAnchors();
+        refreshModalView();
+        toast('已恢复默认原著阶段');
+      });
+    };
 
-      return `
-      <div class="card anc-card" style="padding:0;margin-bottom:8px;background:var(--panel2);border-radius:12px;border:1px solid ${isCur ? 'var(--cyan)' : 'var(--line)'};border-left:4px solid ${a.done ? 'var(--green)' : isCur ? 'var(--cyan)' : 'var(--gold)'};box-shadow:${isCur ? '0 0 10px var(--cyanGlow)' : '0 2px 6px rgba(0,0,0,.15)'};overflow:hidden">
-        <!-- 紧凑折叠条 -->
-        <div data-anc-fold="${a.id}" style="display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;background:${isOpen ? 'rgba(53,208,255,0.06)' : 'transparent'}">
-          <span style="font-family:var(--font-mono);font-size:11px;font-weight:700;color:${isCur ? 'var(--cyan)' : 'var(--muted)'};width:20px">
-            #${globalIdx + 1}
-          </span>
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:700;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-              ${isCur ? '<span style="color:var(--cyan)">● 正在推进: </span>' : ''}${esc(a.title || '未命名事件')}
-            </div>
-            <div style="font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px">
-              ${esc(a.desc || '暂无描述')}
-            </div>
-          </div>
-          <span class="tag ${a.done ? 'green' : isCur ? '' : 'gold'}" style="font-size:9.5px;flex:0 0 auto;padding:2px 6px">
-            ${a.done ? `已达成 (${curT}/${maxT})` : isCur ? `推进中 (${curT}/${maxT})` : `计划 (${curT}/${maxT})`}
-          </span>
-          <span style="font-size:10px;color:var(--muted)">${isOpen ? '▲' : '▼'}</span>
-        </div>
-
-        <!-- 展开编辑详情 -->
-        ${isOpen ? `
-        <div style="padding:10px 12px 12px;border-top:1px dashed var(--line);background:rgba(0,0,0,0.18)">
-          <!-- 跨阶段调整与排序工具条 -->
-          <div style="display:flex;gap:5px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
-            <span class="hint" style="font-size:10.5px;margin-right:auto">当前位于全局第 ${globalIdx + 1} 位</span>
-            <button type="button" class="btn sm ghost" data-anc-set-active="${a.id}" style="padding:3px 7px;font-size:10px;color:var(--cyan)" title="直接将此事件设为当前正在推进">
-              🎯 设为当前推演
-            </button>
-            <button type="button" class="btn sm ghost" data-anc-move="up" data-idx="${globalIdx}" title="上移" ${globalIdx === 0 ? 'disabled' : ''} style="flex:0 0 28px;padding:3px 0">↑</button>
-            <button type="button" class="btn sm ghost" data-anc-move="down" data-idx="${globalIdx}" title="下移" ${globalIdx === anchors.length - 1 ? 'disabled' : ''} style="flex:0 0 28px;padding:3px 0">↓</button>
-          </div>
-
-          <!-- 所属阶段输入（改动这里可把该事件直接搬移至其他阶段） -->
-          <div class="field" style="margin-bottom:6px">
-            <label style="font-size:10.5px;color:var(--muted)">所属阶段名称（支持任意修改或归并）：</label>
-            <input class="inp anc_phase_in" data-id="${a.id}" value="${esc(a.phaseTitle || activePhase)}" placeholder="阶段名称" style="font-size:11.5px;padding:5px 8px">
-          </div>
-
-          <div class="field" style="margin-bottom:6px">
-            <label style="font-size:10.5px;color:var(--muted)">事件标题：</label>
-            <input class="inp anc_t_in" data-id="${a.id}" value="${esc(a.title || '')}" placeholder="事件标题" style="font-weight:700;font-size:12.5px;padding:6px 8px">
-          </div>
-
-          <div class="row" style="margin-bottom:6px;align-items:center;gap:6px">
-            <span class="hint" style="font-size:11px;flex:0 0 auto">已完成回合:</span>
-            <input type="number" min="0" max="20" class="inp anc_cur_in" data-id="${a.id}" value="${curT}" style="flex:1;padding:5px;text-align:center">
-            <span class="hint" style="font-size:11px;flex:0 0 auto">/ 规划总回合:</span>
-            <input type="number" min="1" max="20" class="inp anc_max_in" data-id="${a.id}" value="${maxT}" style="flex:1;padding:5px;text-align:center" title="支持自由设定 1~20 回合">
-          </div>
-
-          <div class="field" style="margin-bottom:8px">
-            <label style="font-size:10.5px;color:var(--muted)">剧情背景与引导细节：</label>
-            <textarea class="inp anc_d_in" data-id="${a.id}" rows="2" style="font-size:11.5px;padding:6px 8px;line-height:1.5">${esc(a.desc || '')}</textarea>
-          </div>
-
-          <div class="row" style="gap:6px">
-            <button type="button" class="btn sm ghost" data-anc-toggle="${a.id}" style="font-size:11px;flex:1">
-              ${a.done ? '重置为未完成' : '立即标为已达成'}
-            </button>
-            <button type="button" class="btn sm red ghost" data-anc-del="${a.id}" style="flex:0 0 52px;font-size:11px">
-              删除
-            </button>
-          </div>
-        </div>` : ''}
-      </div>`;
-    }).join('');
-  };
-
-  const d = modal(`
-    <style>
-      .hub-phase-nav::-webkit-scrollbar { display: none; }
-      .hub-phase-nav { scrollbar-width: none; }
-    </style>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-      <div>
-        <h2 style="color:var(--gold);margin:0;font-size:16px;display:flex;align-items:center;gap:6px">
-          <span>🎯</span> 全阶段与事件总控中心
-        </h2>
-        <div class="hint" style="font-size:10.5px;margin-top:2px">全阶段穿梭管理 · 自由修改阶段名、事件与回合</div>
-      </div>
-      <button class="btn ghost sm" id="hub_fold_all" style="font-size:10.5px;padding:3px 7px">全部展开/折叠</button>
-    </div>
-
-    <!-- 顶部横向全阶段滚动切换胶囊栏 -->
-    <div class="hub-phase-nav" id="hub_phase_bar" style="display:flex;overflow-x:auto;padding-bottom:6px;margin-bottom:8px;border-bottom:1px solid var(--line)">
-      ${renderPhaseTabs()}
-    </div>
-
-    <!-- 当前阶段的阶段名一键重命名行 -->
-    <div class="card" style="padding:8px 10px;margin-bottom:8px;background:var(--panel);border-color:var(--line);display:flex;align-items:center;gap:8px">
-      <span class="hint" style="flex:0 0 auto;font-size:11px;font-weight:700;color:var(--cyan)">当前阶段名:</span>
-      <input id="hub_rename_active_phase" class="inp" value="${esc(activePhase)}" style="flex:1;padding:4px 8px;font-size:12px;font-weight:600">
-      <button type="button" class="btn sm ghost" id="hub_rename_phase_btn" style="flex:0 0 auto;font-size:10.5px;padding:4px 8px">重命名本阶段</button>
-    </div>
-
-    <!-- 主事件卡片列表视口 -->
-    <div id="hub_anchor_container" style="max-height:46vh;overflow-y:auto;padding-right:2px">
-      ${renderAnchorCards()}
-    </div>
-
-    <!-- 为当前阶段添加新事件 -->
-    <div class="card" style="padding:10px;margin-top:10px;background:var(--panel2)">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <span style="font-size:11.5px;font-weight:700;color:var(--cyan)">＋ 为【${esc(activePhase)}】添加新事件</span>
-        <div style="display:flex;align-items:center;gap:4px">
-          <span class="hint" style="font-size:10.5px">规划回合:</span>
-          <input id="new_anc_turns" type="number" min="1" max="20" value="4" class="inp" style="width:50px;padding:2px 5px;text-align:center;font-size:11px">
-        </div>
-      </div>
-      <input id="new_anc_t" class="inp" style="font-size:12px;margin-bottom:6px" placeholder="事件标题，如：地下车库的冷调初遇">
-      <textarea id="new_anc_d" class="inp" rows="2" style="font-size:11.5px;margin-bottom:6px" placeholder="细节描述与情节导向，AI 推演时将严格围绕此展开…"></textarea>
-      <button type="button" class="btn sm gold" id="new_anc_btn" style="width:100%">添加至本阶段</button>
-    </div>
-
-    <!-- 底部操作按钮 -->
-    <div class="row" style="margin-top:10px;gap:6px">
-      <button class="btn sm" id="hub_save_all" style="flex:1;padding:8px">💾 保存全部修改</button>
-      <button class="btn ghost sm" id="hub_reset_mcu" style="color:var(--red);flex:0 0 auto;padding:8px">↺ 恢复原著预设</button>
-      <button class="btn ghost sm" data-close style="flex:0 0 auto;padding:8px">关闭</button>
-    </div>
-  `);
-
-  // 提取输入框所有实时修改（通过 a.id 唯一定位，避免排序或切换阶段时数据错乱）
-  const syncInputs = () => {
-    d.querySelectorAll('.anc_phase_in').forEach(i => {
-      const target = anchors.find(x => x.id === i.dataset.id);
-      if (target) target.phaseTitle = i.value.trim() || '未分类阶段';
-    });
-    d.querySelectorAll('.anc_t_in').forEach(i => {
-      const target = anchors.find(x => x.id === i.dataset.id);
-      if (target) target.title = i.value.trim() || '未命名事件';
-    });
-    d.querySelectorAll('.anc_d_in').forEach(i => {
-      const target = anchors.find(x => x.id === i.dataset.id);
-      if (target) target.desc = i.value.trim() || '';
-    });
-    d.querySelectorAll('.anc_max_in').forEach(i => {
-      const target = anchors.find(x => x.id === i.dataset.id);
-      if (target) target.maxTurns = Math.max(1, parseInt(i.value) || 3);
-    });
-    d.querySelectorAll('.anc_cur_in').forEach(i => {
-      const target = anchors.find(x => x.id === i.dataset.id);
-      if (target) {
-        const c = Math.max(0, parseInt(i.value) || 0);
-        target.curTurns = c;
-        target.done = c >= target.maxTurns;
-      }
-    });
-  };
-
-  const fullRepaint = () => {
-    allPhases = getUniquePhases(anchors);
-    if (!allPhases.includes(activePhase)) activePhase = allPhases[0] || '第 1 阶段';
-    
-    const pBar = d.querySelector('#hub_phase_bar');
-    if (pBar) pBar.innerHTML = renderPhaseTabs();
-
-    const renInp = d.querySelector('#hub_rename_active_phase');
-    if (renInp) renInp.value = activePhase;
-
-    const cont = d.querySelector('#hub_anchor_container');
-    if (cont) cont.innerHTML = renderAnchorCards();
-
-    bindEvents();
-  };
-
-  const bindEvents = () => {
-    // 阶段切换
-    d.querySelectorAll('[data-switch-phase]').forEach(b => {
-      b.onclick = () => {
-        syncInputs();
-        activePhase = b.dataset.switchPhase;
-        fullRepaint();
+    // 3. 点击阶段标题编辑该阶段
+    host.querySelectorAll('[data-edit-phase]').forEach(btn => {
+      btn.onclick = () => {
+        const pIdx = +btn.dataset.editPhase;
+        editingPhaseTarget = phases[pIdx];
+        currentView = 'edit_phase';
+        refreshModalView();
       };
     });
 
-    // 新建阶段
-    const newPhaseBtn = d.querySelector('#hub_add_new_phase_btn');
-    if (newPhaseBtn) {
-      newPhaseBtn.onclick = () => {
-        syncInputs();
-        const nextNum = allPhases.length + 1;
-        const phaseName = prompt(`请输入新阶段名称：`, `第 ${nextNum} 阶段 · 自定义篇章`);
-        if (!phaseName || !phaseName.trim()) return;
-        const cleanName = phaseName.trim();
-        // 自动新建一个初始事件放入该阶段
-        const newId = 'anc_u_' + Date.now();
-        anchors.push({
-          id: newId,
-          phaseTitle: cleanName,
-          title: `${cleanName} · 序章`,
-          desc: '在此开始展开全新篇章的剧情推演。',
+    // 4. 此后插
+    host.querySelectorAll('[data-insert-after]').forEach(btn => {
+      btn.onclick = () => {
+        const pIdx = +btn.dataset.insertAfter;
+        editingPhaseTarget = pIdx; // 存索引，插在此索引后
+        currentView = 'edit_phase';
+        refreshModalView();
+      };
+    });
+
+    // 5. 删除阶段
+    host.querySelectorAll('[data-del-phase]').forEach(btn => {
+      btn.onclick = () => {
+        const pIdx = +btn.dataset.delPhase;
+        if (!confirm(`确定删除「${phases[pIdx].name}」及其内部的所有事件锚点？`)) return;
+        phases.splice(pIdx, 1);
+        if (!phases.length) {
+          phases.push({ id: 'phase_new', name: '新阶段', year: flags().year, monthStart: 1, monthEnd: 12, desc: '', anchors: [] });
+        }
+        refreshModalView();
+      };
+    });
+
+    // 6. 添加锚点
+    host.querySelectorAll('[data-add-anchor]').forEach(btn => {
+      btn.onclick = () => {
+        const pIdx = +btn.dataset.addAnchor;
+        const newTitle = prompt('输入新事件锚点标题：', '新日常与技术协同');
+        if (!newTitle || !newTitle.trim()) return;
+        phases[pIdx].anchors.push({
+          id: 'anc_u_' + Date.now() + Math.random().toString(36).slice(2, 5),
+          phaseTitle: phases[pIdx].name,
+          title: newTitle.trim(),
+          desc: '紧扣该事件展开剧情推演。',
           curTurns: 0,
-          maxTurns: 4,
+          maxTurns: 3,
           done: false
         });
-        activePhase = cleanName;
-        expandedSet.add(newId);
-        fullRepaint();
-        toast(`已新建并切换到【${cleanName}】`);
-      };
-    }
-
-    // 重命名当前阶段
-    const renBtn = d.querySelector('#hub_rename_phase_btn');
-    if (renBtn) {
-      renBtn.onclick = () => {
-        syncInputs();
-        const newName = d.querySelector('#hub_rename_active_phase').value.trim();
-        if (!newName || newName === activePhase) return toast('名称未发生变化');
-        // 将属于当前阶段的所有事件的 phaseTitle 全部更新
-        anchors.forEach(a => {
-          if ((a.phaseTitle || '未分类阶段') === activePhase) a.phaseTitle = newName;
-        });
-        activePhase = newName;
-        fullRepaint();
-        toast('阶段重命名成功');
-      };
-    }
-
-    // 折叠展开
-    d.querySelectorAll('[data-anc-fold]').forEach(el => {
-      el.onclick = (e) => {
-        if (['INPUT', 'TEXTAREA', 'BUTTON'].includes(e.target.tagName)) return;
-        syncInputs();
-        const id = el.dataset.ancFold;
-        if (expandedSet.has(id)) expandedSet.delete(id);
-        else expandedSet.add(id);
-        const cont = d.querySelector('#hub_anchor_container');
-        if (cont) cont.innerHTML = renderAnchorCards();
-        bindEvents();
+        refreshModalView();
       };
     });
 
-    // 直接设为当前正在推进事件
-    d.querySelectorAll('[data-anc-set-active]').forEach(b => {
-      b.onclick = () => {
-        syncInputs();
-        const targetId = b.dataset.ancSetActive;
-        wlSetPinned(targetId);
-        // 将该事件标记为未完成（确保推演不会跳过）
-        const it = anchors.find(x => x.id === targetId);
-        if (it) it.done = false;
-        fullRepaint();
-        toast(`已将【${it ? it.title : '目标事件'}】设为当前核心推进目标！`);
+    // 7. 锚点状态切换 (☑ / ▶ / ⬜)
+    host.querySelectorAll('[data-toggle-anchor]').forEach(btn => {
+      btn.onclick = () => {
+        const aId = btn.dataset.toggleAnchor;
+        for (const p of phases) {
+          const a = p.anchors.find(x => x.id === aId);
+          if (a) {
+            a.done = !a.done;
+            a.curTurns = a.done ? (a.maxTurns || 3) : 0;
+            break;
+          }
+        }
+        refreshModalView();
       };
     });
 
-    // 达成状态切换
-    d.querySelectorAll('[data-anc-toggle]').forEach(b => {
-      b.onclick = () => {
-        syncInputs();
-        const it = anchors.find(x => x.id === b.dataset.ancToggle);
-        if (!it) return;
-        it.done = !it.done;
-        it.curTurns = it.done ? it.maxTurns : 0;
-        fullRepaint();
+    // 8. 锚点改名
+    host.querySelectorAll('[data-rename-anchor]').forEach(el => {
+      el.onclick = () => {
+        const aId = el.dataset.renameAnchor;
+        for (const p of phases) {
+          const a = p.anchors.find(x => x.id === aId);
+          if (a) {
+            const nv = prompt('修改锚点标题：', a.title);
+            if (nv && nv.trim()) {
+              a.title = nv.trim();
+              refreshModalView();
+            }
+            break;
+          }
+        }
       };
     });
 
-    // 删除事件
-    d.querySelectorAll('[data-anc-del]').forEach(b => {
-      b.onclick = () => {
-        syncInputs();
-        const itIdx = anchors.findIndex(x => x.id === b.dataset.ancDel);
-        if (itIdx < 0) return;
-        const delTitle = anchors[itIdx].title;
-        anchors.splice(itIdx, 1);
-        fullRepaint();
-        toast(`已删除事件【${delTitle}】`);
+    // 9. 锚点移动 (上移/下移)
+    host.querySelectorAll('[data-a-move]').forEach(btn => {
+      btn.onclick = () => {
+        const dir = btn.dataset.aMove;
+        const pIdx = +btn.dataset.pIdx;
+        const aIdx = +btn.dataset.aIdx;
+        const targetArr = phases[pIdx].anchors;
+
+        if (dir === 'up') {
+          if (aIdx > 0) {
+            const [item] = targetArr.splice(aIdx, 1);
+            targetArr.splice(aIdx - 1, 0, item);
+          } else if (pIdx > 0) {
+            // 跨阶段向上移到上一阶段末尾
+            const [item] = targetArr.splice(aIdx, 1);
+            phases[pIdx - 1].anchors.push(item);
+          }
+        } else {
+          if (aIdx < targetArr.length - 1) {
+            const [item] = targetArr.splice(aIdx, 1);
+            targetArr.splice(aIdx + 1, 0, item);
+          } else if (pIdx < phases.length - 1) {
+            // 跨阶段向下移到下一阶段开头
+            const [item] = targetArr.splice(aIdx, 1);
+            phases[pIdx + 1].anchors.unshift(item);
+          }
+        }
+        refreshModalView();
       };
     });
 
-    // 排序
-    d.querySelectorAll('[data-anc-move]').forEach(b => {
-      b.onclick = () => {
-        syncInputs();
-        const idx = +b.dataset.idx;
-        const dir = b.dataset.ancMove;
-        let to = idx;
-        if (dir === 'up') to = Math.max(0, idx - 1);
-        else if (dir === 'down') to = Math.min(anchors.length - 1, idx + 1);
-        if (to === idx) return;
-        const [moved] = anchors.splice(idx, 1);
-        anchors.splice(to, 0, moved);
-        fullRepaint();
+    // 10. 删除单个锚点
+    host.querySelectorAll('[data-a-del]').forEach(btn => {
+      btn.onclick = () => {
+        const pIdx = +btn.dataset.pIdx;
+        const aIdx = +btn.dataset.aIdx;
+        phases[pIdx].anchors.splice(aIdx, 1);
+        refreshModalView();
       };
     });
-  };
 
-  bindEvents();
-
-  // 全部展开/收起
-  d.querySelector('#hub_fold_all').onclick = () => {
-    syncInputs();
-    const curList = anchors.filter(a => (a.phaseTitle || '未分类阶段') === activePhase);
-    if (expandedSet.size >= curList.length) expandedSet.clear();
-    else expandedSet = new Set(curList.map(a => a.id));
-    const cont = d.querySelector('#hub_anchor_container');
-    if (cont) cont.innerHTML = renderAnchorCards();
-    bindEvents();
-  };
-
-  // 为当前阶段添加事件
-  d.querySelector('#new_anc_btn').onclick = () => {
-    const t = d.querySelector('#new_anc_t').value.trim();
-    const dc = d.querySelector('#new_anc_d').value.trim();
-    const turns = Math.max(1, parseInt(d.querySelector('#new_anc_turns').value) || 4);
-    if (!t) return toast('请输入事件标题');
-
-    syncInputs();
-    const newId = 'anc_u_' + Date.now();
-    anchors.push({
-      id: newId,
-      phaseTitle: activePhase,
-      title: t,
-      desc: dc || '遵循此剧情指引展开深层推演。',
-      curTurns: 0,
-      maxTurns: turns,
-      done: false
-    });
-    expandedSet.add(newId);
-    d.querySelector('#new_anc_t').value = '';
-    d.querySelector('#new_anc_d').value = '';
-    fullRepaint();
-    toast(`已添加至【${activePhase}】`);
-  };
-
-  // 保存所有修改并落盘
-  d.querySelector('#hub_save_all').onclick = () => {
-    syncInputs();
-    if (!anchors.length) {
-      toast('至少需要保留一个事件锚点');
-      return;
-    }
-
-    // 确保当前锁定有效
-    const pid = wlPinnedId();
-    let validPin = anchors.find(a => a.id === pid && !a.done);
-    if (!validPin) {
-      const firstUnfinished = anchors.find(a => !a.done) || anchors[anchors.length - 1];
-      wlSetPinned(firstUnfinished ? firstUnfinished.id : anchors[0].id);
-    }
-
-    store.set('wl_anchors', anchors);
-    toast('✅ 全阶段与事件锚点已成功保存生效');
-    d.remove();
-    if (onRefresh) {
-      try { onRefresh(); } catch (e) {}
-    }
-  };
-
-  // 重置回电影预设
-  d.querySelector('#hub_reset_mcu').onclick = () => {
-    if (!confirm('确定重置回电影官方预设？所有自定义阶段和新加的事件将被清空。')) return;
-    store.set('wl_anchors', null);
-    wlSetPinned('');
-    d.remove();
-    initOrGetAnchors().then(() => {
+    // 11. 保存所有修改
+    host.querySelector('#btn_save_all_phases').onclick = () => {
+      const flat = wlSavePhasesToAnchors(phases);
+      const curFirst = flat.find(a => !a.done) || flat[flat.length - 1];
+      if (curFirst) wlSetPinned(curFirst.id);
+      toast('✅ 阶段与事件架构已保存生效');
+      modalEl.remove();
       if (onRefresh) onRefresh();
-      toast('已恢复原著阶段编年史');
-    });
+    };
   };
+
+  // ==================== 2. 图 2 界面：插入/编辑阶段表单 ====================
+  const renderEditPhaseHtml = () => {
+    const isEditMode = typeof editingPhaseTarget === 'object' && editingPhaseTarget !== null;
+    const targetData = isEditMode ? editingPhaseTarget : {
+      name: '',
+      year: flags().year,
+      monthStart: 1,
+      monthEnd: 12,
+      desc: '',
+      allowedChars: '',
+      bannedChars: '',
+      mustEvents: '',
+      pacing: '',
+      anchors: []
+    };
+
+    let positionHint = '本局游戏内立即生效；重新选择开局后会恢复为默认阶段划分。';
+    if (editingPhaseTarget === 'head') {
+      positionHint = '将插入在【时间线最前面】。' + positionHint;
+    } else if (typeof editingPhaseTarget === 'number') {
+      positionHint = `将插入在【${esc(phases[editingPhaseTarget].name)}】之后。` + positionHint;
+    } else if (isEditMode) {
+      positionHint = `正在编辑阶段配置【${esc(targetData.name)}】。`;
+    }
+
+    const defaultBeats = isEditMode ? targetData.anchors.map(a => a.title).join('\n') : '开场·相遇\n冲突升级\n转折点\n高潮对决\n结局收尾';
+
+    return `
+      <style>
+        .ef-label { font-size: 11.5px; color: var(--muted); margin-bottom: 5px; font-weight: 600; display: block; }
+        .ef-field { margin-bottom: 12px; }
+        .ef-input { width: 100%; background: var(--panel2, #171f2a); border: 1px solid var(--line, #1e2a38); border-radius: 9px; padding: 9px 12px; font-size: 13px; color: var(--text, #eaf4ff); font-family: var(--font-body); outline: none; }
+        .ef-input:focus { border-color: var(--cyan); box-shadow: 0 0 0 2px rgba(53,208,255,0.15); }
+      </style>
+
+      <div style="max-height: 62vh; overflow-y: auto; padding: 2px 4px 10px">
+        <div style="font-size: 11.5px; line-height: 1.6; color: var(--muted); margin-bottom: 12px; padding: 8px 10px; background: rgba(53,208,255,0.06); border-radius: 8px; border-left: 2px solid var(--cyan)">
+          ${positionHint}
+        </div>
+
+        <div class="ef-field">
+          <label class="ef-label">阶段名称 *</label>
+          <input class="ef-input" id="ef_name" value="${esc(targetData.name)}" placeholder="例如：暗影宇宙支线">
+        </div>
+
+        <div class="ef-field">
+          <div style="display: flex; gap: 8px">
+            <div style="flex:1">
+              <label class="ef-label">起始年</label>
+              <input type="number" class="ef-input" id="ef_year" value="${targetData.year || flags().year}">
+            </div>
+            <div style="flex:1">
+              <label class="ef-label">月份区间</label>
+              <div style="display: flex; align-items: center; gap: 4px">
+                <input type="number" min="1" max="12" class="ef-input" id="ef_m_start" value="${targetData.monthStart || 1}" style="text-align:center">
+                <span style="color:var(--muted)">-</span>
+                <input type="number" min="1" max="12" class="ef-input" id="ef_m_end" value="${targetData.monthEnd || 12}" style="text-align:center">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ef-field">
+          <label class="ef-label">阶段概述 *</label>
+          <textarea class="ef-input" id="ef_desc" rows="3" placeholder="这个阶段讲的是什么故事……">${esc(targetData.desc)}</textarea>
+        </div>
+
+        <div class="ef-field">
+          <label class="ef-label">允许出现的角色（逗号分隔）</label>
+          <input class="ef-input" id="ef_allowed" value="${esc(targetData.allowedChars)}" placeholder="彼得·帕克, 托尼·斯塔克, 贾维斯">
+        </div>
+
+        <div class="ef-field">
+          <label class="ef-label">禁止出现的角色（逗号分隔）</label>
+          <input class="ef-input" id="ef_banned" value="${esc(targetData.bannedChars)}" placeholder="灭霸, 秃鹰">
+        </div>
+
+        <div class="ef-field">
+          <label class="ef-label">必然发生的大事件（可留空）</label>
+          <textarea class="ef-input" id="ef_must" rows="2" placeholder="例如：主角在第三回合会目击反应堆过载……">${esc(targetData.mustEvents)}</textarea>
+        </div>
+
+        <div class="ef-field">
+          <label class="ef-label">节奏说明（给 AI 的节奏指引，可留空）</label>
+          <textarea class="ef-input" id="ef_pacing" rows="2" placeholder="例如：每个大事件间要插入日常铺垫，避免过快收束……">${esc(targetData.pacing)}</textarea>
+        </div>
+
+        <div class="ef-field">
+          <label class="ef-label">锚点节拍（每行一个，按顺序，自动拆分为事件锚点）</label>
+          <textarea class="ef-input" id="ef_beats" rows="5" style="font-family:var(--font-mono); font-size:12px; line-height:1.7">${esc(defaultBeats)}</textarea>
+        </div>
+      </div>
+
+      <div style="margin-top: 10px; display: flex; gap: 8px">
+        <button class="btn gold sm" id="ef_submit" style="flex:1">
+          ${isEditMode ? '✓ 保存阶段配置' : '＋ 确认插入该阶段'}
+        </button>
+        <button class="btn ghost sm" id="ef_cancel" style="flex:0 0 70px">返回</button>
+      </div>
+    `;
+  };
+
+  // 绑定图 2 事件
+  const bindEditPhaseEvents = (host) => {
+    host.querySelector('#ef_cancel').onclick = () => {
+      currentView = 'list';
+      refreshModalView();
+    };
+
+    host.querySelector('#ef_submit').onclick = () => {
+      const name = host.querySelector('#ef_name').value.trim();
+      const desc = host.querySelector('#ef_desc').value.trim();
+      if (!name) return toast('请输入阶段名称');
+
+      const year = parseInt(host.querySelector('#ef_year').value) || flags().year;
+      const monthStart = parseInt(host.querySelector('#ef_m_start').value) || 1;
+      const monthEnd = parseInt(host.querySelector('#ef_m_end').value) || 12;
+      const allowedChars = host.querySelector('#ef_allowed').value.trim();
+      const bannedChars = host.querySelector('#ef_banned').value.trim();
+      const mustEvents = host.querySelector('#ef_must').value.trim();
+      const pacing = host.querySelector('#ef_pacing').value.trim();
+
+      // 解析每行一个的锚点节拍
+      const beatsLines = host.querySelector('#ef_beats').value
+        .split('\n')
+        .map(l => l.trim())
+        .filter(Boolean);
+
+      const isEditMode = typeof editingPhaseTarget === 'object' && editingPhaseTarget !== null;
+
+      let targetPhaseObj = isEditMode ? editingPhaseTarget : {
+        id: 'phase_' + Date.now(),
+        name,
+        year,
+        monthStart,
+        monthEnd,
+        desc,
+        allowedChars,
+        bannedChars,
+        mustEvents,
+        pacing,
+        anchors: []
+      };
+
+      // 更新字段
+      targetPhaseObj.name = name;
+      targetPhaseObj.year = year;
+      targetPhaseObj.monthStart = monthStart;
+      targetPhaseObj.monthEnd = monthEnd;
+      targetPhaseObj.desc = desc;
+      targetPhaseObj.allowedChars = allowedChars;
+      targetPhaseObj.bannedChars = bannedChars;
+      targetPhaseObj.mustEvents = mustEvents;
+      targetPhaseObj.pacing = pacing;
+
+      // 如果节拍有更新，重新构建锚点
+      if (beatsLines.length) {
+        const oldAnchorMap = new Map((targetPhaseObj.anchors || []).map(a => [a.title, a]));
+        targetPhaseObj.anchors = beatsLines.map((line, bIdx) => {
+          const old = oldAnchorMap.get(line);
+          if (old) {
+            old.phaseTitle = name;
+            return old;
+          }
+          return {
+            id: 'anc_b_' + Date.now() + '_' + bIdx,
+            phaseTitle: name,
+            title: line,
+            desc: desc || '推进该事件节拍。',
+            curTurns: 0,
+            maxTurns: 3,
+            done: false
+          };
+        });
+      }
+
+      // 如果是插入模式，放进 phases 数组
+      if (!isEditMode) {
+        if (editingPhaseTarget === 'head') {
+          phases.unshift(targetPhaseObj);
+        } else if (typeof editingPhaseTarget === 'number') {
+          phases.splice(editingPhaseTarget + 1, 0, targetPhaseObj);
+        } else {
+          phases.push(targetPhaseObj);
+        }
+      }
+
+      toast(isEditMode ? '阶段修改已保存' : '已插入新阶段');
+      currentView = 'list';
+      refreshModalView();
+    };
+  };
+
+  // 创建外层弹窗容器
+  modalEl = modal(`
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
+      <h2 style="font-size:16px; margin:0; font-family:var(--font-serif); color:var(--text); display:flex; align-items:center; gap:6px">
+        <span>📌</span> <span>事件锚点 · 阶段管理</span>
+      </h2>
+      <button class="btn sm ghost" data-close style="padding:3px 10px; font-size:11px">关闭</button>
+    </div>
+    <div id="anc_mgr_view_host"></div>
+  `);
+
+  // 初始化初次渲染
+  refreshModalView();
 }
 
 /* ============================================================
@@ -14985,12 +15113,23 @@ function userRules(){
 function saveUserRules(a){store.set('userRules',a);}
 function intimacyOn(){return store.get('intimacyRule',true)!==false;}
 /* 供 buildSystem 注入的规则文本 · 按当前场景过滤（global 恒注入） */
-function rulesForPrompt(scope){
-  const out=[];
-  if(intimacyOn()){out.push(INTIMACY_PRESET);out.push(TONY_INTIMACY);}
-  userRules().filter(r=>r.on!==false&&r.text&&r.text.trim())
-    .filter(r=>!r.scope||r.scope==='global'||r.scope===scope)
-    .forEach(r=>out.push('【玩家自定义规则'+(r.title?' · '+r.title.trim():'')+'】'+r.text.trim()));
+/* 供 buildSystem 注入的规则/词条文本 · 支持多选作用域与全局匹配 */
+function rulesForPrompt(scope) {
+  const out = [];
+  if (intimacyOn()) {
+    out.push(INTIMACY_PRESET);
+    out.push(TONY_INTIMACY);
+  }
+  userRules()
+    .filter(r => r.on !== false && r.text && r.text.trim())
+    .filter(r => {
+      // 兼容多选 scopes 数组与旧版单个 scope 字符串
+      const scopes = Array.isArray(r.scopes) ? r.scopes : [r.scope || 'global'];
+      return scopes.includes('global') || scopes.includes(scope);
+    })
+    .forEach(r => {
+      out.push(`【世界书准则 · ${r.title ? r.title.trim() : '通用条目'}】\n${r.text.trim()}`);
+    });
   return out;
 }
 /* ============================================================
@@ -15038,84 +15177,461 @@ function wbMerged(){
   const extra=(store.get('wbExtra',[])||[]).map((x,i)=>({...x,_extraIdx:i}));
   return [...base,...extra];
 }
-apps.worldbook={title:'世界书',cat:'全部',q:'',render(v){
-  const self=this,f=flags();$('#actBtn').style.display='none';
-  const extra=store.get('wbExtra',[]);const all=wbMerged();
-  const cats=['全部','人物','事件','地点','技术','组织','规则'];
-  const list=all.filter(x=>(self.cat==='全部'||x.cat===self.cat)&&(!self.q||(x.t+x.d).toLowerCase().includes(self.q.toLowerCase())));
-    if(self.cat==='规则'){
-    const list=userRules();
-    v.innerHTML=`<div class="pad">
-      <div class="card" style="padding:12px"><div class="eyebrow">THE WORLD BOOK · RULES</div>
-        <div class="seg" style="margin:9px 0 0;flex-wrap:wrap">${cats.map(c=>`<button data-c="${c}" class="${self.cat===c?'on':''}">${c}</button>`).join('')}</div></div>
-      <div class="card"><h3>◉ 亲密规则 · 预设</h3>
-        <div class="srow"><div><div class="t">启用「反套路亲密规则」</div><div class="d">杜绝每次都脸红/害羞；按人设决定反应；NPC 可主动牵手、拥抱、亲吻、逗弄。含托尼专属亲密画像。</div></div>
-          <label class="switch"><input type="checkbox" id="wr_intim" ${intimacyOn()?'checked':''}><span class="slider"></span></label></div></div>
-      <div class="card"><h3>◉ 新增自定义规则</h3>
-        <div class="field"><label>标题栏</label><input id="wr_title" class="inp" placeholder="给这条规则起个名字（如：托尼不脸红）"></div>
-        <div class="field"><label>内容栏</label><textarea id="wr_text" rows="3" placeholder="规则内容，将以最高优先级注入所选场景。"></textarea></div>
-        <div class="field"><label>注入栏（规则生效的 App / 场景）</label>
-          <select id="wr_scope" class="inp">${RULE_SCOPES.map(([k,n])=>`<option value="${k}">${n}</option>`).join('')}</select></div>
-        <button class="btn" id="wr_add">＋ 添加规则</button></div>
-      <div class="card"><h3>◉ 我的规则（${list.length}）</h3>
-        ${list.length?list.map((r,i)=>`<div class="srow"><div style="flex:1;min-width:0">
-            <div class="t" style="${r.on===false?'opacity:.45;text-decoration:line-through':''}">${esc(r.title||'（无标题）')} <span class="tag">${esc(ruleScopeLabel(r.scope))}</span></div>
-            <div class="d" style="line-height:1.7">${esc(r.text)}</div></div>
-          <label class="switch" style="flex:0 0 auto"><input type="checkbox" data-wron="${i}" ${r.on!==false?'checked':''}><span class="slider"></span></label>
-          <span class="chip" data-wre="${i}" style="flex:0 0 auto">改</span>
-          <span class="chip" data-wrdel="${i}" style="flex:0 0 auto">删</span></div>`).join(''):'<div class="hint">还没有自定义规则。</div>'}</div>
-      <div class="hint" style="text-align:center">${en('Your rules override the clichés.')}</div>
-    </div>`;
-    v.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{self.cat=b.dataset.c;self.render(v);});
-    v.querySelector('#wr_intim').onchange=e=>{store.set('intimacyRule',e.target.checked);toast(e.target.checked?'已启用反套路亲密规则':'已关闭');};
-    v.querySelector('#wr_add').onclick=()=>{const title=v.querySelector('#wr_title').value.trim();const text=v.querySelector('#wr_text').value.trim();const scope=v.querySelector('#wr_scope').value;
-      if(!text)return toast('内容栏不能为空');const a=userRules();a.push({id:'wr'+Date.now(),on:true,title,text,scope});saveUserRules(a);self.render(v);toast('已添加 · 将注入「'+ruleScopeLabel(scope)+'」');};
-    v.querySelectorAll('[data-wron]').forEach(el=>el.onchange=()=>{const a=userRules();a[+el.dataset.wron].on=el.checked;saveUserRules(a);});
-    v.querySelectorAll('[data-wrdel]').forEach(el=>el.onclick=()=>{const a=userRules();a.splice(+el.dataset.wrdel,1);saveUserRules(a);self.render(v);});
-    v.querySelectorAll('[data-wre]').forEach(el=>el.onclick=()=>{const a=userRules();const r=a[+el.dataset.wre];if(!r)return;
-      const d=modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:15px">✏ 编辑规则</h2><div class="card">
-        <div class="field"><label>标题栏</label><input id="we_t" class="inp" value="${esc(r.title||'')}"></div>
-        <div class="field"><label>内容栏</label><textarea id="we_x" rows="4">${esc(r.text||'')}</textarea></div>
-        <div class="field"><label>注入栏</label><select id="we_s" class="inp">${RULE_SCOPES.map(([k,n])=>`<option value="${k}" ${r.scope===k?'selected':''}>${n}</option>`).join('')}</select></div>
-        <button class="btn" id="we_sv">保存</button><button class="btn ghost" data-close style="margin-top:8px">取消</button></div>`);
-      d.querySelector('#we_sv').onclick=()=>{const t=d.querySelector('#we_x').value.trim();if(!t)return toast('内容栏不能为空');
-        r.title=d.querySelector('#we_t').value.trim();r.text=t;r.scope=d.querySelector('#we_s').value;saveUserRules(a);d.remove();self.render(v);toast('已保存');};});
-    return;
+/* ============================================================
+   世界书 App · 现代卡片式条目管理
+   支持多选作用范围、3行折叠防撑爆、独立开关、快捷编辑与彻底删除
+   ============================================================ */
+apps.worldbook = {
+  title: '世界书',
+  view: 'list', // 'list' (图1列表) | 'edit' (图2表单)
+  editTargetId: null,
+  expandedIds: new Set(),
+
+  // 12 大作用域配置项（与 STARK OS 系统深度绑定）
+  SCOPES: [
+    { k: 'global', n: '全局', d: '所有 AI 场景都强制读取', ico: '🌐' },
+    { k: 'worldline', n: '世界线', d: '主线 / 支线剧情', ico: '🌐' },
+    { k: 'chat', n: '信息', d: '聊天 / 短信', ico: '💬' },
+    { k: 'twitter', n: '推特', d: '推特动态与评论', ico: '🐦' },
+    { k: 'instagram', n: 'Instagram', d: 'IG 帖子与评论', ico: '📷' },
+    { k: 'theater', n: '小剧场', d: '平行宇宙剧场', ico: '🎭' },
+    { k: 'diary', n: '双人日记', d: '日记生成与回应', ico: '📓' },
+    { k: 'notes', n: '工作笔记', d: '笔记 / 胶囊 / 备忘', ico: '🧳' },
+    { k: 'news', n: '报纸', d: '号角日报 / 纽时等', ico: '📰' },
+    { k: 'group', n: '复仇者频道', d: '群聊 / 战术通讯', ico: '🛡️' },
+    { k: 'dating', n: '约饭', d: '约会 / 聚餐剧情', ico: '🍷' },
+    { k: 'terminal', n: '斯塔克终端', d: '终端指令 / HUD', ico: '⌨️' }
+  ],
+
+  render(v) {
+    const self = this;
+    $('#actBtn').style.display = 'none';
+
+    // 确保默认包含经典电影剧情条目（新玩家开箱即用）
+    let rules = userRules();
+    if (!rules.length) {
+      rules = [
+        {
+          id: 'wb_default_1',
+          on: true,
+          title: '🎬 电影原剧情锚点（可编辑）',
+          scopes: ['global'],
+          text: '【使用说明】这是一条给“想走原电影剧情”的用户使用的锚点设定。它按时间详细描述每个阶段电影里具体发生了什么（不含感情线），包含具体场景、地点与历史事实约束。'
+        },
+        {
+          id: 'wb_default_2',
+          on: true,
+          title: '格式与对白规范',
+          scopes: ['global'],
+          text: '保持剧情正文格式正确！出声台词必须符合角色口吻，严禁输出任何粗俗脏话，严禁替玩家代打台词与心理活动。'
+        }
+      ];
+      saveUserRules(rules);
+    }
+
+    if (self.view === 'edit') {
+      self.renderEdit(v);
+    } else {
+      self.renderList(v);
+    }
+  },
+
+  /* ---------- 图 1：世界书条目列表 ---------- */
+  renderList(v) {
+    const self = this;
+    const rules = userRules();
+
+    v.innerHTML = `
+      <style>
+        .wb-hero-card {
+          background: var(--panel, #10151c);
+          border: 1px solid var(--line, #1e2a38);
+          border-radius: 18px;
+          padding: 24px 16px;
+          text-align: center;
+          margin-bottom: 12px;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+        .wb-hero-ico { font-size: 42px; margin-bottom: 8px; line-height: 1; }
+        .wb-hero-title { font-family: var(--font-serif); font-size: 20px; font-weight: 700; color: var(--text, #eaf4ff); margin: 0 0 6px; }
+        .wb-hero-sub { font-size: 11.5px; color: var(--muted, #7c8da0); letter-spacing: 0.5px; }
+
+        .wb-btn-add {
+          width: 100%;
+          background: #3b82f6;
+          background: linear-gradient(135deg, #3b82f6, #2563eb);
+          color: #ffffff;
+          border: none;
+          border-radius: 12px;
+          padding: 13px;
+          font-weight: 700;
+          font-size: 14.5px;
+          cursor: pointer;
+          margin-bottom: 14px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          box-shadow: 0 4px 14px rgba(37,99,235,0.3);
+          transition: transform .15s, opacity .15s;
+        }
+        .wb-btn-add:active { transform: scale(0.98); opacity: 0.9; }
+
+        .wb-card {
+          background: var(--panel, #10151c);
+          border: 1px solid var(--line, #1e2a38);
+          border-radius: 14px;
+          padding: 14px;
+          margin-bottom: 11px;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+          transition: border-color .15s;
+        }
+        .wb-card.active { border-color: rgba(59,130,246,0.5); }
+        .wb-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+        .wb-card-title { font-size: 14.5px; font-weight: 700; color: var(--text, #eaf4ff); font-family: var(--font-serif); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        
+        .wb-scope-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          font-size: 10px;
+          padding: 2px 8px;
+          border-radius: 12px;
+          background: rgba(147,51,234,0.12);
+          border: 1px solid rgba(147,51,234,0.3);
+          color: #c084fc;
+          margin-bottom: 8px;
+        }
+
+        .wb-card-text {
+          font-size: 12.5px;
+          line-height: 1.65;
+          color: var(--text, #eaf4ff);
+          opacity: 0.85;
+          cursor: pointer;
+          word-break: break-all;
+          white-space: pre-wrap;
+        }
+        /* 核心：三行折叠截断（防撑爆屏幕） */
+        .wb-card-text.clamped {
+          display: -webkit-box;
+          -webkit-line-clamp: 3;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .wb-expand-tip { font-size: 10px; color: var(--cyan); margin-top: 4px; cursor: pointer; user-select: none; }
+
+        .wb-btn-row { display: flex; gap: 8px; margin-top: 12px; }
+        .wb-btn-action {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 4px;
+          padding: 8px;
+          border-radius: 9px;
+          border: 1px solid var(--line, #1e2a38);
+          background: var(--panel2, #171f2a);
+          font-size: 12px;
+          font-weight: 600;
+          color: var(--text, #eaf4ff);
+          cursor: pointer;
+          transition: background .15s;
+        }
+        .wb-btn-action:hover { background: rgba(255,255,255,0.06); }
+        .wb-btn-action.del:hover { color: var(--red); border-color: rgba(226,54,54,0.3); }
+      </style>
+
+      <div class="pad">
+        <!-- 顶部横幅卡片 -->
+        <div class="wb-hero-card">
+          <div class="wb-hero-ico">📖</div>
+          <h2 class="wb-hero-title">世界书</h2>
+          <div class="wb-hero-sub">为不同场景设定专属规则 · 开启即强制生效</div>
+        </div>
+
+        <!-- 显眼的新建按钮 -->
+        <button class="wb-btn-add" id="wb_btn_new">
+          <span>＋</span> <span>新建条目</span>
+        </button>
+
+        <!-- 条目列表容器 -->
+        <div id="wb_list_box">
+          ${rules.map(r => {
+            const isOpen = r.on !== false;
+            const isExpanded = self.expandedIds.has(r.id);
+            const scopes = Array.isArray(r.scopes) ? r.scopes : [r.scope || 'global'];
+            const scopeLabels = scopes.map(sk => {
+              const obj = self.SCOPES.find(x => x.k === sk);
+              return obj ? `${obj.ico} ${obj.n}` : sk;
+            }).join(' / ');
+
+            return `
+              <div class="wb-card ${isOpen ? 'active' : ''}" data-rule-card="${r.id}">
+                <div class="wb-card-head">
+                  <div class="wb-card-title">${esc(r.title || '未命名条目')}</div>
+                  <label class="switch" style="margin:0; flex-shrink:0">
+                    <input type="checkbox" data-rule-toggle="${r.id}" ${isOpen ? 'checked' : ''}>
+                    <span class="slider"></span>
+                  </label>
+                </div>
+
+                <div class="wb-scope-badge">
+                  <span>${esc(scopeLabels || '🌐 全局')}</span>
+                </div>
+
+                <!-- 截断显示的内容区 -->
+                <div class="wb-card-text ${isExpanded ? '' : 'clamped'}" data-rule-text="${r.id}">
+                  ${esc(r.text || '（无设定内容）')}
+                </div>
+                ${(r.text && r.text.length > 80) ? `
+                  <div class="wb-expand-tip" data-rule-expand-btn="${r.id}">
+                    ${isExpanded ? '▲ 收起内容' : '▼ 点击展开全文'}
+                  </div>` : ''}
+
+                <!-- 编辑与删除双按钮 -->
+                <div class="wb-btn-row">
+                  <button class="wb-btn-action" data-rule-edit="${r.id}">
+                    <span>✏️</span> <span>编辑</span>
+                  </button>
+                  <button class="wb-btn-action del" data-rule-delete="${r.id}">
+                    <span>🗑️</span> <span>删除</span>
+                  </button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+
+    // 绑定事件
+    v.querySelector('#wb_btn_new').onclick = () => {
+      self.editTargetId = null; // 新建
+      self.view = 'edit';
+      self.render(v);
+    };
+
+    v.querySelectorAll('[data-rule-toggle]').forEach(sw => {
+      sw.onchange = () => {
+        const id = sw.dataset.ruleToggle;
+        const list = userRules();
+        const item = list.find(x => x.id === id);
+        if (item) {
+          item.on = sw.checked;
+          saveUserRules(list);
+          toast(sw.checked ? '已启用该条目设定' : '已停用该条目设定');
+          self.render(v);
+        }
+      };
+    });
+
+    // 展开/收起长文本切换
+    v.querySelectorAll('[data-rule-text], [data-rule-expand-btn]').forEach(el => {
+      el.onclick = () => {
+        const id = el.dataset.ruleText || el.dataset.ruleExpandBtn;
+        if (self.expandedIds.has(id)) self.expandedIds.delete(id);
+        else self.expandedIds.add(id);
+        self.render(v);
+      };
+    });
+
+    // 编辑
+    v.querySelectorAll('[data-rule-edit]').forEach(btn => {
+      btn.onclick = () => {
+        self.editTargetId = btn.dataset.ruleEdit;
+        self.view = 'edit';
+        self.render(v);
+      };
+    });
+
+    // 删除
+    v.querySelectorAll('[data-rule-delete]').forEach(btn => {
+      btn.onclick = () => {
+        const id = btn.dataset.ruleDelete;
+        const list = userRules();
+        const item = list.find(x => x.id === id);
+        if (!confirm(`确定彻底删除条目「${item ? item.title : '该条目'}」？`)) return;
+        saveUserRules(list.filter(x => x.id !== id));
+        toast('已删除条目');
+        self.render(v);
+      };
+    });
+  },
+
+  /* ---------- 图 2：新建 / 编辑条目全套表单 ---------- */
+  renderEdit(v) {
+    const self = this;
+    const isEditing = !!self.editTargetId;
+    const rules = userRules();
+    const target = isEditing ? rules.find(x => x.id === self.editTargetId) : null;
+
+    const currentTitle = target ? target.title : '';
+    const currentText = target ? target.text : '';
+    let selectedScopes = new Set(target ? (Array.isArray(target.scopes) ? target.scopes : [target.scope || 'global']) : ['global']);
+
+    v.innerHTML = `
+      <style>
+        .ef-container { padding: 14px; }
+        .ef-top-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+        .ef-back-btn { background: none; border: none; font-size: 26px; line-height: 1; color: var(--cyan); cursor: pointer; padding: 0 4px; }
+        .ef-page-title { font-size: 16px; font-weight: 700; color: var(--text, #eaf4ff); font-family: var(--font-serif); }
+
+        .ef-group { margin-bottom: 14px; }
+        .ef-label { font-size: 12px; color: var(--text, #eaf4ff); font-weight: 600; margin-bottom: 6px; display: block; }
+        .ef-label small { color: var(--muted, #7c8da0); font-weight: 400; font-size: 11px; margin-left: 4px; }
+        
+        .ef-input-text {
+          width: 100%;
+          background: var(--panel2, #171f2a);
+          border: 1px solid var(--line, #1e2a38);
+          border-radius: 10px;
+          padding: 11px 12px;
+          font-size: 13.5px;
+          color: var(--text, #eaf4ff);
+          outline: none;
+          font-family: var(--font-body);
+        }
+        .ef-input-text:focus { border-color: var(--cyan); box-shadow: 0 0 0 2px rgba(53,208,255,0.15); }
+
+        /* 双列作用域卡片网格 */
+        .ef-scope-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+        .ef-scope-card {
+          background: var(--panel2, #171f2a);
+          border: 1.5px solid var(--line, #1e2a38);
+          border-radius: 12px;
+          padding: 10px;
+          cursor: pointer;
+          transition: all .15s;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+        .ef-scope-card:hover { border-color: rgba(59,130,246,0.4); }
+        .ef-scope-card.selected {
+          border-color: #8b5cf6;
+          background: rgba(139,92,246,0.08);
+          box-shadow: 0 0 0 1px #8b5cf6;
+        }
+        .ef-sc-head { font-size: 12.5px; font-weight: 700; color: var(--text, #eaf4ff); display: flex; align-items: center; gap: 4px; }
+        .ef-scope-card.selected .ef-sc-head { color: #c084fc; }
+        .ef-sc-desc { font-size: 10px; color: var(--muted, #7c8da0); line-height: 1.4; }
+      </style>
+
+      <div class="ef-container">
+        <!-- 顶栏返回 -->
+        <div class="ef-top-bar">
+          <button class="ef-back-btn" id="ef_btn_back">‹</button>
+          <div class="ef-page-title">${isEditing ? '编辑条目' : '新建条目'}</div>
+          <div style="width:24px"></div>
+        </div>
+
+        <!-- 1. 条目名称 -->
+        <div class="ef-group">
+          <label class="ef-label">条目名称</label>
+          <input class="ef-input-text" id="ef_input_title" placeholder="例如：电影原剧情设定 / 托尼性格修正" value="${esc(currentTitle)}">
+        </div>
+
+        <!-- 2. 作用范围（双列多选卡片） -->
+        <div class="ef-group">
+          <label class="ef-label">作用范围 <small>(可多选；选「全局」则所有场景强制生效)</small></label>
+          <div class="ef-scope-grid" id="ef_scope_grid">
+            ${self.SCOPES.map(sc => {
+              const isSel = selectedScopes.has(sc.k);
+              return `
+                <div class="ef-scope-card ${isSel ? 'selected' : ''}" data-scope-key="${sc.k}">
+                  <div class="ef-sc-head">${sc.ico} ${esc(sc.n)}</div>
+                  <div class="ef-sc-desc">${esc(sc.d)}</div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- 3. 设定内容 -->
+        <div class="ef-group">
+          <label class="ef-label">设定内容 <small>(开启后作为最高准则强制执行)</small></label>
+          <textarea class="ef-input-text" id="ef_input_text" rows="8" placeholder="输入强制 AI 遵守的设定、剧情锚点或性格边界…">${esc(currentText)}</textarea>
+        </div>
+
+        <!-- 底部提交按钮 -->
+        <button class="btn gold" id="ef_btn_save" style="margin-top:6px; padding:12px; font-size:14px">
+          ${isEditing ? '💾 保存修改' : '＋ 创建并保存条目'}
+        </button>
+      </div>
+    `;
+
+    // 绑定作用域卡片点击选择/反选
+    v.querySelectorAll('[data-scope-key]').forEach(card => {
+      card.onclick = () => {
+        const key = card.dataset.scopeKey;
+        if (key === 'global') {
+          // 选中全局时独占
+          selectedScopes.clear();
+          selectedScopes.add('global');
+        } else {
+          selectedScopes.delete('global');
+          if (selectedScopes.has(key)) selectedScopes.delete(key);
+          else selectedScopes.add(key);
+          if (!selectedScopes.size) selectedScopes.add('global');
+        }
+
+        // 刷新卡片高亮
+        v.querySelectorAll('[data-scope-key]').forEach(c => {
+          c.classList.toggle('selected', selectedScopes.has(c.dataset.scopeKey));
+        });
+      };
+    });
+
+    v.querySelector('#ef_btn_back').onclick = () => {
+      self.view = 'list';
+      self.render(v);
+    };
+
+    v.querySelector('#ef_btn_save').onclick = () => {
+      const title = v.querySelector('#ef_input_title').value.trim();
+      const text = v.querySelector('#ef_input_text').value.trim();
+      if (!title) return toast('请输入条目名称');
+      if (!text) return toast('请输入设定内容');
+
+      const list = userRules();
+      const finalScopes = Array.from(selectedScopes);
+
+      if (isEditing) {
+        const item = list.find(x => x.id === self.editTargetId);
+        if (item) {
+          item.title = title;
+          item.text = text;
+          item.scopes = finalScopes;
+        }
+        toast('条目修改已保存');
+      } else {
+        list.unshift({
+          id: 'wb_' + Date.now(),
+          on: true,
+          title,
+          text,
+          scopes: finalScopes
+        });
+        toast('已创建新条目');
+      }
+
+      saveUserRules(list);
+      self.view = 'list';
+      self.render(v);
+    };
+  },
+
+  onBack() {
+    if (this.view === 'edit') {
+      this.view = 'list';
+      this.render($('#appBody'));
+      return true;
+    }
+    return false;
   }
-v.innerHTML=`<div class="pad">
-    <div class="card" style="padding:12px"><div class="eyebrow">THE WORLD BOOK · ${f.year}</div>
-      <div class="hint" style="margin-top:6px">所有词条按当前时间锚点标注；未来事件不会被当作已知事实。</div>
-      <div class="seg" style="margin:9px 0 0;flex-wrap:wrap">${cats.map(c=>`<button data-c="${c}" class="${self.cat===c?'on':''}">${c}</button>`).join('')}</div>
-      <input id="wb_q" class="inp" style="margin-top:9px" placeholder="🔍 检索词条" value="${esc(self.q)}"></div>
-    <div class="row" style="margin-bottom:12px"><button class="btn" id="wb_add">＋ 自定义词条</button><button class="btn ghost" id="wb_ai">✨ AI 补充一条</button></div>
-    ${list.map((x,i)=>`<div class="card" style="padding:13px" data-i="${i}"><div style="display:flex;gap:8px;align-items:center"><span class="tag">${esc(x.cat)}</span><b style="font-family:var(--font-serif);font-size:14px">${esc(x.t)}</b><span class="chip" data-wbe="${i}" style="margin-left:auto">改</span></div>
-      <div class="hint" style="margin-top:7px;line-height:1.8">${fmt(x.d)}</div></div>`).join('')}
-    ${!list.length?'<div class="empty">没有匹配的词条。</div>':''}
-  </div>`;
-  v.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{self.cat=b.dataset.c;self.render(v);});
-  v.querySelector('#wb_q').oninput=e=>{self.q=e.target.value;const p=e.target.selectionStart;self.render(v);const i=v.querySelector('#wb_q');i.focus();try{i.setSelectionRange(p,p);}catch(_){}};
-  v.querySelector('#wb_add').onclick=()=>{const t=prompt('词条标题：');if(!t||!t.trim())return;const d=prompt('词条内容：')||'';const c=prompt('分类（人物/事件/地点/技术/组织）：')||'人物';const e=store.get('wbExtra',[]);e.unshift({cat:c,t:t.trim(),d});store.set('wbExtra',e);self.render(v);};
-  v.querySelector('#wb_ai').onclick=async()=>{toast('正在补充词条…');const sys=buildSystem('general',`为世界书补充一条符合 ${f.year} 年状态的新词条。只输出：分类 ||| 标题 ||| 内容（80字内）。不得出现未来事件。`);
-    const r=await ai([{role:'user',content:'请补充一条与当前时间点相关的词条。'}],sys,()=>'组织 ||| 斯塔克工业公关部 ||| 对号角日报的求证统一答复「不予置评」，并归档为无需回应，不列入舆情周报。');
-    const p=r.split('|||').map(x=>x.trim());if(p.length>=3){const e=store.get('wbExtra',[]);e.unshift({cat:p[0]||'组织',t:p[1],d:p[2]});store.set('wbExtra',e);self.render(v);toast('已补充');}};
-  v.querySelectorAll('[data-wbe]').forEach(el=>el.onclick=()=>{
-    const x=list[+el.dataset.wbe];if(!x)return;
-    const d=modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:15px">✏ 编辑词条</h2><div class="card">
-      <div class="field"><label>分类</label><input id="wbe_c" class="inp" value="${esc(x.cat)}"></div>
-      <div class="field"><label>标题${x._base?'（默认词条标题固定）':''}</label><input id="wbe_t" class="inp" value="${esc(x.t)}" ${x._base?'disabled':''}></div>
-      <div class="field"><label>内容</label><textarea id="wbe_d" rows="6">${esc(x.d)}</textarea></div>
-      <button class="btn" id="wbe_sv">保存</button>
-      ${x._base?'<button class="btn ghost" id="wbe_reset" style="margin-top:8px">↺ 恢复默认</button>':''}
-      <button class="btn ghost" data-close style="margin-top:8px">取消</button></div>`);
-    d.querySelector('#wbe_sv').onclick=()=>{
-      const cat=d.querySelector('#wbe_c').value.trim()||x.cat,dd=d.querySelector('#wbe_d').value.trim();
-      if(x._base){const ov=store.get('wbOverrides',{});ov[x._key]={cat,d:dd};store.set('wbOverrides',ov);}
-      else{const e=store.get('wbExtra',[]);e[x._extraIdx]={cat,t:d.querySelector('#wbe_t').value.trim()||x.t,d:dd};store.set('wbExtra',e);}
-      d.remove();self.render(v);toast('已保存');};
-    const rb=d.querySelector('#wbe_reset');
-    if(rb)rb.onclick=()=>{const ov=store.get('wbOverrides',{});delete ov[x._key];store.set('wbOverrides',ov);d.remove();self.render(v);toast('已恢复默认');};
-  });
-}};
+};
 /* ---------- 内置 MCU 角色生日字典 (MM-DD) ---------- */
 const DEFAULT_MCU_BIRTHDAYS = {
   '托尼·斯塔克': '5-29',
