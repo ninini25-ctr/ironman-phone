@@ -2977,7 +2977,7 @@ async function callAI(messages, system, kind, onProgress) {
   if (!c.apiKey) throw new Error('NO_API_KEY: 未配置 API Key，请至「设置」中检查');
 
   const url = (c.baseUrl || '').replace(/\/+$/, '') + '/chat/completions';
-  const isLong = /世界线深度文学模式|对白语言铁律|字左右/.test(system || '');
+  const isLong = /世界线深度文学模式|对白语言铁律|字左右|独立小剧场|全新独立小剧场/.test(system || '');
 
   const timeoutMs = isLong ? 180000 : 60000;
   const ctrl = new AbortController();
@@ -8057,16 +8057,21 @@ if (safeAnchor.isBlip) {
   }
 }
 
-          // 在 apps.worldline.render 中组织前文上下文时：
-let transitionPrompt = '';
-const isNewAnchorFirstTurn = (currentTurnInAnchor === 1 && s.history.length > 0);
-if (isNewAnchorFirstTurn) {
-  transitionPrompt = `\n【时空转场提示】：上一个事件刚刚告一段落。请在正文前1~2段自然描写时间流逝或空间转换（例如：“几天后”、“随着局势发酵”、“某天清晨”），平滑引出当前的新事件【${safeAnchor.title}】，严禁毫无铺垫地突兀瞬移！`;
-}
+              // ===== 修复：强制将上一个锚点末回合的选择作为新锚点的直接诱因 =====
+          let transitionPrompt = '';
+          const isNewAnchorFirstTurn = (currentTurnInAnchor === 1 && s.history.length > 0);
+          if (isNewAnchorFirstTurn && last) {
+            transitionPrompt = `
+【⚡ 跨事件因果承接铁律 · 核心最高优先级】：
+注意：当前已进入新事件【${safeAnchor.title}】的开局！
+但是，玩家在上一事件最后做出的选择是：【${last.choice}】！
+大模型必须在正文前 1~2 段中，【正面承接并体现该选择所带来的直接后果、影响或托尼的反馈反应】！
+严禁无视玩家的选择！新事件的发生必须是该选择引发的连锁反应，或是由该选择自然延展、时间推移后平滑过渡而来的，必须形成严密的因果闭环！`;
+          }
 
-let ctx = last 
-  ? `\n【上一回合场景简述】：\n${last.story.slice(-400)}\n【玩家上一轮的抉择行动】：\n${last.choice}\n${pacingGuide}\n${transitionPrompt}` 
-  : `\n开局第一回合。请写托尼·斯塔克与玩家的初会与磨合，紧扣首个事件锚点【${formatAnchorTitle(safeAnchor)}】。${pacingGuide}`;
+          let ctx = last 
+            ? `\n【前文剧情回顾】：\n${last.story.slice(-450)}\n\n【玩家刚才做出的决定性行动/选择】：\n${last.choice}\n${pacingGuide}\n${transitionPrompt}` 
+            : `\n开局第一回合。请写托尼·斯塔克与玩家的初会与磨合，紧扣首个事件锚点【${formatAnchorTitle(safeAnchor)}】。${pacingGuide}`;
 
           const sys = buildSystem('worldline');
 
@@ -11195,13 +11200,17 @@ function bootAnimation(tier){
     if(i>=lines.length){clearInterval(t);setTimeout(()=>{d.classList.add('out');setTimeout(()=>d.remove(),650);},420);}},680);
 }
 /* 小剧场：内置剧本 + 好感里程碑解锁的专属剧本 + 动态生成剧本 */
+// ===== 修复后：确保自定义剧本无条件通过白名单检验 =====
 function allTheaterQuests(){
-  const base=(typeof THEATER_QUESTS!=='undefined')?THEATER_QUESTS:[];
-  const extra=(typeof MILESTONE_QUESTS!=='undefined')?MILESTONE_QUESTS:[];
-  const dynMap=store.get('dynamicMilestoneQuests',{})||{};
-  const dynList=Object.values(dynMap);
-  const unlocked=store.get('theaterUnlocked',[]);
-  return [...base, ...extra.filter(q=>unlocked.includes(q.id)), ...dynList.filter(q=>unlocked.includes(q.id))];
+  const base = (typeof THEATER_QUESTS !== 'undefined') ? THEATER_QUESTS : [];
+  const extra = (typeof MILESTONE_QUESTS !== 'undefined') ? MILESTONE_QUESTS : [];
+  const dynMap = store.get('dynamicMilestoneQuests', {}) || {};
+  const dynList = Object.values(dynMap);
+  const unlocked = store.get('theaterUnlocked', []);
+  
+  // 自定义剧本(custom_quest_)无条件放行，好感里程碑剧本(ms_dyn_)按已解锁放行
+  const validDyn = dynList.filter(q => q.id && (q.id.startsWith('custom_quest_') || unlocked.includes(q.id)));
+  return [...base, ...extra.filter(q => unlocked.includes(q.id)), ...validDyn];
 }
 /* ============================================================
    环境层：托尼实时状态 · 环境微日志 · 斯塔克工业股价
@@ -14144,96 +14153,187 @@ const THEATER_QUESTS=[
    options:['蹲下来递工具，不问在修什么','说「这里挺好的」','把箱子往屋里搬','坐在栈道上，什么也不说'],
    ending:'他接过工具，很快又松开手——他握手总是很快松开。\n\n*"Yeah. It\'ll do."*（嗯，这儿挺好。）\n\n天黑得比城里早，贾维斯的日报那天只有一行：系统正常，无需记录。'},
 ];
-apps.theater={title:'小剧场',cur:null,render(v){
-  const self=this,f=flags();$('#actBtn').style.display='none';
-  const session=store.get('theaterSession',null);
-  
-  // 如果当前选定了剧本，直接渲染剧情剧场界面
-  if(this.cur){
-    this.renderQuest(v);
-    return;
-  }
-  
-  const done=store.get('theaterDone',[]);
-  const list=allTheaterQuests().filter(q=>!q.eras || q.eras.includes(f.era.id) || q.eras.includes(f.year));
-  
-  v.innerHTML=`<div class="pad">
-    <div class="card" style="padding:12px"><div class="eyebrow">STARK OS · ONE-ACT PLAY</div>
-      <div style="font-family:var(--font-serif);font-size:15px;font-weight:700;margin:6px 0">🎭 独立小剧场</div>
-      <div class="hint">中长剧情模式：每场至少 5 回合，AI 根据你的选择推进场景，5 回合后自然收束并保存至历史记录。${en('No retcons, no spell, just a scene.')}</div></div>
-    ${session&&!session.ended?`<div class="card" style="border-color:var(--gold);padding:12px"><div class="eyebrow">IN PROGRESS</div>
-      <div style="font-family:var(--font-serif);font-size:14px;font-weight:700;margin:4px 0">${esc(session.title)}</div>
-      <div class="hint">第 ${session.turn} 回合 · ${(session.history||[]).length} 次选择已记录</div>
-      <div class="row" style="margin-top:8px"><button class="btn gold sm" id="th_resume">▶ 继续这场</button><button class="btn ghost sm" id="th_abandon">放弃本场</button></div></div>`:''}
-    <div class="row" style="margin-bottom:12px;gap:8px">
-      <button class="btn gold sm" id="th_custom_create" style="flex:1;font-weight:700">✨ 自定义开一场 (自定义人设/背景)</button>
-      <button class="btn ghost sm" id="th_mem" style="flex:0 0 85px">📜 剧场回顾（${done.length}）</button>
-    </div>
-    <div style="font-size:11.5px;font-weight:700;color:var(--cyan);margin:6px 0 6px 2px">◉ 剧本库与专属里程碑：</div>
-    ${list.map(q=>`<div class="card ${q.milestone?'ms-quest':''}" style="padding:12px;margin-bottom:8px;cursor:pointer" data-q="${q.id}">
-      <div style="font-family:var(--font-serif);font-size:14px;font-weight:700;color:var(--text)">${esc(q.title)} ${q.milestone?'<span class="tag gold">里程碑</span>':''} ${done.includes(q.id)?'<span class="tag green">已演过</span>':''}</div>
-      <div class="hint" style="margin-top:4px;font-size:11.5px;line-height:1.5">${esc(q.desc)}</div>
-      <div class="eyebrow" style="margin-top:6px;font-size:9.5px">5+ ROUNDS · MULTI-ACT</div></div>`).join('')}
-    ${!list.length?'<div class="empty">当前时间点没有可演的剧场。</div>':''}
-  </div>`;
+apps.theater = {
+  title: '小剧场',
+  cur: null,
+  _busy: false,
 
-  v.querySelectorAll('[data-q]').forEach(el=>el.onclick=()=>{
-    self.cur=el.dataset.q;
-    self.render(v);
-  });
-  // 绑定全新的自定义剧场创建弹窗
-  v.querySelector('#th_custom_create').onclick=()=>self.openCustomTheaterModal(v);
-  v.querySelector('#th_mem').onclick = async () => {
-    // 直接从 IndexedDB 异步提取所有大体量完整剧场档案
-    const archive = await store.getTheaterArchive();
-    
-    modal(`
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <h2 style="color:var(--cyan);margin:0;font-size:16px">📜 剧场历史档案 (IndexedDB 永久存储)</h2>
-        <button class="btn ghost sm" data-close style="width:auto;padding:3px 9px;font-size:11.5px">关闭</button>
-      </div>
-      <div class="hint" style="margin-bottom:10px">
-        所有剧场完整过程、每幕台词与抉择均安全储存在本机 IndexedDB 中，不挤占浏览器缓存空间。
-      </div>
+  render(v) {
+    const self = this, f = flags();
+    $('#actBtn').style.display = 'none';
+    const session = store.get('theaterSession', null);
 
-      <div style="max-height:58vh;overflow-y:auto;padding-right:2px">
-        ${archive.length ? archive.map((r, idx) => `
-          <div class="card" data-open-th-detail="${idx}" style="padding:11px 12px;margin-bottom:8px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px">
-            <div style="flex:1;min-width:0">
-              <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
-                <span class="tag gold" style="margin:0">共 ${r.turnsCount || (r.turns||[]).length} 幕</span>
-                <span class="hint" style="font-size:10.5px">${esc(r.time || '—')}</span>
-              </div>
-              <b style="font-size:13.5px;color:var(--text);font-family:var(--font-serif)">${esc(r.title)}</b>
-              <div class="hint" style="font-size:11px;margin-top:2px">出场：<span style="color:var(--cyan)">${esc((r.peers||[]).join('、'))}</span></div>
-            </div>
-            <span style="color:var(--cyan);font-size:13px;font-weight:700">查看全幕 ›</span>
-          </div>
-        `).join('') : `
-          <div class="empty">还没有演过任何小剧场。<br>点击大厅「✨ 自定义开一场」开始你的第一部电影。</div>
-        `}
-      </div>
-      <button class="btn ghost sm" data-close style="margin-top:10px;width:100%">关闭</button>
-    `);
+    if (this.cur) {
+      this.renderQuest(v);
+      return;
+    }
 
-    document.querySelectorAll('[data-open-th-detail]').forEach(card => {
-      card.onclick = () => {
-        const item = archive[+card.dataset.openThDetail];
-        if (item) self.openTheaterDetailModal(item);
-      };
+    const done = store.get('theaterDone', []);
+    const list = allTheaterQuests().filter(q => !q.eras || q.eras.includes(f.era.id) || q.eras.includes(f.year));
+
+    v.innerHTML = `<div class="pad">
+      <div class="card" style="padding:12px"><div class="eyebrow">STARK OS · ONE-ACT PLAY</div>
+        <div style="font-family:var(--font-serif);font-size:15px;font-weight:700;margin:6px 0">🎭 独立小剧场</div>
+        <div class="hint">中长剧情模式：多回合电影感推演，支持独立存读档、回退与重置，收束后永久归档至 IndexedDB 历史。${en('No retcons, no spell, just a scene.')}</div></div>
+      ${session && !session.ended ? `<div class="card" style="border-color:var(--gold);padding:12px"><div class="eyebrow">IN PROGRESS</div>
+        <div style="font-family:var(--font-serif);font-size:14px;font-weight:700;margin:4px 0">${esc(session.title)}</div>
+        <div class="hint">第 ${session.turn} 回合 · ${(session.history || []).length} 次选择已记录</div>
+        <div class="row" style="margin-top:8px"><button class="btn gold sm" id="th_resume">▶ 继续这场</button><button class="btn ghost sm" id="th_abandon">放弃本场</button></div></div>` : ''}
+      <div class="row" style="margin-bottom:12px;gap:8px">
+        <button class="btn gold sm" id="th_custom_create" style="flex:1;font-weight:700">✨ 自定义开一场 (自定剧名/人设/背景)</button>
+        <button class="btn ghost sm" id="th_mem" style="flex:0 0 85px">📜 剧场回顾（${done.length}）</button>
+      </div>
+      <div style="font-size:11.5px;font-weight:700;color:var(--cyan);margin:6px 0 6px 2px">◉ 剧本库与专属里程碑：</div>
+      ${list.map(q => `<div class="card ${q.milestone ? 'ms-quest' : ''}" style="padding:12px;margin-bottom:8px;cursor:pointer" data-q="${q.id}">
+        <div style="font-family:var(--font-serif);font-size:14px;font-weight:700;color:var(--text)">${esc(q.title)} ${q.milestone ? '<span class="tag gold">里程碑</span>' : ''} ${done.includes(q.id) ? '<span class="tag green">已演过</span>' : ''}</div>
+        <div class="hint" style="margin-top:4px;font-size:11.5px;line-height:1.5">${esc(q.desc)}</div>
+        <div class="eyebrow" style="margin-top:6px;font-size:9.5px">MULTI-ACT THEATER</div></div>`).join('')}
+      ${!list.length ? '<div class="empty">当前时间点没有可演的剧场。</div>' : ''}
+    </div>`;
+
+    v.querySelectorAll('[data-q]').forEach(el => el.onclick = () => {
+      self.cur = el.dataset.q;
+      self.render(v);
     });
-  };
-  const resumeBtn=v.querySelector('#th_resume');
-  if(resumeBtn)resumeBtn.onclick=()=>{self.cur=session.qid;self.render(v);};
-  const abandonBtn=v.querySelector('#th_abandon');
-  if(abandonBtn)abandonBtn.onclick=()=>{
-    if(!confirm('放弃当前进行中的小剧场？'))return;
-    store.set('theaterSession',null);
-    self.cur=null;
-    self.render(v);
-  };
-},
-  // 自定义小剧场创作面板：自选出场人物、氛围风格、剧情背景脑洞
+
+    v.querySelector('#th_custom_create').onclick = () => self.openCustomTheaterModal(v);
+        v.querySelector('#th_mem').onclick = async () => {
+      let archive = await store.getTheaterArchive();
+      let selectedIds = new Set(); // 存放批量勾选的 ID
+
+      const d = modal(`<div id="th_archive_host"></div>`);
+      const host = d.querySelector('#th_archive_host');
+
+      const renderArchiveList = () => {
+        host.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <h2 style="color:var(--cyan);margin:0;font-size:16px">📜 剧场历史档案 (${archive.length})</h2>
+            <button class="btn ghost sm" data-close style="width:auto;padding:3px 9px;font-size:11.5px">关闭</button>
+          </div>
+          <div class="hint" style="margin-bottom:10px">
+            存储于本地 IndexedDB。支持单独删除或多选批量清理。
+          </div>
+
+          <!-- 批量操作控制条 -->
+          ${archive.length ? `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--panel2);border-radius:8px;margin-bottom:8px">
+              <label style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text);cursor:pointer">
+                <input type="checkbox" id="th_select_all" ${selectedIds.size === archive.length && archive.length > 0 ? 'checked' : ''} style="accent-color:var(--cyan)">
+                <span>全选</span>
+              </label>
+              <div style="display:flex;gap:6px">
+                <button class="btn sm red" id="th_batch_del" ${selectedIds.size ? '' : 'disabled style="opacity:.4"'} style="padding:3px 10px;font-size:11px">
+                  🗑 批量删除 (${selectedIds.size})
+                </button>
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- 列表区 -->
+          <div style="max-height:55vh;overflow-y:auto;padding-right:2px">
+            ${archive.length ? archive.map((r, idx) => `
+              <div class="card" style="padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px;background:var(--panel)">
+                <!-- 批量多选框 -->
+                <input type="checkbox" data-check-id="${r.id}" ${selectedIds.has(r.id) ? 'checked' : ''} style="accent-color:var(--cyan);width:16px;height:16px;flex-shrink:0;cursor:pointer">
+                
+                <div style="flex:1;min-width:0;cursor:pointer" data-open-th-detail="${idx}">
+                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+                    <span class="tag gold" style="margin:0">共 ${r.turnsCount || (r.turns || []).length} 幕</span>
+                    <span class="hint" style="font-size:10px">${esc(r.time || '—')}</span>
+                  </div>
+                  <b style="font-size:13px;color:var(--text);font-family:var(--font-serif)">${esc(r.title)}</b>
+                  <div class="hint" style="font-size:10.5px;margin-top:2px">出场：<span style="color:var(--cyan)">${esc((r.peers || []).join('、'))}</span></div>
+                </div>
+
+                <!-- 单个快捷删除按键 -->
+                <button class="btn ghost sm" data-single-del="${r.id}" style="flex:0 0 auto;padding:4px 8px;font-size:11px;color:var(--red);border-color:rgba(226,54,54,.3)" title="删除此记录">
+                  🗑 删
+                </button>
+              </div>
+            `).join('') : '<div class="empty">还没有演过任何小剧场。</div>'}
+          </div>
+          <button class="btn ghost sm" data-close style="margin-top:10px;width:100%">关闭</button>
+        `;
+
+        // 绑定全选
+        const selAll = host.querySelector('#th_select_all');
+        if (selAll) {
+          selAll.onchange = () => {
+            if (selAll.checked) {
+              archive.forEach(x => selectedIds.add(x.id));
+            } else {
+              selectedIds.clear();
+            }
+            renderArchiveList();
+          };
+        }
+
+        // 单选切换
+        host.querySelectorAll('[data-check-id]').forEach(chk => {
+          chk.onchange = () => {
+            const id = chk.dataset.checkId;
+            if (chk.checked) selectedIds.add(id);
+            else selectedIds.delete(id);
+            renderArchiveList();
+          };
+        });
+
+        // 单条删除
+        host.querySelectorAll('[data-single-del]').forEach(btn => {
+          btn.onclick = async (e) => {
+            e.stopPropagation();
+            const id = btn.dataset.singleDel;
+            if (!confirm('确定删除该剧场记录？')) return;
+            archive = archive.filter(x => x.id !== id);
+            selectedIds.delete(id);
+            await store.saveTheaterArchive(archive);
+            toast('已删除');
+            renderArchiveList();
+            self.render(v); // 刷新外层计数
+          };
+        });
+
+        // 批量删除
+        const batchBtn = host.querySelector('#th_batch_del');
+        if (batchBtn) {
+          batchBtn.onclick = async () => {
+            if (!selectedIds.size) return;
+            if (!confirm(`确定彻底删除选中的 ${selectedIds.size} 条剧场记录？`)) return;
+            archive = archive.filter(x => !selectedIds.has(x.id));
+            selectedIds.clear();
+            await store.saveTheaterArchive(archive);
+            toast('批量删除成功');
+            renderArchiveList();
+            self.render(v);
+          };
+        }
+
+        // 打开详情
+        host.querySelectorAll('[data-open-th-detail]').forEach(card => {
+          card.onclick = () => {
+            const item = archive[+card.dataset.openThDetail];
+            if (item) self.openTheaterDetailModal(item);
+          };
+        });
+
+        host.querySelectorAll('[data-close]').forEach(b => b.onclick = () => d.remove());
+      };
+
+      renderArchiveList();
+    };
+
+    const resumeBtn = v.querySelector('#th_resume');
+    if (resumeBtn) resumeBtn.onclick = () => { self.cur = session.qid; self.render(v); };
+    const abandonBtn = v.querySelector('#th_abandon');
+    if (abandonBtn) abandonBtn.onclick = () => {
+      if (!confirm('放弃当前进行中的小剧场？')) return;
+      store.set('theaterSession', null);
+      self.cur = null;
+      self.render(v);
+    };
+  },
+
+  // 1. 自定义小剧场创作：增加剧本名称输入框 + 闭合完整
   openCustomTheaterModal(v) {
     const self = this;
     const f = flags();
@@ -14254,14 +14354,22 @@ apps.theater={title:'小剧场',cur:null,render(v){
         <span>✨</span> <span>自定义独立小剧场</span>
       </h2>
       <div style="max-height:68vh;overflow-y:auto;padding-right:2px">
-        <!-- 1. 选择出场人物 -->
+        <!-- 剧名输入框 -->
+        <div class="field" style="margin-bottom:10px">
+          <label style="font-size:11.5px;font-weight:700;color:var(--text);margin-bottom:4px;display:block">
+            🎬 剧本名称（留空则根据内容自动生成）：
+          </label>
+          <input id="ct_custom_title" class="inp" placeholder="例如：暴雨夜的未接电缆 / 双人飞行测绘" style="font-size:13px;font-weight:700">
+        </div>
+
+        <!-- 选出场人物 -->
         <div class="field" style="margin-bottom:10px">
           <label style="font-size:11.5px;font-weight:700;color:var(--text);margin-bottom:5px;display:block">
-            👥 出场人物（可多选，单人或多人群像）：
+            👥 出场人物（可多选）：
           </label>
           <div style="display:flex;flex-wrap:wrap;gap:5px" id="ct_peer_box">
             ${contacts.map(c => `
-              <span class="chip ${selectedPeers.includes(c.name)?'on':''}" data-ct-peer="${esc(c.name)}" style="cursor:pointer">
+              <span class="chip ${selectedPeers.includes(c.name) ? 'on' : ''}" data-ct-peer="${esc(c.name)}" style="cursor:pointer">
                 ${esc(c.name)}
               </span>
             `).join('')}
@@ -14271,14 +14379,14 @@ apps.theater={title:'小剧场',cur:null,render(v){
           </div>
         </div>
 
-        <!-- 2. 选择剧本风格 -->
+        <!-- 选风格 -->
         <div class="field" style="margin-bottom:10px">
           <label style="font-size:11.5px;font-weight:700;color:var(--text);margin-bottom:5px;display:block">
-            🎭 剧场基调与文风：
+            🎭 剧场基调：
           </label>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px" id="ct_style_box">
             ${STYLES.map(st => `
-              <div class="card ${selectedStyle===st.k?'on':''}" data-ct-style="${st.k}" style="padding:8px;margin:0;cursor:pointer;border:1.5px solid ${selectedStyle===st.k?'var(--gold)':'var(--line)'};background:var(--panel2)">
+              <div class="card ${selectedStyle === st.k ? 'on' : ''}" data-ct-style="${st.k}" style="padding:8px;margin:0;cursor:pointer;border:1.5px solid ${selectedStyle === st.k ? 'var(--gold)' : 'var(--line)'};background:var(--panel2)">
                 <div style="font-size:12px;font-weight:700;color:var(--text)">${st.n}</div>
                 <div style="font-size:10px;color:var(--muted);margin-top:2px;line-height:1.3">${st.desc}</div>
               </div>
@@ -14286,10 +14394,10 @@ apps.theater={title:'小剧场',cur:null,render(v){
           </div>
         </div>
 
-        <!-- 3. 自定义背景脑洞与冲突 -->
+        <!-- 剧情情境 -->
         <div class="field" style="margin-bottom:12px">
           <label style="font-size:11.5px;font-weight:700;color:var(--text);margin-bottom:5px;display:block">
-            📍 场景背景与剧情冲突（可自定义或点击预设灵感）：
+            📍 场景背景与剧情冲突（可自定义或点选灵感）：
           </label>
           <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">
             <button type="button" class="btn ghost sm" data-ct-pre="暴雨深夜，基地大停电，只能靠反应堆微光照明核对旧图纸" style="font-size:10px;padding:3px 7px">🌧 停电夜烛光</button>
@@ -14300,26 +14408,23 @@ apps.theater={title:'小剧场',cur:null,render(v){
           <textarea id="ct_scene_desc" class="inp" rows="3" style="font-size:12px;line-height:1.6" placeholder="输入你想推演的任意具体情境、地点、冲突或心照不宣的秘密……"></textarea>
         </div>
 
-        <!-- 4. 自定义推演总回合数 -->
+        <!-- 回合滑块 -->
         <div class="field" style="margin-bottom:14px;background:var(--panel2);padding:10px 12px;border-radius:10px;border:1px solid var(--line)">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-            <label style="font-size:11.5px;font-weight:700;color:var(--text);margin:0">⏳ 计划总回合数（第最后一回合 AI 强制收束落幕）：</label>
+            <label style="font-size:11.5px;font-weight:700;color:var(--text);margin:0">⏳ 计划总回合数（达到时自动收束大结局）：</label>
             <b id="ct_turns_val" style="color:var(--gold);font-family:var(--font-mono);font-size:14px">5 回合</b>
           </div>
           <input type="range" id="ct_turns_slider" min="3" max="20" value="5" style="width:100%;accent-color:var(--gold)">
-          <div class="hint" style="font-size:10px;color:var(--muted);margin-top:4px">
-            设置后，AI 将在前半程铺垫冲突，在最终回合自动收束解决所有事件并给出落幕结局。
-          </div>
         </div>
       </div>
 
       <div style="display:flex;gap:8px;margin-top:10px">
-        <button class="btn gold sm" id="ct_start_btn" style="flex:1;font-weight:700">🎬 AI 立即生成新剧场开场</button>
+        <button class="btn gold sm" id="ct_start_btn" style="flex:1;font-weight:700">🎬 立即开启新剧场</button>
         <button class="btn ghost sm" data-close style="flex:0 0 65px">取消</button>
       </div>
     `);
 
-    // 选人逻辑
+    // 选人
     d.querySelectorAll('[data-ct-peer]').forEach(chip => {
       chip.onclick = () => {
         const name = chip.dataset.ctPeer;
@@ -14346,48 +14451,49 @@ apps.theater={title:'小剧场',cur:null,render(v){
       };
     });
 
-    // 点击灵感快速填入
+    // 点灵感
     d.querySelectorAll('[data-ct-pre]').forEach(btn => {
       btn.onclick = () => { d.querySelector('#ct_scene_desc').value = btn.dataset.ctPre; };
     });
 
-const slider = d.querySelector('#ct_turns_slider');
+    const slider = d.querySelector('#ct_turns_slider');
     if (slider) {
       slider.oninput = e => { d.querySelector('#ct_turns_val').textContent = e.target.value + ' 回合'; };
     }
 
-    // 点击生成新剧场
+    // 启动生成
     d.querySelector('#ct_start_btn').onclick = async () => {
+      const customTitle = d.querySelector('#ct_custom_title').value.trim();
       const sceneBrief = d.querySelector('#ct_scene_desc').value.trim() || '实验室深夜偶然相遇，就一件悬而未决的事情展开长谈。';
+      const questTitle = customTitle ? `《${customTitle.replace(/[《》]/g, '')}》` : `《${sceneBrief.slice(0, 14)}》`;
       const curStyleObj = STYLES.find(s => s.k === selectedStyle) || STYLES[0];
       const startBtn = d.querySelector('#ct_start_btn');
       startBtn.disabled = true;
       startBtn.textContent = 'J.A.R.V.I.S. 正在构思场景与对白…';
 
-      const questTitle = `《${sceneBrief.slice(0, 14)}》`;
       const questId = 'custom_quest_' + Date.now();
-
-      const sys = buildSystem('worldline', `你现在是好莱坞电影编剧。请为玩家与漫威角色创作一个【全新独立小剧场】的盛大开场（Act 1）。
+            const sys = buildSystem('worldline', `你现在是好莱坞电影编剧。请为玩家与漫威角色创作一个【全新独立小剧场】《${questTitle}》的盛大开场（Act 1）。
 出场角色名单：${selectedPeers.join('、')}。
 剧本基调风格：${curStyleObj.n}（${curStyleObj.desc}）。
 剧情情境与设定背景：${sceneBrief}
 当前宇宙年份：${f.year} 年 · ${f.era.name}。
 
-【创作铁律】：
-1. 电影镜头感：开局细腻刻画环境、光影、微表情与动作停顿，让出场角色自然入场；
-2. 角色说话必须极度符合各自人设与说话习惯，有性格张力，严禁 OOC；
-3. 【对白语言铁律】每句角色的出声台词必须严格输出为："English Line"（中文翻译）。旁白环境纯中文；
-4. 【格式铁律】正文中绝对严禁包含 A. B. C. D. 选项！
-正文完结后，必须另起一行输出：
+【篇幅与细节丰满铁律】：
+1. 【硬性字数安全要求】：开场正文篇幅【严格控制在 800 ~ 1200 字之间】！坚决拒绝寥寥数语的干瘪短句；
+2. 【电影镜头沉浸感】：极度细腻地刻画现场环境的质感（空气中的温度、机油/雨水/咖啡的气味、环境声响、光影的移动与投射）、出场角色的微表情、肢体动作停顿与呼吸节奏，让角色自然入场；
+3. 【人设张力与语言毛边】：角色说话必须带有各自标志性的思维习惯（如托尼的语速连珠炮与掩饰性刻薄，史蒂夫的站姿与克制），避免直白说教，台词充满张力；
+4. 【对白语言铁律】：每句角色的出声台词必须严格输出为："English Line"（中文翻译）。旁白描写使用纯正中文，禁止孤立乱码星号；
+5. 【选项输出绝对规范】：正文必须完整写完句子后，另起一行输出【选项】，且必须完整给出 A~D 四个方向截然不同的第一人称行动抉择：
 【选项】
-A. ...
-B. ...
-C. ...
-D. ...`);
+A. [必须是玩家第一人称行动/对话]
+B. [必须是玩家第一人称行动/对话]
+C. [必须是玩家第一人称行动/对话]
+D. [必须是玩家第一人称行动/对话]
+严禁中途截断！必须完整给出完整的 A~D 四个选项！`);
 
       try {
         const res = await ai(
-          [{ role: 'user', content: `请立即为【${selectedPeers.join('、')}】生成全新小剧场开场正文与A~D四个选项。` }],
+          [{ role: 'user', content: `请立即为【${selectedPeers.join('、')}】生成全新小剧场《${questTitle}》开场正文与A~D四个选项。` }],
           sys,
           () => `夜色深沉，冷风穿过窗沿。\n${selectedPeers[0]}靠在门边，目光落在桌面微光闪烁的仪器上。\n\n*"You shouldn't be here."*（你不该在这儿。）\n\n【选项】\nA. 坦然迎上对方的目光\nB. 倒了一杯水递过去\nC. 默不作声地继续手里的活\nD. 笑着反问一句`,
           'story'
@@ -14395,8 +14501,7 @@ D. ...`);
 
         const cleanRes = cleanSlur(String(res || '')).trim();
         const splitRegex = /(?:【选项】|\[选项\]|选项[:：])/i;
-        let storyPart = cleanRes;
-        let optPart = '';
+        let storyPart = cleanRes, optPart = '';
 
         if (splitRegex.test(cleanRes)) {
           const parts = cleanRes.split(splitRegex);
@@ -14406,11 +14511,10 @@ D. ...`);
           optPart = 'A. 走上前应对\nB. 保持克制的观察\nC. 递上一份准备好的工具\nD. 用一句俏皮话打破冷场';
         }
 
-        // 构建全新独立小剧场对象并存盘
         const customQuest = {
           id: questId,
           title: questTitle,
-          eras: [f.era.id],
+          eras: ALL_ERA_IDS,
           desc: `【${selectedPeers.join('、')}】${curStyleObj.n}：${sceneBrief}`,
           scene: storyPart.replace(/【剧情】/g, '').trim(),
           options: optPart,
@@ -14418,13 +14522,18 @@ D. ...`);
           ending: '夜色渐深，空气归于平静。这个属于彼此的片刻被妥善安放在了记忆深处。'
         };
 
-        const dynMap = store.get('dynamicMilestoneQuests', {});
+        const dynMap = store.get('dynamicMilestoneQuests', {}) || {};
         dynMap[questId] = customQuest;
         store.set('dynamicMilestoneQuests', dynMap);
 
+        const uQuests = store.get('theaterUnlocked', []);
+        if (!uQuests.includes(questId)) {
+          uQuests.push(questId);
+          store.set('theaterUnlocked', uQuests);
+        }
+
         const plannedTurns = parseInt(d.querySelector('#ct_turns_slider').value) || 5;
 
-        // 强行把当前剧场会话重置为新生成的剧场！
         store.set('theaterSession', {
           qid: questId,
           title: questTitle,
@@ -14434,46 +14543,47 @@ D. ...`);
           history: [],
           _turnStories: [{ turn: 1, story: customQuest.scene, options: customQuest.options }],
           ended: false,
-          maxTurns: plannedTurns,   // 用户自定义总回合数
+          minTurns: 3,
+          maxTurns: plannedTurns,
           peers: selectedPeers,
           sceneBrief: sceneBrief
         });
 
         d.remove();
         self.cur = questId;
-        toast(`🎉 剧场《${questTitle}》已创作就绪！`);
-        self.render(v);
+        toast(`🎉 剧场${questTitle}已创作就绪！`);
+        const hostBody = document.getElementById('appBody') || v;
+        self.render(hostBody);
       } catch (err) {
         toast('生成剧场失败，请检查网络或配置');
         startBtn.disabled = false;
-        startBtn.textContent = '🎬 AI 立即生成新剧场开场';
+        startBtn.textContent = '🎬 立即开启新剧场';
       }
     };
   },
 
-  renderQuest(v){
-    const self=this;
-    let session=store.get('theaterSession',null);
-    const q=allTheaterQuests().find(x=>x.id===self.cur);
-    if(!q){
+  // 2. 剧场推演主界面：带“上一回合 / 重置本回合 / 存读档 / 回忆”四合一控制条
+  renderQuest(v) {
+    const self = this;
+    let session = store.get('theaterSession', null);
+    const q = allTheaterQuests().find(x => x.id === self.cur);
+    if (!q) {
       toast('未找到该剧本信息');
-      self.cur=null;
-      store.set('theaterSession',null);
+      self.cur = null;
+      store.set('theaterSession', null);
       self.render(v);
       return;
     }
 
-    // 格式化并清洗初始选项（兼顾字符串与数组结构）
     const normalizeOpts = (rawOpts) => {
       if (Array.isArray(rawOpts)) {
-        return rawOpts.map((o, idx) => `${String.fromCharCode(65+idx)}. ${o}`).join('\n');
+        return rawOpts.map((o, idx) => `${String.fromCharCode(65 + idx)}. ${o}`).join('\n');
       }
       return String(rawOpts || '').trim();
     };
 
-    // 如果是新选剧本或上一场已结束，初始化全新 session
-    if(!session || session.qid!==self.cur || session.ended){
-      session={
+    if (!session || session.qid !== self.cur || session.ended) {
+      session = {
         qid: q.id,
         title: q.title,
         turn: 1,
@@ -14481,16 +14591,15 @@ D. ...`);
         options: normalizeOpts(q.options),
         history: [],
         ended: false,
-        minTurns: 5,
-        maxTurns: 8
+        minTurns: 3,
+        maxTurns: 5
       };
       store.set('theaterSession', session);
     }
 
-    // 将 options 解析为独立选项列表
     let optList = [];
     if (typeof session.options === 'string') {
-      optList = session.options.split('\n').map(l=>l.trim()).filter(l=>/^[A-DＡ-Ｄ]\s*[\.、\s]/.test(l));
+      optList = session.options.split('\n').map(l => l.trim()).filter(l => /^[A-DＡ-Ｄ]\s*[\.、\s]/.test(l));
       if (!optList.length && session.options.trim()) {
         optList = session.options.split('\n').filter(Boolean);
       }
@@ -14501,43 +14610,80 @@ D. ...`);
       optList = ['A. 顺着对方的话接下去', 'B. 提出完全相反的观点', 'C. 保持沉默，仔细观察周围', 'D. 转移话题并递上工具'];
     }
 
-    v.innerHTML=`<div class="pad">
-      <button class="btn ghost sm" id="tq_back" style="margin-bottom:10px">← 返回剧场列表</button>
-      <div class="card" style="padding:12px;margin-bottom:10px">
-        <div class="eyebrow">ACT ${session.turn} · ${esc(eraName())}</div>
-        <h2 style="font-family:var(--font-serif);font-size:16px;margin:6px 0 4px">${esc(session.title)}</h2>
-        <div class="hint">当前第 ${session.turn} 回合（需满 ${session.minTurns} 回合即可收束结局）· 已记录 ${(session.history||[]).length} 次抉择</div>
+    v.innerHTML = `<div class="pad" style="padding-bottom:28px">
+      <!-- 顶栏状态 -->
+      <div class="statbar" style="margin-bottom:8px;padding:9px 12px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:10.5px;color:var(--muted)">
+            ACT ${session.turn} / ${session.maxTurns || 5} · <b style="color:var(--cyan)">${esc(eraName())}</b>
+          </div>
+          <div style="font-family:var(--font-serif);font-size:14px;font-weight:700;margin-top:2px;color:var(--text)">
+            ${esc(session.title)}
+          </div>
+          <div class="hint" style="font-size:10.5px;margin-top:1px">出场：<b>${esc((session.peers || ['托尼·斯塔克']).join('、'))}</b></div>
+        </div>
+        <button class="btn ghost sm" id="tq_back" style="flex:0 0 auto;padding:4px 8px;font-size:11px">退出</button>
       </div>
 
+      <!-- 四合一功能控制条：回退 / 重置 / 存读档 / 回忆 -->
+      <div class="row" style="margin-bottom:8px;gap:5px;flex-wrap:wrap">
+        <button class="btn ghost sm" id="tq_back_turn" ${(session.history && session.history.length) ? '' : 'disabled'} style="flex:1;font-size:11px;padding:6px 2px" title="丢弃当前回合，回退到上一回合">
+          ↩ 上一回合
+        </button>
+        <button class="btn ghost sm" id="tq_reset_turn" style="flex:1;font-size:11px;padding:6px 2px" title="重新推演本幕剧情">
+          ↺ 重置本回合
+        </button>
+        <button class="btn ghost sm" id="tq_slots_btn" style="flex:1;font-size:11px;padding:6px 2px" title="5 槽位独立存读档">
+          💾 存读档
+        </button>
+        <button class="btn ghost sm" id="tq_memo_btn" style="flex:0 0 54px;font-size:11px;padding:6px 2px" title="查看本场回忆">
+          📜 回忆
+        </button>
+      </div>
+
+      <!-- 剧情正文区 -->
       <div class="story" style="font-size:13px;line-height:1.85;background:var(--panel);padding:12px;border-radius:12px;border:1px solid var(--line);margin-bottom:10px">
         ${fmtStory(session.story)}
       </div>
 
+      <!-- 选项按钮卡片 -->
       <div class="card" style="padding:10px 12px;margin-bottom:10px;border-color:var(--cyan)">
         <div style="font-size:11.5px;font-weight:700;color:var(--cyan);margin-bottom:6px">◉ 你的行动抉择：</div>
         <div id="tq_opts">
-          ${optList.map(o=>`<button class="opt" data-o="${esc(o).replace(/"/g,'&quot;')}" style="font-size:12px;padding:9px 12px;margin-bottom:6px">${fmt(o)}</button>`).join('')}
+          ${optList.map(o => `<button class="opt" data-o="${esc(o).replace(/"/g, '&quot;')}" style="font-size:12px;padding:9px 12px;margin-bottom:6px">${fmt(o)}</button>`).join('')}
         </div>
       </div>
 
+      <!-- 自定义行动输入区 -->
       <div class="card" style="padding:10px 12px">
         <div class="hint" style="font-size:10px;margin-bottom:5px;color:var(--gold)">💡 提示：<b>（括号内）</b>输入剧情指引，<b>括号外</b>输入行动与台词</div>
         <input id="tq_act" class="inp" value="（）" placeholder="（剧情指引）具体行动台词…" style="font-size:12.5px;margin-bottom:8px">
         <div class="row" style="gap:7px">
           <button class="btn sm gold" id="tq_send" style="flex:1;font-weight:700">▶ 推进下一幕</button>
-          <button class="btn ghost sm" id="tq_end" ${session.turn<session.minTurns?'disabled style="opacity:.4"':''} style="flex:0 0 85px">🎬 收束结局</button>
+          <button class="btn ghost sm" id="tq_end" ${session.turn < (session.minTurns || 3) ? 'disabled style="opacity:.4"' : ''} style="flex:0 0 85px">🎬 收束结局</button>
         </div>
       </div>
       <div id="tq_result"></div>
     </div>`;
 
-    v.querySelector('#tq_back').onclick=()=>{self.cur=null;self.render(v);};
-    
-    // 点击选项直接填入输入框或直接高亮
-    v.querySelectorAll('[data-o]').forEach(b=>b.onclick=()=>{
-      const cleanO = b.dataset.o.replace(/^[A-DＡ-Ｄ]\s*[\.、\s]*/, '').trim();
-      v.querySelector('#tq_act').value = cleanO;
-      v.querySelector('#tq_act').focus();
+    v.querySelector('#tq_back').onclick = () => { self.cur = null; self.render(v); };
+
+        // 选项点击：直接推进剧情（无需二次点击，带防连击锁）
+    v.querySelectorAll('[data-o]').forEach(b => b.onclick = () => {
+      if (self._busy) return;
+      self._busy = true;
+
+      // 禁用下方发送按钮与输入框，防止并发冲突
+      const sendBtn = v.querySelector('#tq_send');
+      const actInp = v.querySelector('#tq_act');
+      if (sendBtn) {
+        sendBtn.disabled = true;
+        sendBtn.textContent = '⏳ 正在推演中…';
+      }
+      if (actInp) actInp.disabled = true;
+
+      // 立即执行本选项推演
+      self.pick(v, session, q, b.dataset.o);
     });
 
     const actInp = v.querySelector('#tq_act');
@@ -14545,60 +14691,182 @@ D. ...`);
       actInp.addEventListener('focus', () => { setTimeout(() => actInp.setSelectionRange(1, 1), 10); }, { once: true });
     }
 
+    // 回退上一回合
+    v.querySelector('#tq_back_turn').onclick = () => {
+      if (!session.history || !session.history.length) return;
+      if (!confirm('确定回到上一回合？当前回合内容将被丢弃。')) return;
+      const h = session.history.pop();
+      session.story = h.story;
+      session.options = h.options;
+      session.turn = Math.max(1, session.turn - 1);
+      store.set('theaterSession', session);
+      toast(`已回退到第 ${session.turn} 幕`);
+      self.renderQuest(v);
+    };
+
+    // 重置本回合
+    v.querySelector('#tq_reset_turn').onclick = async () => {
+      if (!confirm('确定重置本回合？将重新推演当前场景与选项。')) return;
+      toast('正在重新推演本幕…');
+      const lastHist = session.history[session.history.length - 1];
+      const prevChoice = lastHist ? lastHist.choice : '继续场景';
+      self.pick(v, session, q, prevChoice, true);
+    };
+
+    // 独立 5 槽位存读档
+    v.querySelector('#tq_slots_btn').onclick = () => {
+      const slots = store.get('theater_slots', Array(5).fill(null));
+      const renderSlots = () => slots.map((sl, idx) => `
+        <div class="card" style="padding:10px;margin-bottom:8px;background:var(--panel2)">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <b style="color:var(--cyan)">剧场槽位 ${idx + 1}</b>
+            <span class="hint" style="font-size:10px">${sl ? esc(sl.saveTime) : '空槽位'}</span>
+          </div>
+          ${sl ? `<div class="hint" style="margin:5px 0;font-size:11px;line-height:1.6">
+            剧名：<b>${esc(sl.session.title)}</b><br>
+            进度：第 ${sl.session.turn || 1} 幕 · 出场：${esc((sl.session.peers || []).join('、'))}
+            <div style="max-height:34px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px;color:var(--text);opacity:.85">
+              ${esc((sl.session.story || '').slice(0, 48))}...
+            </div>
+          </div>` : '<div class="hint" style="margin:5px 0">暂无存档记录</div>'}
+          <div class="row" style="margin-top:6px">
+            <button class="btn sm" data-thsave="${idx}">覆盖保存</button>
+            <button class="btn ghost sm" data-thload="${idx}" ${sl ? '' : 'disabled'}>读取本槽</button>
+            ${sl ? `<button class="btn ghost sm" data-thdel="${idx}" style="color:var(--red);flex:0 0 46px">删</button>` : ''}
+          </div>
+        </div>
+      `).join('');
+
+      const d = modal(`
+        <h2 style="color:var(--cyan);margin-top:0;font-size:16px">💾 剧场独立存读档 (5 槽位)</h2>
+        <div class="hint" style="margin-bottom:8px">与世界线、约饭存档互相独立，专门用于保存当前剧场的剧情节点。</div>
+        <div id="th_slot_box" style="max-height:60vh;overflow-y:auto">${renderSlots()}</div>
+        <button class="btn ghost sm" data-close style="margin-top:10px;width:100%">关闭</button>
+      `);
+
+      const bindSlots = () => {
+        d.querySelectorAll('[data-thsave]').forEach(b => b.onclick = () => {
+          const idx = +b.dataset.thsave;
+          slots[idx] = { saveTime: nowTime(), session: JSON.parse(JSON.stringify(session)) };
+          store.set('theater_slots', slots);
+          toast(`已存入剧场槽位 ${idx + 1}`);
+          d.querySelector('#th_slot_box').innerHTML = renderSlots();
+          bindSlots();
+        });
+        d.querySelectorAll('[data-thload]').forEach(b => b.onclick = () => {
+          const idx = +b.dataset.thload;
+          const target = slots[idx];
+          if (!target) return;
+          if (!confirm(`确定读取剧场槽位 ${idx + 1}？当前未保存的进度将被覆盖。`)) return;
+          store.set('theaterSession', JSON.parse(JSON.stringify(target.session)));
+          self.cur = target.session.qid;
+          d.remove();
+          toast(`已读取槽位 ${idx + 1}`);
+          self.render(v);
+        });
+        d.querySelectorAll('[data-thdel]').forEach(b => b.onclick = () => {
+          const idx = +b.dataset.thdel;
+          slots[idx] = null;
+          store.set('theater_slots', slots);
+          d.querySelector('#th_slot_box').innerHTML = renderSlots();
+          bindSlots();
+        });
+      };
+      bindSlots();
+    };
+
+    // 本场回忆录
+    v.querySelector('#tq_memo_btn').onclick = () => {
+      const hist = session.history || [];
+      modal(`
+        <h2 style="color:var(--cyan);margin-top:0;font-size:16px">📜 本场剧场回忆录</h2>
+        <div style="max-height:60vh;overflow-y:auto;padding-right:2px">
+          ${hist.length ? hist.map((h, i) => `
+            <div class="card" style="padding:10px;margin-bottom:8px">
+              <div class="hint" style="color:var(--gold);font-weight:700">第 ${h.turn || (i + 1)} 幕</div>
+              <div class="story" style="font-size:12px;margin:5px 0">${fmtStory(h.story)}</div>
+              <div style="font-size:11.5px;color:var(--cyan)">➤ 你的抉择：${esc(h.choice)}</div>
+            </div>
+          `).join('') : '<div class="hint">暂无前期记录，当前正处于开端第 1 幕。</div>'}
+        </div>
+        <button class="btn ghost sm" data-close style="margin-top:10px;width:100%">关闭</button>
+      `);
+    };
+
+    // 发送推演
     const doSend = () => {
+      if (self._busy) return;
       let raw = v.querySelector('#tq_act').value.trim();
       if (!raw || raw === '（）' || raw === '()') return toast('请点选上方选项或输入具体行动');
+
+      self._busy = true;
+      const sendBtn = v.querySelector('#tq_send');
+      const actInp = v.querySelector('#tq_act');
+      if (sendBtn) {
+        sendBtn.disabled = true;
+        sendBtn.textContent = '⏳ 正在推演中…';
+      }
+      if (actInp) actInp.disabled = true;
+
       self.pick(v, session, q, raw);
     };
 
     v.querySelector('#tq_send').onclick = doSend;
     actInp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doSend(); } });
 
-    v.querySelector('#tq_end').onclick=()=>{
-      if(session.turn<session.minTurns) return toast(`需至少推演 ${session.minTurns} 回合才能收束（当前第 ${session.turn} 回合）`);
-      self.finish(v,session,q);
+    v.querySelector('#tq_end').onclick = () => {
+      if (session.turn < (session.minTurns || 3)) return toast(`需至少推演 ${session.minTurns || 3} 回合才能收束（当前第 ${session.turn} 幕）`);
+      self.finish(v, session, q);
     };
   },
 
-  async pick(v, session, q, choiceText) {
+  // 3. 执行推演核心：防截断 Prompt + 强力提取选项 + 动态 token
+  async pick(v, session, q, choiceText, isResetting) {
     const self = this;
-    const resBox = v.querySelector('#tq_result');
+    const hostBody = document.getElementById('appBody') || v;
+    const resBox = hostBody.querySelector('#tq_result');
     if (resBox) resBox.innerHTML = '<div class="loader" style="padding:14px"><div class="spin"></div>剧场深度演进中…</div>';
 
-    session.history = session.history || [];
-    session.history.push({
-      turn: session.turn,
-      story: session.story,
-      options: session.options,
-      choice: choiceText
-    });
+    if (!isResetting) {
+      session.history = session.history || [];
+      session.history.push({
+        turn: session.turn,
+        story: session.story,
+        options: session.options,
+        choice: choiceText
+      });
+    }
 
     const totalTarget = session.maxTurns || 5;
-    const nextTurn = (session.turn || 1) + 1;
+    const nextTurn = isResetting ? session.turn : ((session.turn || 1) + 1);
     const isFinalRound = nextTurn >= totalTarget;
 
-    // 核心判定：如果到了设定的最后一回合，强制要求 AI 收束全部剧情，绝不输出下回合选项！
-    let pacingInstruction = '';
+       let pacingInstruction = '';
     if (isFinalRound) {
       pacingInstruction = `
-【⚡ 核心终局指令 · 本回合为全剧最终幕（第 ${nextTurn}/${totalTarget} 回合）】
-这是整个剧场的最后一幕！你必须在本次回复中将此前所有的对话、悬念、冲突和情感推进至【最高潮并彻底收束落幕】！
-写出一段 350~500 字的终章大结局，给出具有电影质感的收尾画面！
-【极其重要】：本回合既然是大结局，【绝对不要再输出任何【选项】或 A. B. C. D. 选项】！直接以回味悠长的结局正文完结！`;
+【⚡ 核心终局指令 · 本回合为全剧最终幕（第 ${nextTurn}/${totalTarget} 幕）】
+这是整个剧场的最终高潮与收尾！请写出一段【字数在 1000 ~ 1600 字之间】的终章大结局：
+1. 深入收束此前所有的情绪暗涌、语言交锋与核心冲突，给出具有长片电影质感的落幕画面（光影、静默、回味悠长的神态或物件特写）；
+2. 角色间的情感与关系得到深度确认或留白，杜绝草草收场；
+3. 【绝对禁止输出选项】：由于本回合是全剧大结局，正文写完即宣告落幕，【绝对严禁再输出任何【选项】或 A. B. C. D.】！`;
     } else {
       pacingInstruction = `
-当前推进至第 ${nextTurn}/${totalTarget} 回合。
-承接前文继续深入铺展人物情绪与矛盾，并在文末输出：
+当前推演至第 ${nextTurn}/${totalTarget} 幕。
+【篇幅与细节丰满铁律】：
+1. 【硬性字数要求】：本幕剧情正文篇幅【严格在 800 ~ 1500 字之间】！展开充分的动作互动、环境感官与言语交锋，绝不写短平快的快餐段落；
+2. 【剧情深入演化】：承接玩家刚才的选择，必须推动事态或两人的情绪距离产生实质性推进，严禁原地踏步或重复上回合的话题；
+3. 【选项输出规范】：正文写完完整句后，另起一行输出【选项】，且必须完整给出四个截然不同的抉择方向：
 【选项】
 A. ...
 B. ...
 C. ...
-D. ...`;
+D. ...
+【注意】：必须写完完整的第四个选项（D.）才可停止生成！`;
     }
 
     const sys = buildSystem('worldline', `你现在是独立小剧场编剧。正在推演《${session.title || q.title}》。
 出场人物：${(session.peers || ['托尼·斯塔克']).join('、')}。
-总计划：共 ${totalTarget} 回合。
+总计划：共 ${totalTarget} 幕。
 ${pacingInstruction}
 【对白铁律】角色的每一句出声台词严格输出为格式："English Line"（中文翻译）。旁白环境纯中文。`);
 
@@ -14606,26 +14874,26 @@ ${pacingInstruction}
     let r = '';
     try {
       r = await ai(
-        [{ role: 'user', content: `【前情回顾】：\n${session.story.slice(-350)}\n\n【玩家本轮抉择】：${choiceText}\n\n【历史脉络】：\n${histBrief}\n\n请输出第 ${nextTurn}/${totalTarget} 回合剧情。` }],
+        [{ role: 'user', content: `【前情回顾】：\n${session.story.slice(-350)}\n\n【玩家本轮抉择】：${choiceText}\n\n【历史脉络】：\n${histBrief}\n\n请输出第 ${nextTurn}/${totalTarget} 幕剧情与选项。` }],
         sys,
-        () => isFinalRound ? '夜色已深，喧嚣退去，所有的未尽之言最终在安静中沉淀了下来。' : '对方静静地看着你，没有再反驳。\n\n【选项】\nA. 顺着话题说下去\nB. 享受此刻的安静',
+        () => isFinalRound ? '夜色已深，喧嚣退去，所有的未尽之言最终在安静中沉淀了下来。' : '对方静静地看着你，没有再反驳。\n\n【选项】\nA. 顺着话题说下去\nB. 享受此刻的安静\nC. 递上一杯刚泡好的茶\nD. 聊聊接下来的安排',
         'story'
       );
     } catch (err) {
-      r = isFinalRound ? '夜色已深，本场剧场在宁静中落下帷幕。' : '灯光微微闪烁，对话在空气中泛起回音。\n\n【选项】\nA. 探讨下一步\nB. 保持沉默';
+      r = isFinalRound ? '夜色已深，本场剧场在宁静中落下帷幕。' : '灯光微微闪烁，对话在空气中泛起回音。\n\n【选项】\nA. 探讨下一步计划\nB. 保持沉默\nC. 换个轻松的话题\nD. 示意该休息了';
+    } finally {
+      self._busy = false;
     }
 
     const cleanR = cleanSlur(String(r || '')).trim();
     session.turn = nextTurn;
 
     if (isFinalRound) {
-      // 最后一回合：直接作为结局收束并归档到 IndexedDB
       session.story = cleanR.split(/【选项】|\[选项\]|选项[:：]/)[0].replace(/【(?:剧情|结局)】/g, '').trim();
       session.options = '';
       session.history.push({ turn: session.turn, story: session.story, choice: '（全剧落幕）' });
-      await self.finish(v, session, q, session.story);
+      await self.finish(hostBody, session, q, session.story);
     } else {
-      // 中间回合：正常切分选项并显示
       const splitRegex = /(?:【选项】|\[选项\]|选项[:：])/i;
       let storyPart = cleanR, optPart = '';
       if (splitRegex.test(cleanR)) {
@@ -14633,27 +14901,35 @@ ${pacingInstruction}
         storyPart = pts[0].trim();
         optPart = pts.slice(1).join('\n').trim();
       } else {
-        optPart = 'A. 继续推进交谈\nB. 换个角度回应';
+        // 如果模型漏掉了【选项】标签，智能从末尾提取以 A. B. C. D. 开头的行
+        const lines = cleanR.split('\n');
+        const optLines = lines.filter(l => /^[A-DＡ-Ｄ]\s*[\.、]/.test(l.trim()));
+        if (optLines.length >= 2) {
+          optPart = optLines.join('\n');
+          storyPart = lines.filter(l => !/^[A-DＡ-Ｄ]\s*[\.、]/.test(l.trim())).join('\n').trim();
+        } else {
+          optPart = 'A. 顺着话题继续深入探讨\nB. 提出相反的观点进行辩论\nC. 保持默契的安静\nD. 换个轻松的角度化解气氛';
+        }
       }
 
       session.story = storyPart.replace(/【剧情】/g, '').trim();
       session.options = optPart;
       session._turnStories = session._turnStories || [];
-      session._turnStories.push({ turn: session.turn, story: session.story, options: session.options });
+      session._turnStories[session.turn - 1] = { turn: session.turn, story: session.story, options: session.options };
       store.set('theaterSession', session);
-      self.renderQuest(v);
+
+      self.renderQuest(hostBody);
     }
   },
 
   async finish(v, session, q, directEnding) {
     const self = this;
     const finalEnding = directEnding || session.story || '全场小剧场圆满落幕。';
-    
+
     session.ended = true;
     session.ending = finalEnding;
-    store.set('theaterSession', null); // 清除进行中状态
+    store.set('theaterSession', null);
 
-    // 构建完整全过程记录（包含每一幕的正文、选项与玩家的选择）
     const fullTurns = (session.history || []).map((h, idx) => ({
       turn: h.turn || (idx + 1),
       story: h.story || '',
@@ -14672,18 +14948,17 @@ ${pacingInstruction}
       time: nowTime()
     };
 
-    // 核心铁律：100% 存入 IndexedDB，绝对不往 LocalStorage 里塞几十 KB 的长剧场数据！
     const currentArchive = await store.getTheaterArchive();
     currentArchive.unshift(archiveItem);
     await store.saveTheaterArchive(currentArchive.slice(0, 50));
 
-    // 仅在 LocalStorage 记录完成标记与轻量计数
     const done = store.get('theaterDone', []);
     if (!done.includes(q.id)) { done.push(q.id); store.set('theaterDone', done); }
 
     toast('🎉 本场小剧场已圆满收束！全幕记录已存入 IndexedDB 档案');
 
-    v.innerHTML = `
+    const hostBody = document.getElementById('appBody') || v;
+    hostBody.innerHTML = `
       <div class="pad">
         <div class="card" style="border:1.5px solid var(--gold);padding:14px;background:var(--panel2)">
           <div class="eyebrow" style="color:var(--gold)">CURTAIN CALL // FINALE</div>
@@ -14704,16 +14979,15 @@ ${pacingInstruction}
       </div>
     `;
 
-    v.querySelector('#tq_view_detail_btn').onclick = () => {
+    hostBody.querySelector('#tq_view_detail_btn').onclick = () => {
       self.openTheaterDetailModal(archiveItem);
     };
-    v.querySelector('#tq_list_btn').onclick = () => {
+    hostBody.querySelector('#tq_list_btn').onclick = () => {
       self.cur = null;
-      self.render(v);
+      self.render(hostBody);
     };
   },
 
-  // 弹出单个剧场的全回合详情弹窗（查看每一幕正文、选项与抉择）
   openTheaterDetailModal(record) {
     const turns = record.turns || [];
     modal(`
@@ -14723,7 +14997,7 @@ ${pacingInstruction}
       </div>
 
       <div class="card" style="padding:10px 12px;margin-bottom:10px;background:var(--panel2);border-left:3px solid var(--gold)">
-        <div class="hint" style="font-size:11px">📅 演出时间：${esc(record.time)} · 出场人物：<b style="color:var(--cyan)">${esc((record.peers||[]).join('、'))}</b></div>
+        <div class="hint" style="font-size:11px">📅 演出时间：${esc(record.time)} · 出场人物：<b style="color:var(--cyan)">${esc((record.peers || []).join('、'))}</b></div>
         <div style="font-size:11.5px;color:var(--text);margin-top:3px">共完整推演 <b>${record.turnsCount || turns.length}</b> 回合</div>
       </div>
 
@@ -14742,7 +15016,6 @@ ${pacingInstruction}
           </div>
         `).join('')}
 
-        <!-- 终幕落幕词 -->
         <div class="card" style="padding:12px;margin-bottom:8px;background:var(--panel2);border:1px solid var(--gold)">
           <div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:5px">🎭 幕终结局：</div>
           <div class="story" style="font-size:12.5px;line-height:1.8">${fmtStory(record.ending)}</div>
@@ -14758,7 +15031,7 @@ ${pacingInstruction}
     const copyBtn = document.querySelector('#th_copy_full_btn');
     if (copyBtn) {
       copyBtn.onclick = () => {
-        let txt = `【小剧场：${record.title}】\n时间：${record.time}\n出场角色：${(record.peers||[]).join('、')}\n\n`;
+        let txt = `【小剧场：${record.title}】\n时间：${record.time}\n出场角色：${(record.peers || []).join('、')}\n\n`;
         turns.forEach(t => {
           txt += `--- 第 ${t.turn} 幕 ---\n${t.story}\n➤ 抉择：${t.choice}\n\n`;
         });
@@ -14770,7 +15043,20 @@ ${pacingInstruction}
     }
   },
 
-  onBack(){const s=store.get('theaterSession',null);if(this.cur&&(s&&!s.ended)){this.cur=null;Promise.resolve(this.render($('#appBody'))).catch(e=>showErr('E-RENDER-001',{err:e}));return true;}if(this.cur){this.cur=null;Promise.resolve(this.render($('#appBody'))).catch(e=>showErr('E-RENDER-001',{err:e}));return true;}return false;}
+  onBack() {
+    const s = store.get('theaterSession', null);
+    if (this.cur && (s && !s.ended)) {
+      this.cur = null;
+      Promise.resolve(this.render($('#appBody'))).catch(e => showErr('E-RENDER-001', { err: e }));
+      return true;
+    }
+    if (this.cur) {
+      this.cur = null;
+      Promise.resolve(this.render($('#appBody'))).catch(e => showErr('E-RENDER-001', { err: e }));
+      return true;
+    }
+    return false;
+  }
 };
 
 /* ============================================================
