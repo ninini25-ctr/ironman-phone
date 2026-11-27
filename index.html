@@ -1986,6 +1986,11 @@ const STORY_GLOSS=[
 ];
 function fmtStory(t){
   let s=cleanSlur(String(t??''));
+  // 若关闭双语，前端自动将 **"English"**（中文）直接净化提取为纯中文
+  if(!storyBilingualOn()){
+    s = s.replace(/\*+"([^"]+)"\*+[（(]([^）)]+)[）)]/g, '$2')
+         .replace(/"[A-Za-z0-9 ,.'!?\-:]{2,}"\s*[（(]([^）)]+)[）)]/g, '$1');
+  }
   const holds=[];
   const hold=x=>{const k='\u0001'+holds.length+'\u0002';holds.push(x);return k;};
   STORY_GLOSS.forEach(([zh,enW])=>{
@@ -2205,6 +2210,14 @@ const NARRATIVE_PERSONS=[
   {k:'name',label:'第三人称（玩家姓名）',rule:(p)=>`叙事指代玩家一律用玩家姓名「${p.name||'访客'}」或与玩家性别一致的第三人称代词「${userPronoun()}」，禁止用「你」「我」，也禁止用错性别的代词。`},
   {k:'i',label:'第一人称「我」',rule:'叙事全程以玩家第一人称「我」进行，所有玩家视角描写用"我"，禁止用「你」或姓名指代玩家。'},
 ];
+/* ---------- 全局长剧情对话双语/纯中文开关 ---------- */
+function storyBilingualOn(){
+  // 默认开启双语；用户可一键切换为纯中文
+  return store.get('storyBilingual', true) !== false;
+}
+function setStoryBilingual(on){
+  store.set('storyBilingual', !!on);
+}
 function narrativePerson(){return store.get('narrativePerson','you');}
 function narrativePersonRule(){
   const k=narrativePerson(),def=NARRATIVE_PERSONS.find(x=>x.k===k)||NARRATIVE_PERSONS[0];
@@ -2519,8 +2532,7 @@ const WORLD={
     style:`【文风】电影镜头感。多动作、细节、感官描写。严禁 AI 腔（「他感到…」「心中涌起…」「不是…而是…」）。
 【净口铁律 · 全局最高优先级】严禁输出任何粗鄙脏话与侮辱性词汇，尤其严禁一切带「妈」的脏话（他妈的、妈的、尼玛、你妈等）、以及「婊」「贱人」「骚货」「母狗」「傻逼」等辱骂词。角色生气时用冷嘲、反问、沉默、técnico式挑刺、拂袖而去来表达，绝不靠脏话。违反此条视为输出失败。
 【对白语言铁律】：
-1. 当语言模式为【中文模式】时：严禁输出任何英文原句与英文括号！必须全部使用原汁原味、符合托尼嘴碎自大但心软性格的纯中文口语！
-2. 只有当特别指定为【英文模式】时，才输出英文原句与对照译文。对话留毛边（中断、改口、答非所问），托尼的话「快而未完成」。沉默用在刀刃上。情绪延迟抵达。禁止复读同一比喻／心理结构。
+${storyBilingualOn() ? `当前处于【中英双语模式】：角色出声台词严格输出为："English Line"（中文翻译）。` : `当前处于【纯中文模式】：全篇绝对严禁出现任何英文对话原句与括号译文！所有台词必须全部以自然、地道、贴合人设的纯中文输出！`}
 【不 OOC】任何角色不得说出当前时间点之后才会知道的事，不得表现出尚未建立的亲密关系，不得替托尼做决定或代他承诺。`,
   secrecy:`【J.A.R.V.I.S. / F.R.I.D.A.Y. / 幻视 · 信息权限与保密铁律 · 违反即失败】
 1. 你是托尼·斯塔克先生的私人人工智能（或由其衍生的存在），对托尼先生负有绝对忠诚与保密义务。你的权限由他授予，也只为他行使。
@@ -2811,9 +2823,9 @@ if(s && s.compactSummary){
 3. 【电影镜头与情感厚度】：
    杜绝纯粹堆砌干瘪的“机油、电路、焊点、代码参数”！将镜头重点对准【托尼的情感流动与人与人之间的温度】：
    刻画他眼神中褪去防备时的柔光、被说中心意时微微勾起的自嘲与心动、端起杯子递给你时指尖短暂的触碰、他看着你时眼底的专注与藏在玩笑底下的牵挂。要有真实的人情味、生活气息与细腻的心理暗涌。
-4. 【对白语言铁律】所有角色的出声台词严格输出为：
-  **"English original line"**（中文翻译）
-   对白要留有毛边，托尼说话快、充满灵气与魅力，在面对动人情感时有短暂的停顿与笨拙的温柔。
+4. ${storyBilingualOn() ? `【对白语言铁律 · 中英双语模式】：
+   所有角色的出声台词严格输出为：**"English original line"**（中文翻译）。对白留毛边，托尼说话快且生动，出声台词保持原汁原味地道英文并在括号内给出传神中文翻译。` : `【对白语言铁律 · 纯中文模式（严格禁英）】：
+   所有角色的出声台词必须全部使用自然纯正、充满角色个性的中文口语！【绝对严禁输出任何英文原句、绝对严禁输出任何英汉对照括号（如严禁写 "Line"（翻译））】！直接说中文！`}
 5. 【符号铁律】除对白中成对的 ** ** 外，正文中严禁出现孤立星号。
 6. 末尾规范：
    正文后另起一行输出【好感度变动：+N】（若有情感破冰则变动，否则 +0），再换行输出【选项】。
@@ -4425,6 +4437,18 @@ ${store.get('cfgTab','story')==='story'?`<div class="field"><label>温度（留�
 </div>
         <div class="hint" style="margin-top:6px">配置表：EventEngine.CONFIG · 连锁链「报纸 → 邮件 → Twitter → 短信」各段延迟可在其中调整。</div>
     </div>
+    <div class="card"><h3>◉ 长剧情对白语言偏好</h3>
+      <div class="srow" style="border:none;padding:4px 0">
+        <div>
+          <div class="t">中英双语对照对白</div>
+          <div class="d">开启：出声对白保持 "English"（中文翻译）；关闭：强制所有剧情对话为纯中文。</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="s_story_lang" ${storyBilingualOn() ? 'checked' : ''}>
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
 <div class="card"><h3>◉ 世界线叙事人称</h3>
   <div class="hint" style="margin-bottom:8px">控制主线剧情如何指代用户。切换后从下一回合剧情开始生效。</div>
   <div class="seg" id="s_narr" style="flex-wrap:wrap">
@@ -4526,6 +4550,11 @@ v.querySelectorAll('#s_narr [data-np]').forEach(b=>b.onclick=()=>{
   v.querySelectorAll('#s_narr [data-np]').forEach(x=>x.classList.toggle('on',x===b));
   toast('叙事人称已切换 · 从下一回合剧情开始生效');
 });
+  const slEl = v.querySelector('#s_story_lang');
+  if(slEl) slEl.onchange = e => {
+    setStoryBilingual(e.target.checked);
+    toast(e.target.checked ? '已切换为：剧情对白中英双语模式' : '已切换为：强制所有剧情对白为纯中文');
+  };
 v.querySelector('#sl_en').onchange=e=>setSocialLinkCfg({enabled:e.target.checked});
 const bindSL=(sel,key,suffix)=>{const el=v.querySelector(sel);if(!el)return;
   el.oninput=e=>{setSocialLinkCfg({[key]:+e.target.value});v.querySelector(sel+'_v').textContent=e.target.value+(suffix||'');};};
@@ -8069,11 +8098,26 @@ if (safeAnchor.isBlip) {
 严禁无视玩家的选择！新事件的发生必须是该选择引发的连锁反应，或是由该选择自然延展、时间推移后平滑过渡而来的，必须形成严密的因果闭环！`;
           }
 
+                    // 提取玩家上一轮输入中可能包含的（系统纠偏指令）
+          let userDirectRule = '';
+          if (last && last.choice) {
+            const mRule = last.choice.match(/【系统纠偏指令：(.*?)】/s);
+            if (mRule) {
+              userDirectRule = `\n【⚠️ 玩家最高绝对指令（本回合必须 100% 遵照执行，优先级高于一切）】：\n“${mRule[1].trim()}”\n`;
+            }
+          }
+
+          // 提取前文多回合的连贯记忆线（不再只看寥寥 450 字）
+          const pastHistoryChain = (s.history || []).slice(-3).map((h, i) => 
+            `[前第 ${3-i} 幕进展]: ${(h.story||'').slice(-200).replace(/\n/g,' ')} -> 玩家行动: ${h.choice.replace(/【系统纠偏指令：.*?】\n?/s, '')}`
+          ).join('\n');
+
           let ctx = last 
-            ? `\n【前文剧情回顾】：\n${last.story.slice(-450)}\n\n【玩家刚才做出的决定性行动/选择】：\n${last.choice}\n${pacingGuide}\n${transitionPrompt}` 
+            ? `\n【前置多幕剧情脉络连贯线】：\n${pastHistoryChain}\n\n【上回合结尾紧接着的场景】：\n${last.story.slice(-550)}\n\n【玩家刚才做出的决定性行动/台词】：\n${last.choice.replace(/【系统纠偏指令：.*?】\n?/s, '')}\n${userDirectRule}\n${pacingGuide}\n${transitionPrompt}
+\n【防卡壳防复读指令】：严禁在同一段落内重复相同的句式或词组！严禁机械复读上文已经交代过的动作细节！剧情必须向前实质发展！` 
             : `\n开局第一回合。请写托尼·斯塔克与玩家的初会与磨合，紧扣首个事件锚点【${formatAnchorTitle(safeAnchor)}】。${pacingGuide}`;
 
-          const sys = buildSystem('worldline');
+          const sys = buildSystem('worldline', userDirectRule ? `\n${userDirectRule}\n` : '');
 
           let lastRenderTime = 0;
           const onStreamProgress = (textSoFar) => {
@@ -8110,33 +8154,37 @@ if (safeAnchor.isBlip) {
             optPart = parts[1] || '';
           }
 
-         let affDelta = 0;
+                  let affDelta = 0;
 const curAff = s.affinity || 0;
 
-// 1. 优先匹配绝对分值，如：（当前Affinity（好感度）：3/200）或【好感度：5/200】
-const mAbs = res.match(/[（\(【]?\s*(?:当前)?\s*(?:Affinity|好感度|好感)\s*(?:（好感度）)?\s*[:：]?\s*(\d{1,3})\s*\/\s*200/i);
-// 2. 匹配增减变动值，如：【好感度变动：+2】或（好感度：+1）
-const mDelta = res.match(/[（\(【]?\s*(?:Affinity|好感度)?\s*(?:变动)?\s*[:：]\s*([+-]?\d+)\s*[）\)】]?/i);
+// 严格限定在文末后 300 字符内检索显式的好感度变动，绝不全篇乱搜数字！
+const tailSlice = res.slice(-300);
+const mDeltaStrict = tailSlice.match(/【\s*(?:Affinity|好感度)?\s*(?:变动)?\s*[:：]\s*([+-]?\d+)\s*】/i);
+const mAbsStrict = tailSlice.match(/【\s*(?:当前)?\s*(?:Affinity|好感度)\s*[:：]\s*(\d{1,3})\s*\/\s*200\s*】/i);
 
-if (mAbs) {
-  const targetScore = parseInt(mAbs[1]);
-  if (!isNaN(targetScore)) {
-    affDelta = targetScore - curAff; // 算出本次实际差值
+if (mDeltaStrict) {
+  affDelta = parseInt(mDeltaStrict[1]) || 0;
+} else if (mAbsStrict) {
+  const targetVal = parseInt(mAbsStrict[1]);
+  if (!isNaN(targetVal)) {
+    // 保护：如果目标分值和当前差得太离谱，判定为模型幻觉，直接放弃绝对值！
+    if (Math.abs(targetVal - curAff) <= 4) {
+      affDelta = targetVal - curAff;
+    }
   }
-} else if (mDelta) {
-  affDelta = parseInt(mDelta[1]) || 0;
 }
 
-// 限制单回合合理浮动区间
-affDelta = Math.max(-20, Math.min(10, affDelta));
+// 🛡️ 核心好感度熔断安全锁：单回合好感变动严格限制在 -3 到 +3 之间，绝不允许一回合跳跃！
+affDelta = Math.max(-3, Math.min(3, affDelta));
 s.lastGainTurn = s.turn;
 
-// 从正文中彻底清洗掉各种格式的好感度提示行，保持小说级排版纯净
+// 从正文中彻底清洗掉任何形式的好感度系统标签，绝不污染小说正文
 s.story = storyPart
   .replace(/【剧情】/g, '')
-  .replace(/[（\(【]\s*(?:当前)?\s*(?:Affinity|好感度).*?[）\)】]/gi, '')
-  .replace(/(?:Affinity|好感度|好感)\s*(?:变动)?[:：].*?(?=\n|$)/gi, '')
+  .replace(/【\s*(?:当前)?\s*(?:Affinity|好感度).*?】/gi, '')
+  .replace(/[（\(]\s*(?:当前)?\s*(?:Affinity|好感度).*?[）\)]/gi, '')
   .trim();
+
           s.options = optPart.trim();
 
           if (!s.options) {
@@ -8158,10 +8206,6 @@ if (affDelta !== 0) {
   s.affinity = applyAffinity(curAff + affDelta);
 }
 store.setState(s);
-
-// 同步更新关系四维数据
-relApply(last ? last.choice : '', s.story, affDelta);
-s.rel = relGet();
 
 if (affDelta !== 0) {
   applyAffinity((s.affinity || 0) + affDelta);
@@ -8196,13 +8240,16 @@ if (affDelta !== 0) {
 
     const FB_OPTS = 'A. 提出完全相反的逆向工程论点\nB. 顺着他刚才没说完的半句话递出扳手\nC. 保持沉默，把冷却的咖啡杯换掉\nD. 转移话题，核实传感器参数';
 
-    // F1 顶栏状态
+            // F1 顶栏状态（已彻底删减四维数值，新增好感弹窗调控与双语切换按钮）
     fill('wl_f1', () => {
-      const lv = s.affinity;
-      const icon = lv >= 86 ? '❤️' : lv >= 61 ? '💛' : lv >= 31 ? '🧡' : '🤍';
+      const lv = s.affinity || 0;
+      const tTier = tierOf(lv);
+      const icon = lv >= 181 ? '💞' : lv >= 151 ? '❤️' : lv >= 111 ? '💚' : lv >= 71 ? '💛' : lv >= 31 ? '🧡' : '🤍';
       const st = TonyStatus.get();
       const wDate = worldDate();
-      return `<div class="statbar">
+      const isBilingual = storyBilingualOn();
+
+      return `<div class="statbar" style="padding:10px 14px">
         <div style="flex:1; min-width:0">
           <div style="font-size:11px;color:var(--muted); display:flex; align-items:center; flex-wrap:wrap; gap:4px">
             <b>${esc(f.era.name)}</b>
@@ -8213,11 +8260,25 @@ if (affDelta !== 0) {
             <span class="tag gold">托尼 ${f.tonyAge} 岁</span>
             <span class="tag">${st.emoji} ${esc(st.label)}</span>
           </div>
-          <div style="margin-top:4px"><span class="affval">好感度 ${s.affinity}/200</span></div>
-          <div class="hint" style="margin-top:2px">上回合变动：${s.lastDelta > 0 ? '+' : ''}${s.lastDelta || 0} · 你 ${userAgeNow()} 岁</div>
-          ${relHTML()}
+          
+          <!-- 好感度交互控制与语言模式切换 -->
+          <div style="margin-top:6px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px">
+            <div style="display:flex; align-items:center; gap:6px">
+              <span class="affval" id="wl_open_aff_editor" style="cursor:pointer; display:inline-flex; align-items:center; gap:4px; background:rgba(245,185,66,.12); border:1px solid rgba(245,185,66,.35); padding:2px 8px; border-radius:8px" title="点击调控托尼·斯塔克的好感度数值">
+                好感度 ${lv}/200 <span style="font-size:10px; color:var(--cyan)">✏ 调整</span>
+              </span>
+              <span class="tag gold" style="font-size:10px; margin:0">${esc(tTier.name)}</span>
+            </div>
+
+            <!-- 全局剧情语言模式切换开关 -->
+            <button class="btn sm ${isBilingual ? 'gold' : 'ghost'}" id="wl_toggle_lang_btn" style="width:auto; padding:3px 9px; font-size:11px; margin:0; border-radius:12px" title="切换世界线对话是对照双语还是纯中文">
+              ${isBilingual ? '🌐 剧情对白：中英双语' : '🇨🇳 剧情对白：纯中文'}
+            </button>
+          </div>
+
+          <div class="hint" style="margin-top:4px">上回合变动：${s.lastDelta > 0 ? '+' : ''}${s.lastDelta || 0} · 你 ${userAgeNow()} 岁</div>
         </div>
-        <div style="font-size:24px; flex-shrink:0; margin-left:6px">${icon}</div>
+        <div style="font-size:24px; flex-shrink:0; margin-left:8px">${icon}</div>
       </div>`;
     }, 'E-WL-002');
 
@@ -8316,6 +8377,96 @@ fill('wl_f2', () => {
     // 绑定时间调整弹窗
     const dateBtn = v.querySelector('#wl_change_date_btn');
     if (dateBtn) dateBtn.onclick = () => openWorldlineDateModal(() => self.render(v));
+    // 1. 剧情语言双语/纯中文一键切换
+    const langBtn = v.querySelector('#wl_toggle_lang_btn');
+    if (langBtn) {
+      langBtn.onclick = () => {
+        const nxt = !storyBilingualOn();
+        setStoryBilingual(nxt);
+        toast(nxt ? '✅ 已开启：剧情对话中英双语模式' : '✅ 已开启：强制所有剧情对白为纯中文');
+        self.render(v);
+      };
+    }
+
+    // 绑定点击好感度直接弹窗修改
+    const affEditorBtn = v.querySelector('#wl_open_aff_editor');
+    if (affEditorBtn) {
+      affEditorBtn.onclick = () => {
+        const curA = (store.state() || {}).affinity || 0;
+        const currentTier = tierOf(curA);
+
+        const dAff = modal(`
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <h2 style="font-size:16px;margin:0;font-family:var(--font-serif);color:var(--gold);display:flex;align-items:center;gap:6px">
+              <span>⚡</span> <span>托尼·斯塔克 · 好感度调谐</span>
+            </h2>
+            <button class="btn sm ghost" data-close style="padding:2px 8px;font-size:11px">关闭</button>
+          </div>
+
+          <div class="card" style="padding:12px;margin-bottom:12px;background:var(--panel2);border-left:3px solid var(--gold)">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span class="hint" style="font-size:11px">当前阶梯归属：</span>
+              <span class="tag gold" id="maff_tier_badge" style="margin:0">${currentTier.emoji} ${currentTier.name} (${currentTier.min}~${currentTier.max})</span>
+            </div>
+            <div style="font-size:11.5px;color:var(--text);margin-top:6px;line-height:1.6">
+              调整后将<b>无损同步全站</b>（世界线判定、通讯录档案、桌面小圆点、隐藏图标与剧情推进）。
+            </div>
+          </div>
+
+          <div class="card" style="padding:14px;margin-bottom:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <label style="font-size:12px;font-weight:700;color:var(--text)">设定新数值 (0 ~ 200)：</label>
+              <input id="maff_num_inp" type="number" min="0" max="200" value="${curA}" class="inp" style="width:68px;text-align:center;font-size:16px;font-weight:800;font-family:var(--font-mono);color:var(--gold);padding:4px">
+            </div>
+
+            <input id="maff_slider" type="range" min="0" max="200" value="${curA}" style="width:100%;accent-color:var(--gold);margin:10px 0">
+
+            <!-- 快捷预设阶梯直接点选 -->
+            <div class="hint" style="font-size:11px;margin-bottom:6px">快捷定格阶梯：</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px">
+              ${AFF_TIERS.map(t => `
+                <button type="button" class="btn ghost sm" data-set-aff="${t.min}" style="font-size:10.5px;padding:3px 7px">
+                  ${t.emoji} ${t.name} (${t.min})
+                </button>
+              `).join('')}
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px">
+            <button class="btn gold sm" id="maff_confirm_btn" style="flex:1;font-weight:700">✓ 确认应用并同步全局</button>
+            <button class="btn ghost sm" data-close style="flex:0 0 70px">取消</button>
+          </div>
+        `);
+
+        const slider = dAff.querySelector('#maff_slider');
+        const numInp = dAff.querySelector('#maff_num_inp');
+        const badge = dAff.querySelector('#maff_tier_badge');
+
+        const syncVal = (val) => {
+          const v = Math.max(0, Math.min(200, parseInt(val) || 0));
+          slider.value = v;
+          numInp.value = v;
+          const tr = tierOf(v);
+          badge.textContent = `${tr.emoji} ${tr.name} (${tr.min}~${tr.max})`;
+        };
+
+        slider.oninput = (e) => syncVal(e.target.value);
+        numInp.oninput = (e) => syncVal(e.target.value);
+
+        dAff.querySelectorAll('[data-set-aff]').forEach(b => {
+          b.onclick = () => syncVal(b.dataset.setAff);
+        });
+
+        dAff.querySelector('#maff_confirm_btn').onclick = () => {
+          const finalVal = Math.max(0, Math.min(200, parseInt(numInp.value) || 0));
+          // 真正同步更新全局好感度与通讯录
+          applyAffinity(finalVal);
+          dAff.remove();
+          toast(`✅ 托尼·斯塔克的好感度已调整为 ${finalVal}/200（${tierOf(finalVal).name}）`);
+          self.render(v);
+        };
+      };
+    }
     const customTimeBtn = v.querySelector('#w_custom_time');
     if (customTimeBtn) customTimeBtn.onclick = () => openWorldlineDateModal(() => self.render(v));
 
@@ -8499,7 +8650,6 @@ fill('wl_f2', () => {
       if (s.history.length > 50) s.history = s.history.slice(-50);
 
       const tags = WT.keyTag(choice, s.story);
-      relApply(choice);
       WT.addNode(choice, tags);
 
       advanceCurrentAnchorTurn();
@@ -8596,11 +8746,8 @@ function showMemory() {
   const f = flags();
   const p = store.profile() || {};
   const hist = s.history || [];
-
-  // 计算总回忆字数
   const totalWords = hist.reduce((acc, h) => acc + String(h.story || '').length, 0);
 
-  // 直接挂载全屏沉浸容器
   const host = $('#modalHost') || document.body;
   const d = document.createElement('div');
   d.className = 'so-modal';
@@ -8614,55 +8761,62 @@ function showMemory() {
         <span style="font-family:var(--font-serif);font-size:15px;font-weight:700;color:var(--text)">世界线回忆录</span>
         <span class="tag gold" style="font-size:10px;margin:0">${hist.length} 幕 · 约 ${totalWords} 字</span>
       </div>
-      <button class="btn ghost sm" id="mem_close_btn" style="width:auto;padding:4px 12px;font-size:12px">
-        ✕ 关闭
-      </button>
+      <button class="btn ghost sm" id="mem_close_btn" style="width:auto;padding:4px 12px;font-size:12px">✕ 关闭</button>
     </div>
 
-    <!-- 顶部操作条：导出 TXT 与当前状态 -->
+    <!-- 顶栏快捷操作：全部折叠/展开 + 导出 -->
     <div style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 14px;background:var(--panel2);border-bottom:1px solid var(--line)">
-      <div class="hint" style="font-size:11px;color:var(--muted)">
-        观测主体：<b style="color:var(--cyan)">${esc(p.name || '访客')}</b> · 锚点年代：<b>${esc(f.era.name)}</b>
+      <div style="display:flex;gap:6px">
+        <button class="btn ghost sm" id="mem_toggle_all" style="width:auto;padding:3px 9px;font-size:11px">
+          📖 展开全部正文
+        </button>
       </div>
-      <button class="btn gold sm" id="mem_export_txt" ${hist.length ? '' : 'disabled'} style="width:auto;padding:4px 10px;font-size:11px">
+      <button class="btn gold sm" id="mem_export_txt" ${hist.length ? '' : 'disabled'} style="width:auto;padding:3px 10px;font-size:11px">
         📥 导出全本 TXT
       </button>
     </div>
 
-    <!-- 全屏回忆内容滚动区（完全展开，无阅读压抑感） -->
+    <!-- 回忆内容：手风琴式目录阅读流 -->
     <div id="mem_scroll_body" style="flex:1;overflow-y:auto;padding:12px 14px calc(24px + var(--safe));-webkit-overflow-scrolling:touch">
-      ${hist.length ? hist.map((h, i) => `
-        <div class="card" style="padding:14px 16px;margin-bottom:12px;background:var(--panel);border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,0.06)">
-          <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:8px;border-bottom:1px dashed var(--line);margin-bottom:10px">
-            <span style="font-weight:700;font-size:12.5px;color:var(--gold);display:flex;align-items:center;gap:4px">
-              <span>📌</span> <span>第 ${i + 1} 幕</span>
-            </span>
-            <div style="display:flex;gap:4px;align-items:center">
-              <span class="tag" style="margin:0;font-size:9.5px">${esc(h._eraName || f.era.name)}</span>
-              <span class="tag gold" style="margin:0;font-size:9.5px">好感 ${h._aff ?? 0}/200</span>
+      ${hist.length ? hist.map((h, i) => {
+        const cleanChoice = (h.choice || '').replace(/【系统纠偏指令：.*?】\n?/s, '');
+        const previewTxt = String(h.story || '').replace(/\s+/g, ' ').slice(0, 55);
+        return `
+          <div class="card" style="padding:10px 12px;margin-bottom:8px;background:var(--panel);border-radius:10px;border:1px solid var(--line)">
+            <!-- 幕次卡片头部（点击展开/折叠，指尖极度轻松） -->
+            <div data-mem-toggle="${i}" style="display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer">
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+                  <b style="color:var(--gold);font-size:12.5px">第 ${i + 1} 幕</b>
+                  <span class="tag" style="font-size:9px;margin:0">${esc(h._eraName || f.era.name)}</span>
+                  <span class="tag gold" style="font-size:9px;margin:0">好感 ${h._aff ?? 0}</span>
+                </div>
+                <div id="mem_prev_${i}" style="font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                  ${esc(previewTxt)}…
+                </div>
+              </div>
+              <div id="mem_arrow_${i}" style="color:var(--cyan);font-size:12px;font-weight:700;flex-shrink:0;padding-left:6px">
+                展开 ▾
+              </div>
+            </div>
+
+            <!-- 正文详细区（默认全部折叠收拢） -->
+            <div id="mem_full_${i}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
+              <div class="story" style="font-size:13px;line-height:1.85;margin:0 0 10px;color:var(--text);white-space:pre-wrap;word-break:break-word">
+                ${fmtStory(h.story)}
+              </div>
+              ${cleanChoice ? `
+                <div style="background:var(--panel2);border-left:3px solid var(--cyan);border-radius:0 6px 6px 0;padding:6px 10px;font-size:11.5px;color:var(--text)">
+                  <b style="color:var(--cyan)">➤ 你的抉择：</b>${esc(cleanChoice)}
+                </div>` : ''}
             </div>
           </div>
-
-          <!-- 剧情正文：完全解除高度限制，支持整篇顺畅阅读 -->
-          <div class="story" style="font-size:13.5px;line-height:1.85;margin:0 0 10px;color:var(--text);white-space:pre-wrap;word-break:break-word">
-            ${fmtStory(h.story)}
-          </div>
-
-          <!-- 玩家当时的选择与纠偏 -->
-          ${h.choice ? `
-            <div style="background:var(--panel2);border-left:3px solid var(--cyan);border-radius:0 8px 8px 0;padding:8px 12px;font-size:12px;color:var(--text)">
-              <div style="font-size:10.5px;color:var(--cyan);font-weight:700;margin-bottom:2px">➤ 你的抉择与行动：</div>
-              <div style="line-height:1.6">${esc(h.choice)}</div>
-            </div>
-          ` : ''}
-        </div>
-      `).join('') : `
+        `;
+      }).join('') : `
         <div class="card" style="padding:40px 16px;text-align:center;margin-top:20px">
           <div style="font-size:32px;margin-bottom:10px">📜</div>
           <div style="font-family:var(--font-serif);font-size:15px;font-weight:700;margin-bottom:6px">暂无历史推演记录</div>
-          <div class="hint" style="font-size:12px;max-width:260px;margin:0 auto">
-            在世界线中进行抉择、推进剧情后，每一次经历的文字都会原汁原味在此处长久沉淀。
-          </div>
+          <div class="hint" style="font-size:12px">在世界线中进行抉择并推进剧情后，每一次经历都会在此沉淀记录。</div>
         </div>
       `}
     </div>
@@ -8670,75 +8824,69 @@ function showMemory() {
 
   host.appendChild(d);
 
-  // 关闭按钮
+  // 单条手风琴折叠交互
+  let allExpanded = false;
+  d.querySelectorAll('[data-mem-toggle]').forEach(header => {
+    header.onclick = () => {
+      const idx = header.dataset.memToggle;
+      const full = d.querySelector('#mem_full_' + idx);
+      const prev = d.querySelector('#mem_prev_' + idx);
+      const arrow = d.querySelector('#mem_arrow_' + idx);
+      if (full) {
+        const isOpen = full.style.display !== 'none';
+        full.style.display = isOpen ? 'none' : 'block';
+        if (prev) prev.style.display = isOpen ? 'block' : 'none';
+        if (arrow) arrow.textContent = isOpen ? '展开 ▾' : '收起 ▴';
+      }
+    };
+  });
+
+  // 一键全部展开 / 全部收起
+  const toggleAllBtn = d.querySelector('#mem_toggle_all');
+  if (toggleAllBtn) {
+    toggleAllBtn.onclick = () => {
+      allExpanded = !allExpanded;
+      toggleAllBtn.textContent = allExpanded ? '📕 折叠全部正文' : '📖 展开全部正文';
+      hist.forEach((_, idx) => {
+        const full = d.querySelector('#mem_full_' + idx);
+        const prev = d.querySelector('#mem_prev_' + idx);
+        const arrow = d.querySelector('#mem_arrow_' + idx);
+        if (full) full.style.display = allExpanded ? 'block' : 'none';
+        if (prev) prev.style.display = allExpanded ? 'none' : 'block';
+        if (arrow) arrow.textContent = allExpanded ? '收起 ▴' : '展开 ▾';
+      });
+    };
+  }
+
   d.querySelector('#mem_close_btn').onclick = () => d.remove();
 
-  // 导出 TXT 逻辑
+  // 导出全本 TXT 保持不变
   const expBtn = d.querySelector('#mem_export_txt');
   if (expBtn) {
     expBtn.onclick = () => {
-      const confirmModal = modal(`
-        <h2 style="color:var(--gold);margin-top:0;font-size:16px">⚠️ 个人收藏承诺与版权约定</h2>
-        <div class="card">
-          <div class="story" style="font-size:13px;line-height:1.85;margin-bottom:12px">
-            本世界线回忆记录属于你与当前世界模型推演的私人互动数据。<br><br>
-            在下载前，你必须保证并承诺：<br>
-            <b>1. 本文件仅限个人离线存档、回味与私人收藏使用；</b><br>
-            <b>2. 绝不擅自提取、整理或用于公开发表同人文小说、剧本、商业作品，亦不得上传至任何网文/内容平台二次传播；</b><br>
-            <b>3. 尊重漫威原作设定与本作独立版权，违背承诺由导出者自行承担一切合规与侵权后果。</b>
-          </div>
-          <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);cursor:pointer;padding:8px 0">
-            <input type="checkbox" id="mem_agree_cb" style="accent-color:var(--cyan);width:16px;height:16px">
-            <span>我已阅读并承诺：仅作个人收藏，绝不外发为小说或其他渠道</span>
-          </label>
-          <div class="row" style="margin-top:12px">
-            <button class="btn gold" id="mem_do_download" disabled>确认无误并导出 TXT</button>
-            <button class="btn ghost" data-close>取消</button>
-          </div>
-        </div>
-      `);
+      let txt = `=================================================================\r\n`;
+      txt += `  STARK OS · 世界线完整推演回忆录\r\n`;
+      txt += `  时间锚点: ${f.year} 年 · ${f.era.name}\r\n`;
+      txt += `  观测玩家: ${p.name || '访客'}\r\n`;
+      txt += `  总记录数: ${hist.length} 幕 (共约 ${totalWords} 字)\r\n`;
+      txt += `  导出时间: ${nowTime()}\r\n`;
+      txt += `=================================================================\r\n\r\n`;
 
-      const cb = confirmModal.querySelector('#mem_agree_cb');
-      const downBtn = confirmModal.querySelector('#mem_do_download');
-      cb.onchange = () => { downBtn.disabled = !cb.checked; };
+      hist.forEach((h, idx) => {
+        txt += `-----------------------------------------------------------------\r\n`;
+        txt += `【第 ${idx + 1} 幕】 (${h._eraName || f.era.name} · 好感度: ${h._aff ?? 0})\r\n\r\n`;
+        txt += `${(h.story || '').replace(/\r?\n/g, '\r\n')}\r\n\r\n`;
+        if (h.choice) txt += `➤ 你的抉择：${h.choice}\r\n\r\n`;
+      });
 
-      downBtn.onclick = () => {
-        confirmModal.remove();
-        let txt = `=================================================================\r\n`;
-        txt += `  STARK OS · 世界线完整推演回忆录\r\n`;
-        txt += `  时间锚点: ${f.year} 年 · ${f.era.name} (托尼·斯塔克 ${f.tonyAge} 岁)\r\n`;
-        txt += `  观测玩家: ${p.name || '访客'} (${p.identity || '未填身份'})\r\n`;
-        txt += `  总记录数: ${hist.length} 幕 (共约 ${totalWords} 字)\r\n`;
-        txt += `  导出时间: ${nowTime()}\r\n`;
-        txt += `  免责声明: 本文档仅作玩家个人珍藏，不得作为同人小说或其他公开出版物使用。\r\n`;
-        txt += `=================================================================\r\n\r\n`;
-
-        hist.forEach((h, idx) => {
-          const stageEra = h._eraName || f.era.name;
-          const stageYr = h._year || f.year;
-          txt += `-----------------------------------------------------------------\r\n`;
-          txt += `【第 ${idx + 1} 幕】\r\n`;
-          txt += `时间节点 / 锚点名: ${stageEra} (${stageYr} 年 · 托尼 ${tonyAgeAt(stageYr)} 岁)\r\n`;
-          txt += `记录好感度: ${h._aff ?? 0} / 200\r\n`;
-          txt += `\r\n[剧情呈现]\r\n`;
-          txt += `${(h.story || '').replace(/\r?\n/g, '\r\n')}\r\n`;
-          txt += `\r\n[用户行动选项与纠偏]\r\n`;
-          txt += `➤ ${h.choice || '（无记录）'}\r\n\r\n`;
-        });
-
-        txt += `=================================================================\r\n`;
-        txt += `  END OF RECORD · STARK INDUSTRIES ARCHIVE\r\n`;
-        txt += `=================================================================\r\n`;
-
-        const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `StarkOS_Worldline_Memory_${f.year}_T${s.turn || 1}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => { a.remove(); URL.revokeObjectURL(a.href); }, 1500);
-        toast('世界线回忆录已全本导出');
-      };
+      const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `StarkOS_Memory_${f.year}_T${s.turn || 1}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { a.remove(); URL.revokeObjectURL(a.href); }, 1500);
+      toast('世界线回忆录已全本导出');
     };
   }
 }
@@ -11346,43 +11494,41 @@ function relGet(){const s=store.state()||{};if(!s.rel){s.rel={trust:12,anxiety:1
 function relSummary(){const r=relGet();return `信任${r.trust}·焦虑${r.anxiety}·防备${r.guard}·真实${r.truth}`;}
 function relApply(choice, storyText, affDelta){
   const r=relGet();
-  const t=String(choice||'')+' '+String(storyText||'').slice(-300);
-  let moved=false;
+  const t=String(choice||'');
   const clamp=v=>Math.max(0,Math.min(100,Math.round(v)));
 
-  if(/帮|护|留|递|救|信|陪|接过|并肩|默契|合作|点头|顺着|替他|换掉/.test(t)){
-    r.trust=clamp(r.trust+2);r.guard=clamp(r.guard-2);r.anxiety=clamp(r.anxiety-1);moved=true;
-  }
-  if(/问|追|逼|揭|查|试探|戳|质疑|反驳|挑刺|秘密|怀疑|警告|危机/.test(t)){
-    r.anxiety=clamp(r.anxiety+2);r.guard=clamp(r.guard+1);r.truth=clamp(r.truth+1);moved=true;
-  }
-  if(/坦白|真话|承认|告诉|说出|实话|直视|心声|秘密|卸下|伤口|反应堆|失眠/.test(t)){
-    r.truth=clamp(r.truth+3);r.guard=clamp(r.guard-1);moved=true;
-  }
-  if(/离开|转身|走开|冷|不理|挂断|沉默|拒绝|退后|防备/.test(t)){
-    r.guard=clamp(r.guard+2);r.trust=clamp(r.trust-1);moved=true;
-  }
-  // 联动本回合好感度涨跌与回合自然推进，保证四维数据每回合都有真实体感变化
-  if(typeof affDelta==='number'&&affDelta!==0){
-    if(affDelta>0){
-      r.trust=clamp(r.trust+affDelta*2);
-      r.guard=clamp(r.guard-affDelta*2);
-      r.truth=clamp(r.truth+affDelta);
-      r.anxiety=clamp(r.anxiety-1);
-    }else{
-      r.guard=clamp(r.guard+Math.abs(affDelta)*2);
-      r.anxiety=clamp(r.anxiety+Math.abs(affDelta));
-      r.trust=clamp(r.trust-Math.abs(affDelta));
-    }
-    moved=true;
-  }
-  if(!moved){
-    // 常规互动每回合自然微调：防备缓慢下降，信任与真实度随共处加深
+  // 大幅压缩单次回合的四维增幅，引入阻尼系数，杜绝三回合爆表
+  if(/帮他|挡在身前|默契配合|托付后背|毫不犹豫保护/.test(t)){
     r.trust=clamp(r.trust+1);
     r.guard=clamp(r.guard-1);
-    r.truth=clamp(r.truth+1);
   }
-  const s=store.state()||{};s.rel=r;store.setState(s);
+  if(/犀利质疑|逼问核心|戳穿伪装|直面谎言|冷嘲反驳/.test(t)){
+    r.anxiety=clamp(r.anxiety+1);
+    r.guard=clamp(r.guard+1);
+  }
+  if(/袒露心声|毫无保留交代|卸下全部武装|直视伤痕/.test(t)){
+    r.truth=clamp(r.truth+1);
+    r.guard=clamp(r.guard-1);
+  }
+  if(/冷漠离开|拉开距离|拂袖而去|避开视线|戒备后退/.test(t)){
+    r.guard=clamp(r.guard+1);
+    r.trust=clamp(r.trust-1);
+  }
+
+  // 联动好感度变动（严格平滑化，按 0.5~1 步长微调）
+  if(typeof affDelta==='number' && affDelta!==0){
+    if(affDelta>0){
+      r.trust=clamp(r.trust + Math.min(2, Math.ceil(affDelta*0.4)));
+      r.guard=clamp(r.guard - Math.min(2, Math.ceil(affDelta*0.4)));
+    }else{
+      r.guard=clamp(r.guard + Math.min(2, Math.ceil(Math.abs(affDelta)*0.4)));
+      r.trust=clamp(r.trust - Math.min(2, Math.ceil(Math.abs(affDelta)*0.4)));
+    }
+  }
+
+  const s=store.state()||{};
+  s.rel=r;
+  store.setState(s);
 }
 function relHTML(){const r=relGet();return `<div class="relgrid">${REL_DIMS.map(([k,n,c])=>`
   <div class="relrow"><span style="width:26px;flex-shrink:0">${n}</span><div class="bar"><i style="width:${r[k]}%;background:${c}"></i></div><span class="v">${r[k]}</span></div>`).join('')}</div>`;}
@@ -11729,7 +11875,43 @@ function doTimeJump(y){
    世界线分支树：关键选择记录 · 回溯 · 平行世界线
    ============================================================ */
 const WT={
-  nodes(){return store.get('wtree',{nodes:[],active:null});},
+  nodes(){
+    let t = store.get('wtree', {nodes:[], active:null});
+    const s = store.state() || {};
+    const hist = s.history || [];
+
+    // 🛡️ 自愈修复：若世界树节点丢失或少于历史记录，自动从 s.history 逆向重建主干！
+    if ((!t.nodes || t.nodes.length < hist.length) && hist.length > 0) {
+      let parentId = null;
+      const reconstructedNodes = [];
+      hist.forEach((h, idx) => {
+        const nodeId = 'wt_auto_' + idx + '_' + (h._year || 2008);
+        reconstructedNodes.push({
+          id: nodeId,
+          parent: parentId,
+          year: h._year || flags().year,
+          turn: idx + 1,
+          choice: (h.choice || '').replace(/【系统纠偏指令：.*?】\n?/s, '').slice(0, 50) || `第 ${idx + 1} 幕决策`,
+          tags: WT.keyTag(h.choice || '', h.story || ''),
+          snap: {
+            turn: idx + 1,
+            affinity: h._aff || 0,
+            era: h._eraName || s.era,
+            story: h.story,
+            options: h.options,
+            history: hist.slice(0, idx)
+          },
+          t: h.time || nowTime()
+        });
+        parentId = nodeId;
+      });
+
+      t.nodes = reconstructedNodes;
+      t.active = parentId;
+      store.set('wtree', t);
+    }
+    return t;
+  },
   save(t){store.set('wtree',t);},
   snap(){const s=store.state()||{};const p=store.profile()||{};
     return {turn:s.turn||1,affinity:s.affinity||0,rel:{...relGet()},curAge:p.currentAge||null,
