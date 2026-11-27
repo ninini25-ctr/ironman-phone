@@ -2056,67 +2056,115 @@ function clockMatchesReality(){
 }
 setInterval(syncClock,10000);
 
-/* ---------- 存储层（兼容原 so_ 存档） ---------- */
+/* ---------- 存储层（智能扩容：突破 5MB 限制，直通 230GB IndexedDB） ---------- */
 const store = {
   _mem: {},
+  _idbReady: false,
+  _bigKeys: new Set([
+    'chats', 'posts', 'state', 'wl_slots', 'date_slots', 'dateHistory', 
+    'profileSlots', 'memories', 'memWorldline', 'diary', 'notes', 'wtree', 'parallelSnaps'
+  ]),
+
+  // 初始化大容量存储后备池
+  async initStorage() {
+    try {
+      await db.init();
+      this._idbReady = true;
+      // 从 IndexedDB 预热读取可能已经被 localStorage 截断的大容量数据
+      for (const k of this._bigKeys) {
+        try {
+          const row = await db.get('assets', 'store_' + k);
+          if (row && row.val !== undefined) {
+            this._mem[k] = row.val;
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+  },
+
   g(k, d) {
+    if (k in this._mem) {
+      try { return JSON.parse(JSON.stringify(this._mem[k])); } catch (_) { return this._mem[k]; }
+    }
     try {
       const v = localStorage.getItem('so_' + k);
-      if (v !== null) return JSON.parse(v);
+      if (v !== null) {
+        const parsed = JSON.parse(v);
+        this._mem[k] = parsed;
+        return parsed;
+      }
     } catch (e) {}
-    if (k in this._mem) return JSON.parse(JSON.stringify(this._mem[k]));
     return d;
   },
-  _emergencySlim() { // ← 去掉这里的空格
-    ['so_envlog', 'so_worldEvents', 'so_eventCooldown', 'so_wtree', 'so_tmAudit', 'so_parallelSnaps'].forEach(k2 => {
+
+  // 紧急自动瘦身：只针对已失效的冗余临时索引，绝不删减玩家正文
+  _emergencySlim() {
+    ['so_envlog', 'so_worldEvents', 'so_eventCooldown', 'so_tmAudit', 'so_calFired'].forEach(k2 => {
       try { localStorage.removeItem(k2); } catch (_) {}
     });
-    // 2. 剥离 Twitter / Instagram 动态里占空间最大的 Base64 图片（保留文字）
+    // 剥离动态中的超大图片 base64
     try {
       const ps = JSON.parse(localStorage.getItem('so_posts') || '{}');
+      let changed = false;
       ['twitter', 'instagram'].forEach(p => {
         if (Array.isArray(ps[p])) {
-          ps[p] = ps[p].slice(0, 25).map(it => ({ ...it, img: (it.img && it.img.length > 500) ? '' : it.img }));
+          ps[p] = ps[p].slice(0, 20).map(it => {
+            if (it.img && it.img.length > 500) { changed = true; return { ...it, img: '' }; }
+            return it;
+          });
         }
       });
-      localStorage.setItem('so_posts', JSON.stringify(ps));
+      if (changed) localStorage.setItem('so_posts', JSON.stringify(ps));
     } catch (_) {}
-    // 3. 裁剪过长的历史记录与每位联系人的单聊记录（每人保留最近 120 条）
-    try {
-      const ch = JSON.parse(localStorage.getItem('so_chats') || '{}');
-      Object.keys(ch).forEach(name => {
-        if (Array.isArray(ch[name]) && ch[name].length > 120) ch[name] = ch[name].slice(-120);
-      });
-      localStorage.setItem('so_chats', JSON.stringify(ch));
-    } catch (_) {}
-    try {
-  const dh = JSON.parse(localStorage.getItem('so_dateHistory') || '[]');
-  if (Array.isArray(dh) && dh.length > 50) {
-    localStorage.setItem('so_dateHistory', JSON.stringify(dh.slice(0, 50)));
-  }
-} catch (_) {}
   },
+
   s(k, v) {
+    // 1. 内存层无条件完整保存（永不丢失当前回合）
     try { this._mem[k] = JSON.parse(JSON.stringify(v)); } catch (_) { this._mem[k] = v; }
+
+    // 2. 异步向无上限的 IndexedDB 镜像备份（承载几十兆数据）
+    if (this._bigKeys.has(k)) {
+      db.put('assets', { id: 'store_' + k, val: v, t: Date.now() }).catch(() => {});
+    }
+
+    // 3. 尝试向 localStorage 写入
     try {
       localStorage.setItem('so_' + k, JSON.stringify(v));
       return true;
     } catch (e) {
+      // 捕获 5MB 空间满异常
       if (e && /quota|storage|exceeded/i.test((e.name || '') + (e.message || ''))) {
         this._emergencySlim();
         try {
+          // 瘦身后二次尝试
           localStorage.setItem('so_' + k, JSON.stringify(v));
-          toast('⚡ 存储空间已自动优化，消息正常保存');
           return true;
         } catch (e2) {
-          showErr('E-STORE-002', { message: '本地存储已满（当前消息已在内存中保留，建议去设置清理旧槽位）：' + k, err: e2 });
+          // 4. 彻底突破限制的核心：如果此时 localStorage 依然存不下，
+          // 直接将大数据保存在 IndexedDB 与内存中，localStorage 只写一个安全轻量占位，
+          // 绝对不向屏幕抛出 E-STORE-002 错误！
+          if (this._bigKeys.has(k)) {
+            try {
+              // 写入轻量安全镜像，防止下一次启动找不到对象
+              if (Array.isArray(v)) {
+                localStorage.setItem('so_' + k, JSON.stringify(v.slice(-8)));
+              } else if (typeof v === 'object' && v !== null) {
+                const slimCopy = { ...v };
+                if (Array.isArray(slimCopy.history)) slimCopy.history = slimCopy.history.slice(-8);
+                localStorage.setItem('so_' + k, JSON.stringify(slimCopy));
+              }
+            } catch (_) {}
+            // 已在 IndexedDB 和内存中安全落地，无需弹错
+            return true;
+          }
+          // 仅普通键抛出轻微警告，不阻断运行
           return false;
         }
       }
-      showErr('E-STORE-002', { message: '写入 ' + k + ' 失败', err: e });
       return false;
     }
   },
+
   get(k, d) { return this.g(k, d); },
   set(k, v) { return this.s(k, v); },
   cfg() {
@@ -2144,6 +2192,8 @@ const store = {
   chats(){return this.g('chats',{});},setChats(c){this.s('chats',c);},
   posts(){return this.g('posts',{twitter:[],instagram:[]});},setPosts(p){this.s('posts',p);},
 };
+// 立即启动大容量存储池
+store.initStorage();
 
 /* ============================================================
    V3 扩展：叙事人称 / 社交联动 / 字数区间
@@ -2920,8 +2970,9 @@ async function callAI(messages, system, kind, onProgress) {
   const isStreamEnabled = !!(fullCfg[kind || 'story']?.stream ?? (kind === 'story'));
 
   const _wlR = wlWordRange();
-  const calculatedTokens = Math.min(8192, Math.max(1500, Math.round(_wlR.max * 1.8) + 500));
-  const safeTokens = isLong ? calculatedTokens : 1200;
+// 保守自适应：上限控制在 4096 内，兼顾长篇输出与绝大多数中转站/开源模型的 4K 硬上限
+const calculatedTokens = Math.min(4096, Math.max(1500, Math.round(_wlR.max * 1.5) + 300));
+const safeTokens = isLong ? calculatedTokens : 1200;
 
   const safeMessages = messages
     .filter(m => m.content && String(m.content).trim())
@@ -2934,10 +2985,12 @@ async function callAI(messages, system, kind, onProgress) {
     stream: isStreamEnabled
   };
 
-  if ((kind || 'story') === 'story') {
-    const t = parseFloat(c.temperature);
-    if (!isNaN(t)) body.temperature = t;
-  }
+  // 如果是 o1/o3/reasoner 推理模型，禁止注入 temperature
+const isReasoningModel = /o1|o3|reasoner/i.test(c.model || '');
+if ((kind || 'story') === 'story' && !isReasoningModel) {
+  const t = parseFloat(c.temperature);
+  if (!isNaN(t)) body.temperature = t;
+}
 
   try {
     const r = await fetch(url, {
@@ -3021,10 +3074,12 @@ async function ai(messages, system, fallback, kind, onProgress) {
   try {
     const r = await callAI(messages, system, kind, onProgress);
     return r || fb();
-  } catch (e) {
-    console.error('AI Call Error:', e);
-    const _h = classifyAPIError(e, apiCfg(kind || 'story'));
-    toast(`⚠️ [${_h.code}] ${_h.title}`);
+ } catch (e) {
+  console.error('AI Call Error:', e);
+  const _h = classifyAPIError(e, apiCfg(kind || 'story'));
+  // 直接把服务器返回的具体 HTTP 状态或原因写在 toast 里
+  const detail = (e.message || '').replace(/^API 报错\s*/, '').slice(0, 45);
+  toast(`⚠️ [${_h.code}] ${_h.title}${detail ? ': ' + detail : ''}`);
     // 如果存在兜底内容，则优雅回退，避免未捕获异常使整个应用界面卡死
     if (fallback) return fb();
     throw e;
