@@ -2815,7 +2815,12 @@ if(s && s.compactSummary){
   **"English original line"**（中文翻译）
    对白要留有毛边，托尼说话快、充满灵气与魅力，在面对动人情感时有短暂的停顿与笨拙的温柔。
 5. 【符号铁律】除对白中成对的 ** ** 外，正文中严禁出现孤立星号。
-6. 末尾规范：正文后另起一行输出【好感度变动：+N】（若有情感破冰则变动，否则 +0），再换行输出【选项】A. … B. … C. … D. …。选项必须涵盖截然不同的情感互动态度（如：坦率回应他的温柔、温柔地戳破他的逞强、安静陪伴、用他的幽默方式反撩等）。`;
+6. 末尾规范：
+   正文后另起一行输出【好感度变动：+N】（若有情感破冰则变动，否则 +0），再换行输出【选项】。
+   【选项输出铁律·违背即失败】：
+   - 选项必须严格以 A. B. C. D. 给出，且【主语必须全部为玩家（你/玩家姓名）的行动、言语或内心抉择】！
+   - 【严禁输出托尼·斯塔克或其他NPC视角的行动】！例如严禁写“A. 托尼决定换上战甲”，必须写“A. 你走上前阻止托尼换上战甲”！
+   - 四个选项必须涵盖截然不同的态度（如：坚定反驳、温柔陪伴、调侃回怼、提出专业质疑）。`;
 })(),
 
     chat:`【手机即时通讯模式 · 短信】
@@ -8037,22 +8042,31 @@ const currentTurnInAnchor = Math.max(1, Math.min(ancMax, safeAnchor.curTurns || 
           const era = WORLD.eras.find(e => e.id === s.era) || WORLD.eras[2];
           const last = s.history.length ? s.history[s.history.length - 1] : null;
 
-          let pacingGuide = '';
-          if (safeAnchor.isBlip) {
-            pacingGuide = `\n【烁灭五年专属阶段】：当前第 ${currentTurnInAnchor}/${ancMax} 回合，深化时代情绪。`;
-          } else {
-            if (currentTurnInAnchor === 1) {
-              pacingGuide = `\n【本事件开局：第 1/${ancMax} 回合】展开事件【${safeAnchor.title}】的冲突背景。`;
-            } else if (currentTurnInAnchor < ancMax) {
-              pacingGuide = `\n【本事件深入推进：第 ${currentTurnInAnchor}/${ancMax} 回合 · 紧密接续】必须无缝承接上一回合的场景、站位与对白！围绕【${safeAnchor.title}】展开更深层的拉锯。`;
-            } else {
-              pacingGuide = `\n【本事件终局收束：第 ${currentTurnInAnchor}/${ancMax} 回合 · 核心高潮与收尾】这是【${safeAnchor.title}】的最后一幕！请在此回合给出明确的矛盾化解、高潮决断或重大转折，为本事件画上完整句号！`;
-            }
-          }
+         // 修改 apps.worldline.render 中拼装 ctx 的地方：
+let pacingGuide = '';
+if (safeAnchor.isBlip) {
+  pacingGuide = `\n【烁灭五年专属阶段】：当前第 ${currentTurnInAnchor}/${ancMax} 回合，深化时代情绪。`;
+} else {
+  if (currentTurnInAnchor === 1) {
+    pacingGuide = `\n【事件开局 (1/${ancMax})】：引入事件【${safeAnchor.title}】的起因与现场核心冲突。`;
+  } else if (currentTurnInAnchor < ancMax) {
+    pacingGuide = `\n【事件推进 (${currentTurnInAnchor}/${ancMax}) · 坚决拒绝原地重复】：
+必须推动时间或空间发生实质演变（双方必须做出新的动作、换到新的对话焦点或推进手头任务），严禁重复上回合已经发生过的对话、动作或修辞！`;
+  } else {
+    pacingGuide = `\n【事件高潮与尾声 (${currentTurnInAnchor}/${ancMax})】：这是本事件的最终幕，必须将【${safeAnchor.title}】的冲突予以阶段性解决或推向高潮，为转场做准备！`;
+  }
+}
 
-          let ctx = last 
-            ? `\n【上一回合场景回顾】：\n${last.story.slice(-500)}\n【玩家上一轮行动与纠偏】：\n${last.choice}\n${pacingGuide}` 
-            : `\n开局第一回合。请写托尼·斯塔克与玩家的初会与磨合，紧扣首个事件锚点【${formatAnchorTitle(safeAnchor)}】。${pacingGuide}`;
+          // 在 apps.worldline.render 中组织前文上下文时：
+let transitionPrompt = '';
+const isNewAnchorFirstTurn = (currentTurnInAnchor === 1 && s.history.length > 0);
+if (isNewAnchorFirstTurn) {
+  transitionPrompt = `\n【时空转场提示】：上一个事件刚刚告一段落。请在正文前1~2段自然描写时间流逝或空间转换（例如：“几天后”、“随着局势发酵”、“某天清晨”），平滑引出当前的新事件【${safeAnchor.title}】，严禁毫无铺垫地突兀瞬移！`;
+}
+
+let ctx = last 
+  ? `\n【上一回合场景简述】：\n${last.story.slice(-400)}\n【玩家上一轮的抉择行动】：\n${last.choice}\n${pacingGuide}\n${transitionPrompt}` 
+  : `\n开局第一回合。请写托尼·斯塔克与玩家的初会与磨合，紧扣首个事件锚点【${formatAnchorTitle(safeAnchor)}】。${pacingGuide}`;
 
           const sys = buildSystem('worldline');
 
