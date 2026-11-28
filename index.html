@@ -4042,7 +4042,7 @@ function renderOnboard(){
     </div>
     <button class="btn" id="ob_next1">下一步 · 填写人设 →</button>
     ${obState.force?'<button class="btn ghost sm" id="ob_skip" style="width:100%;margin-top:8px">跳过（沿用上次档案）</button>':''}`:''}
-        ${obState.step===1.5 ? `
+      ${obState.step===1.5 ? `
     <div class="ob-sec">
       <div class="lb">◉ 步骤 1.5 · 前置自定义阶段与锚点定制 (${obState.custom} 年)</div>
       <div class="card" style="padding:12px">
@@ -4105,7 +4105,7 @@ function renderOnboard(){
   const q=s=>layer.querySelector(s);
   layer.querySelectorAll('[data-e]').forEach(el=>el.onclick=()=>{obState.era=el.dataset.e;obState.custom=null;obState.startAge=q('#ob_sa')?.value||obState.startAge;obState.currentAge=q('#ob_ca')?.value||obState.currentAge;renderOnboard();});
   if(q('#ob_year_go'))q('#ob_year_go').onclick=()=>{const y=parseInt(q('#ob_year').value);if(y>1900&&y<2100){obState.custom=y;renderOnboard();}else toast('请输入合理年份');};
-    // 在 step === 1 下方增加自定义阶段判断：
+      // 在 step === 1 下方增加自定义阶段判断：
     if(q('#ob_next1'))q('#ob_next1').onclick=()=>{
       const curY = obState.custom || (WORLD.eras.find(x=>x.id===obState.era)||WORLD.eras[0]).year;
       // 如果自定义年份早于 2007 年（如 2006、2005），自动激活「前置阶段与锚点定制」页！
@@ -5113,13 +5113,13 @@ bindSL('#sl_p','postToDmChance','%');
   q('#s_bladd').onclick=()=>{const x=q('#s_bl').value.trim();if(!x)return;const b=store.get('blacklist',[]);if(!b.includes(x))b.push(x);store.set('blacklist',b);apps.settings.render(v);};
   v.querySelectorAll('[data-bl]').forEach(el=>el.onclick=()=>{store.set('blacklist',store.get('blacklist',[]).filter(x=>x!==el.dataset.bl));apps.settings.render(v);});
   q('#s_blclr').onclick=()=>{store.set('blacklist',[]);apps.settings.render(v);};
-     const rescueSettingBtn = q('#s_rescue_history_btn');
+      const rescueSettingBtn = q('#s_rescue_history_btn');
   if (rescueSettingBtn) {
     rescueSettingBtn.onclick = () => {
       openRescueOptionsModal();
     };
   }
- q('#s_export').onclick=()=>{const d={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('so_'))d[k]=localStorage.getItem(k);}const b=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='stark_save_'+Date.now()+'.json';a.click();};
+q('#s_export').onclick=()=>{const d={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('so_'))d[k]=localStorage.getItem(k);}const b=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='stark_save_'+Date.now()+'.json';a.click();};
   q('#s_import').onclick=()=>q('#s_file').click();
   q('#s_file').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const d=JSON.parse(rd.result);if(!confirm('导入会覆盖当前数据，继续？'))return;Object.keys(d).forEach(k=>{if(k.startsWith('so_'))localStorage.setItem(k,d[k]);});toast('导入成功，即将刷新');setTimeout(()=>location.reload(),600);}catch(err){toast('导入失败：'+err.message);}};rd.readAsText(f);};
     // 检查当前持久化状态与存储配额
@@ -7665,6 +7665,62 @@ function advanceCurrentAnchorTurn() {
 // ============================================================
 
 // 辅助：从扁平锚点链聚合为结构化的阶段列表 (Phases)
+function wlGetPhasesFromAnchors() {
+  const anchors = normalizeAnchorList(store.get('wl_anchors', []));
+  const phaseMap = new Map();
+  const phases = [];
+  const f = flags();
+
+  anchors.forEach((a, idx) => {
+    const pTitle = a.phaseTitle || '阶段一：初遇与日常';
+    if (!phaseMap.has(pTitle)) {
+      const pObj = {
+        id: a.phaseId || ('phase_' + phases.length),
+        name: pTitle,
+        year: a.phaseYear || f.year,
+        monthStart: a.phaseMonthStart || 1,
+        monthEnd: a.phaseMonthEnd || 12,
+        desc: a.phaseDesc || '本阶段的核心经历与生活细节磨合。',
+        allowedChars: a.allowedChars || '',
+        bannedChars: a.bannedChars || '',
+        mustEvents: a.mustEvents || '',
+        pacing: a.pacing || '',
+        anchors: []
+      };
+      phaseMap.set(pTitle, pObj);
+      phases.push(pObj);
+    }
+    phaseMap.get(pTitle).anchors.push(a);
+  });
+
+  return phases;
+}
+
+// 辅助：将阶段列表拍平回底层标准存储格式 (保持向下兼容)
+function wlSavePhasesToAnchors(phases) {
+  const flat = [];
+  phases.forEach(p => {
+    (p.anchors || []).forEach(a => {
+      a.phaseId = p.id;
+      a.phaseTitle = p.name;
+      a.phaseYear = p.year;
+      a.phaseMonthStart = p.monthStart;
+      a.phaseMonthEnd = p.monthEnd;
+      a.phaseDesc = p.desc;
+      a.allowedChars = p.allowedChars;
+      a.bannedChars = p.bannedChars;
+      a.mustEvents = p.mustEvents;
+      a.pacing = p.pacing;
+      flat.push(a);
+    });
+  });
+  store.set('wl_anchors', flat);
+  return flat;
+}
+
+// ============================================================
+// 电影级·全阶段与事件锚点管理（支持大输入框编辑、设为当前事件、防跳顶）
+// ============================================================
 function openAnchorManagerModal(onRefresh) {
   let phases = wlGetPhasesFromAnchors();
   const curAnchor = getCurrentAnchor();
@@ -8933,7 +8989,7 @@ fill('wl_f2', () => {
       };
     });
 
-       // 剧情存读档（扩容至 10 槽位）
+        // 剧情存读档（扩容至 10 槽位）
     const saveSlotBtn = v.querySelector('#w_save_slot');
     if (saveSlotBtn) {
       saveSlotBtn.onclick = () => {
@@ -9072,7 +9128,7 @@ fill('wl_f2', () => {
       const anchorsSnap = JSON.parse(JSON.stringify(store.get('wl_anchors', [])));
       const activeAnchorId = curAnchor ? curAnchor.id : '';
 
-               s.history.push({
+              s.history.push({
         turn: s.turn,
         story: s.story,
         options: s.options,
@@ -9261,7 +9317,7 @@ function showMemory() {
       <button class="btn ghost sm" id="mem_close_btn" style="width:auto;padding:4px 12px;font-size:12px">✕ 关闭</button>
     </div>
 
-       <!-- 顶栏快捷操作：全部折叠/展开 + 强制抢救 + 导出 -->
+        <!-- 顶栏快捷操作：全部折叠/展开 + 强制抢救 + 导出 -->
     <div style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:8px 14px;background:var(--panel2);border-bottom:1px solid var(--line);flex-wrap:wrap">
       <div style="display:flex;gap:6px">
         <button class="btn ghost sm" id="mem_toggle_all" style="width:auto;padding:3px 9px;font-size:11px">
@@ -9313,7 +9369,7 @@ function showMemory() {
           </div>
         `;
       }).join('') : `
-                <div class="card" style="padding:30px 16px;text-align:center;margin-top:20px">
+               <div class="card" style="padding:30px 16px;text-align:center;margin-top:20px">
           <div style="font-size:32px;margin-bottom:10px">📜</div>
           <div style="font-family:var(--font-serif);font-size:15px;font-weight:700;margin-bottom:6px">当前未检测到历史推演记录</div>
           <div class="hint" style="font-size:12px;margin-bottom:14px">若此前曾游玩过多回合但此处不显示，可点击下方按钮深度找回：</div>
@@ -9360,7 +9416,7 @@ function showMemory() {
       });
     };
   }
-    // 绑定一键强制恢复所有回忆记录按钮（弹出方案 A/B 供用户自由选择）
+      // 绑定一键强制恢复所有回忆记录按钮（弹出方案 A/B 供用户自由选择）
   const rescueBtn = d.querySelector('#mem_force_rescue_btn');
   if (rescueBtn) {
     rescueBtn.onclick = () => {
