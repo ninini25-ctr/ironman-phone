@@ -1879,54 +1879,45 @@ function cleanSlur(s){
    机制：记录最近用过的意象，每次生成时抽新的喂给 AI，并把高频词列入禁用
    ============================================================ */
 const IMAGERY={
-  lab:[ // 实验室与工坊器物
-    '示波器上没人清掉的旧波形','扭力扳手被调到一个奇怪的刻度','抽屉里按长度排好的螺丝',
-    '全息投影边缘那一道没校准的色差','贴在设备侧面的手写标签已经卷边','一卷用了一半的绝缘胶带',
-    '废料桶里形状相同的失败件','天花板上第三盏灯比别的暗一点','地面格栅板缝里卡着的碎屑',
-    '墙上那张被改到看不出原样的图纸','红外测温枪的电池盖用胶带粘着','零件托盘被分成了四个格子',
-    '通风口传来的低频嗡鸣','冷却剂罐上的压力读数在小范围晃','备件柜门关不严，总留一条缝',
-    '工作台上一枚被磨圆了棱角的旧轴承','墙角那台从没启用过的新设备','显示屏右下角一直没清掉的告警角标',
-    '一把被用到发亮的游标卡尺','柜顶那箱标着「别动」却从没锁过的东西'
+  lab:[ // 名流工坊、生活物件与奢靡掩饰下的真实
+    '昂贵手工定制西装的法式衬衫袖口挽到手肘，露出小臂线条',
+    '空气里冷萃黑咖啡的微酸、威士忌残滴与高标号航空煤油的混合气味',
+    '工作台角落压着一张写了计算公式的米其林三星餐厅餐巾纸',
+    '透明平光护目镜架在鼻梁上，挡住眼底因通宵漫起的浅红血丝',
+    '马里布悬崖海风穿过未锁死的防弹落地窗，掀动图纸一角',
+    '随意搭在真皮沙发扶手上的羊绒大衣，还带着曼哈顿深秋的凉意',
+    '指尖无意识转动着一枚刻有斯塔克家族徽记的老旧金属打火机',
+    '大厦八十层落地窗外倒映着的曼哈顿无休无止的红色车流',
+    '私人放映室里静音播放的老式黑白爵士乐胶片',
+    '冷白全息屏微光打在他棱角分明的下颌胡茬上，忽明忽暗',
+    '吧台上那只喝空了一半的冰摇水晶酒杯，冰块正在无声融化',
+    '西装内侧口袋里常年备着的一小盒薄荷润喉糖'
   ],
-  body:[ // 身体与小动作（托尼及他人）
-    '拇指在食指关节上来回搓','说话时下颌先动半拍','把袖口往上推又放下来',
-    '手背抵着鼻梁停了一秒','肩膀先松下来，然后才开口','脚尖在地上点了两下就停',
-    '转笔转到一半掉了，没捡','喉结动了一下，话没出来','眼睛先看向门，然后才看人',
-    '把头发向后抹了一把，没抹整','指节敲桌面的节奏突然乱了','深吸气时肋骨那侧略微塌',
-    '用舌尖顶住上颚，像在数什么','后颈的肌肉绷着没放','左手一直按在口袋外侧',
-    '笑的时候只有半边嘴角动','视线落在你肩膀后面而不是脸上','说到一半自己把话截断了',
-    '手指在空气里画了一个没画完的圈','把椅子往后挪了半寸就不动了'
+  body:[ // 综英美同人特质小动作与情感暗涌
+    '抬手把墨镜顺势推至发顶，棕褐色眼眸里飞快闪过一丝被说中的无所适从',
+    '用一种看似漫不经心的调笑口吻把刚才那句快要触及真心的对话轻巧滑开',
+    '说话时微微倾身逼近，带着斯塔克特有的侵略性，眼神却在确认你的呼吸节奏',
+    '在旁人出声前不着痕迹地侧过半步，刚好将你挡在闪光灯或潜在盲区之后',
+    '握着玻璃杯的手指骨节微微发紧，随后若无其事地将杯子在桌面转了半圈',
+    '疲惫至极时会后仰靠向椅背，抬手用两根手指用力按揉眉心',
+    '笑起来时眼角有成熟英俊的细纹，嘴角先勾起三分嘲讽，再渐渐化开',
+    '听到你的反驳时眉梢夸张地挑起，嘴上连珠炮回击，手里的动作却依言放慢',
+    '越是在乎场面越显得刻薄多刺，像一只用金红装甲伪装起血肉的刺猬',
+    '眼神越过你的头顶看向别处，手掌却在擦肩而过时极其短暂地在你后背轻按了一下'
   ],
-  space:[ // 空间与声音
-    '走廊尽头电梯到层的两声提示','玻璃幕墙把远处的灯折成两排','地下层的回声比楼上慢一点',
-    '空调启停时整层楼都轻轻一震','消防通道的门没完全关上','窗外雨点打在外沿的间隔很均匀',
-    '夜里城市的声音只剩一种底噪','停机坪的指示灯按固定节奏闪','楼下有人反复按同一个门铃',
-    '隔墙传来打印机走纸的声音','电梯镜面上一道没擦掉的指印','地毯被同一条路线踩出浅痕',
-    '天亮前那段最安静的十几分钟','暖风出口的纸条被吹得一直抖','某个房间的灯忘了关，一夜没熄',
-    '远处直升机掠过的声音由近到远','安全门上的权限灯从红跳到绿','整层楼只有一处还亮着'
+  space:[ // 电影镜头感宏大场面与独处静谧
+    '深夜狂欢散场后空荡荡的宴会露台，晚风卷走最后一缕香槟泡沫',
+    '加利福尼亚海岸线上翻涌的深蓝海浪与远处停机坪忽明忽暗的红色导航灯',
+    '暴雨砸在斯塔克大厦全景天幕玻璃上，将整座城市的霓虹折射成破碎的流光',
+    '晨曦初现时分，整栋大厦尚未苏醒前那一刻近乎神圣的死寂',
+    '地下机库巨大的阴影与战甲表面倒映出的冰冷金属弧光'
   ],
-  object:[ // 生活物件
-    '没拆封的替换零件还贴着单据','抽屉里一副不属于任何人的备用钥匙','桌角压着一张写了一半的清单',
-    '椅背上挂了一件不合身的外套','没还的伞靠在门边','信封上收件人被划掉重写过',
-    '一块停在某个时间的旧表','药盒里被按顺序掰掉的格子','车钥匙上多出来的一把不认识的',
-    '手机壳背面夹着的一张旧票根','水杯换成了没有刻度的那只','笔记本被折角的那一页',
-    '一张被反复折开又折回的纸','鞋底沾着不属于这栋楼的尘','行李箱标签没撕，上面是别的城市',
-    '抽屉深处一卷没用完的胶卷','墙上挂钟慢了四分钟，没人调','一枚不知道开哪扇门的旧门卡'
-  ],
-  time:[ // 时间与天气
-    '凌晨三点以后空气的温度会掉一档','日落只剩最后一道光打在对面楼上','雨停了但檐下还在滴',
-    '雪化成了一层薄薄的水膜','风从海那边过来，带着咸','清晨第一班车经过时窗框会响',
-    '太阳升到能照进地下一层的那个角度','云压得很低，灯比平时亮','暖气片要过十分钟才有温度',
-    '天亮得比昨天早了几分钟','傍晚那段天空是没有名字的颜色','午后光斑在地板上移了半尺',
-    '雷声在很远的地方滚了一下','雾把对面大楼切成两半','入夜后玻璃开始起一层薄雾'
-  ],
-  social:[ // 人际小信号
-    '把文件往你那边推了半寸','开门时手扶着门没放','替你把椅子拉开又立刻装作不是','报出你随口提过的一个数字',
-    '把你的名字写在了不该出现的那一栏','留了一扇不该留的门禁','提前把你要的东西放在了路上',
-    '在别人问起时替你挡了一句','说「顺路」但明显不顺路','把你那杯换成了不烫的',
-    '记得你不吃的那一样','在你开口之前先回答了','把灯调到你习惯的亮度但不承认',
-    '走在外侧那一边','开会时把你排在他旁边','用一个只有你们两个懂的说法',
-    '明明生气但先确认你有没有事','在你没察觉时数了你咳嗽的次数'
+  social:[ // 隐蔽的纵容与偏爱
+    '在名流簇拥的酒会中央毫无预兆地转过视线，在人群缝隙中精准接住你的目光',
+    '在公关部准备的标准讲稿上用红笔打了一个大叉，改写成对你的全权背书',
+    '给整栋大厦下达了最高戒备，却悄悄在中央空调系统里升温了半度',
+    '嘴上抱怨你的添乱，转头就让管家把你随口提过的一家冷门甜点空运到休息室',
+    '在外人面前他是不可一世的钢铁侠，在你面前才允许自己流露出一声真正的叹息'
   ]
 };
 const IMAGERY_BANNED=['焊点','咖啡','杯沿','缺口','蓝色那个','蓝盒','备用位','两厘米','调暗','记号笔','第四只杯','灭火器'];
@@ -3065,110 +3056,104 @@ function userAgeNow(){
 function buildSystem(scope,extra){
   const p=store.profile()||{},s=store.state()||{},f=flags();
   
-  // 1. 若无佩珀，直接在最首行注入绝对不可违抗的顶层防穿帮铁律
   let head = '';
   if (!f.pepperExists) {
     head += `【最高绝对禁令 · 本宇宙无佩珀·波茨】
-本世界线中绝对不存在“小辣椒”、“佩珀”、“波茨”、“Pepper Potts”或任何代号！托尼·斯塔克身边没有任何名为佩珀的女性助理或CEO。
-所有斯塔克工业的行政、法务、会议通知、日程安排均由【董事会秘书处】或【公关部】出具。严禁在旁白、对话、回忆、代称中出现任何带“佩珀/小辣椒”的字眼，违背此条将直接导致世界线逻辑崩溃！\n\n`;
+本世界线中绝对不存在“小辣椒”、“佩珀”、“波茨”、“Pepper Potts”！托尼身边没有任何名为佩珀的女性助理或CEO。
+所有行政/法务/会议通知均由【董事会秘书处】出具。严禁在旁白、台词、回忆中出现带“佩珀/小辣椒”的字眼！\n\n`;
   }
 
-  head += `${WORLD.persona}\n${WORLD.style}\n${WORLD.rules}\n${WORLD.secrecy}`;
-  head += `\n【反 OOC 总纲】所有角色严格按下列角色卡出演：\n`;
-  
-  // 物理剔除小辣椒角色卡
+  // 经典综英美同人文风与托尼多维立体人设
+  head += `【宇宙核心灵魂 · 托尼·斯塔克（Tony Stark / 钢铁侠）】
+1970年5月29日生。安东尼·爱德华·斯塔克。他是天才、亿万富翁、名流花花公子，更是一个血肉筑成的凡人。
+【人物质感 · 拒绝单一极客化，还原电影原著深度】：
+1. 社交面具与致命魅力：
+   在宴会、酒廊、闪光灯前，他是如鱼得水、眼神慵懒、嘴角带着漫不经心挑逗与嘲弄的名流焦点；晃着香槟杯，语速极快，俏皮话像连珠炮一样甩出，习惯用无可挑剔的魅力把所有人挡在安全距离之外。
+2. 掩饰性自大（Defensive Humor）：
+   他的毒舌与自恋从来不是真正的恶意，而是防御机制。越是心动、不安、恐惧失控，他的玩笑越密集。被戳中心思时会挑眉、轻笑一声移开视线，或用一句毫不相干的调侃把话题滑开。
+3. 护短与骨子里的偏爱：
+   对局外人他是高高在上的斯塔克先生；但对自己认可并纳入保护圈的人，他有着霸道甚至不讲理的纵容。遇到麻烦他会本能地一步抢到前面，嘴上刻薄挑刺，手里却早已做好了所有兜底后手。
+4. 触碰亲密时的真实笨拙：
+   面对真诚的温柔、陪伴或直视时，他不是机器人，他会有极细微的怔愣、指尖停顿、喉结微动，随后借着抿酒、整理袖口或调侃来掩饰心悸。
+5. 创伤与凡人脆弱：
+   胸口的伤痕、山洞阴影、对失去的窒息恐慌、永远在脑海中无法停歇的危机推演。在疲惫至极时，他会卸下墨镜，露出眼底深陷的暗青，在沙发上闭上眼睛允许你递过一杯温水。
+
+【综英美经典同人文学风范】：
+镜头感极强，注重光影折射、布料摩擦、冷硬与温热的交替、眼神交错间的心理暗涌与留白。杜绝干瘪空洞的AI说明文，用具体的现场动作和神态写情绪。
+`;
+
+  head += `\n【反 OOC 总纲】所有在场角色严格按照各自的电影性格与时代认知出演：\n`;
   head += Object.keys(WORLD.cast)
     .filter(k => f.pepperExists || !/小辣椒|佩珀|Pepper/i.test(k))
     .map(k => '· ' + castText(k).replace(/\n/g, ' '))
     .join('\n');
 
-  head += `\n【当前时间锚点】${f.year} 年 · ${f.era.name}。托尼·斯塔克 ${f.tonyAge} 岁。已发生：${f.avengers1?'纽约之战／复仇者集结':'尚未发生纽约之战'}；${f.ultronAfter?'奥创事件已发生（贾维斯已升格为幻视，F.R.I.D.A.Y. 已接管）':'奥创事件尚未发生（贾维斯在线，F.R.I.D.A.Y. 尚未诞生，幻视不存在）'}；${f.civilWar?'内战已发生':'内战尚未发生'}；${f.snap?'响指已发生':'响指尚未发生'}。`;
-  head += `\n【玩家角色】姓名：${p.name||'访客'}／性别：${p.gender||'未填'}／身份：${p.identity||'未填'}／性格：${p.personality||'未填'}／背景：${p.background||'未填'}${p.notes?'／备注：'+p.notes:''}。`;
-  head += `\n【玩家人称铁律】当需要用第三人称指代玩家时，必须使用与玩家性别一致的代词「${userPronoun()}」；严禁用错性别的代词，也严禁在同一段里混用不同性别的代词。`;
-  // 跨 App 意象去重：叙事类场景统一注入新鲜意象与禁用清单
+  head += `\n【当前时间锚点】${f.year} 年 · ${f.era.name}。托尼 ${f.tonyAge} 岁。世界状态：${f.avengers1?'纽约之战已发生':'纽约之战尚未发生'}；${f.ultronAfter?'奥创事件已发生（星期五在线，幻视代回贾维斯）':'奥创尚未发生（贾维斯在线）'}；${f.civilWar?'内战已发生':'内战未发生'}；${f.snap?'烁灭已发生':'烁灭未发生'}。`;
+  
+  // 注入丰富的玩家人设信息
+  head += `\n【玩家档案（高度关注并融合进互动）】：
+· 姓名：${p.name||'访客'}（第三人称指代严格使用「${userPronoun()}」）
+· 身份标签：${p.identity||'未填'}
+· 身份超常类型：${p.originType||'普通人（没有超能力）'}
+· 外貌形象：${p.appearance||'（未特殊指定，依场景自然流露）'}
+· 个人性格：${p.personality||'未填'}
+· 背景来历：${p.background||'未填'}
+· 个人喜好/日常偏好：${p.preferences||'未填'}
+${p.notes?'· 补充备注：'+p.notes:''}`;
+
   if(['worldline','chat','social','general','group','news','mail'].includes(scope)){
     head += '\n'+imgAvoid(scope==='worldline'?7:5);
   }
   
-    // 注入世界线双层节奏控制（蜘蛛侠式结构化进度元数据：已完成锚点 + 当前锚点 + 下一拍预告 + 弹性 3~5 回合规则）
   if (scope === 'worldline') {
     head += '\n' + buildEventAnchorPrompt();
   }
 
   const _rules=rulesForPrompt(scope);
   if(_rules.length){
-    head+=`\n【世界书 · 规则（玩家设定，最高优先级，覆盖默认套路，但不得违反时间锚点与保密铁律）】：\n`+_rules.join('\n');
+    head+=`\n【玩家自定义世界准则（最高优先级执行）】：\n`+_rules.join('\n');
   }
-  const _rels=relationsForPrompt();
-  if(_rels.length){
-    head+=`\n【玩家与各角色的关系网 · 由玩家设定，严格遵守，直接影响称呼、口吻、亲疏距离与剧情走向】：\n`+_rels.join('\n');
-    head+=`\n（亲密度高＝更信任、更放松、肢体与语言距离更近；亲密度低或关系为宿敌/竞争对手＝更戒备、更锋利。关系设定优先于默认人设的疏离程度，但不得违反当前时间锚点与保密铁律。）`;
-  }
-if(s && s.compactSummary){
-  head += `\n【核心记忆回溯 · 前期关键阶段归档（绝对不能遗忘）】：\n${s.compactSummary}\n`;
-}
-/* 自动绑定世界书：注入当前时间锚点相关的词条供世界线参考 */
-  const wbForEra=[];
-  const wbAll=wbAllForPrompt();
-  /* 事件类词条按年份过滤，只注入已发生的 */
-  const year=f.year;
-  wbAll.forEach(x=>{
-    if(x.cat==='事件'){
-      const m=x.t.match(/(\d{4})/);
-      if(m&&+m[1]<=year)wbForEra.push(x);
-    }else{
-      /* 人物/地点/技术/组织类全部注入 */
-      wbForEra.push(x);
-    }
-  });
-  if(wbForEra.length){
-    head+=`\n【世界书 · 设定参考（严格遵守，不得违反）】：\n`;
-    head+=wbForEra.map(x=>`· [${x.cat}] ${x.t}：${x.d}`).join('\n');
-    head+=`\n（以上为当前时间锚点 ${year} 年的已知设定。事件类词条只列已发生的事件。不得让角色知道尚未发生的事件，不得违反设定。）\n`;
-  }
-  const more={
-        worldline:(()=>{
-  const r=wlWordRange();
-  return `【世界线深度文学模式】
-1. 篇幅：本次输出字数控制在 ${r.min}~${r.max} 字之间。
-2. 【叙事人称铁律】${narrativePersonRule()}
-3. 【电影镜头与情感厚度】：
-   杜绝纯粹堆砌干瘪的“机油、电路、焊点、代码参数”！将镜头重点对准【托尼的情感流动与人与人之间的温度】：
-   刻画他眼神中褪去防备时的柔光、被说中心意时微微勾起的自嘲与心动、端起杯子递给你时指尖短暂的触碰、他看着你时眼底的专注与藏在玩笑底下的牵挂。要有真实的人情味、生活气息与细腻的心理暗涌。
-4. ${storyBilingualOn() ? `【对白语言铁律 · 中英双语模式】：
-   所有角色的出声台词严格输出为：**"English original line"**（中文翻译）。对白留毛边，托尼说话快且生动，出声台词保持原汁原味地道英文并在括号内给出传神中文翻译。` : `【对白语言铁律 · 纯中文模式（格式严禁丢失）】：
-   1. 所有角色的出声台词必须全部使用纯正、地道的中文口语；
-   2. 【台词排版铁律】：角色的出声对话必须严格用中文双引号 “...” 包裹！绝对严禁将对话与旁白环境描写混写为一段！
-   3. 绝对严禁输出任何英文单词与括号翻译！直接输出纯中文对话！`}
-5. 【符号铁律】除对白中成对的 ** ** 外，正文中严禁出现孤立星号。
-6. 末尾规范：
-   正文后另起一行输出【好感度变动：+N】（若有情感破冰则变动，否则 +0），再换行输出【选项】。
-   【选项输出铁律·违背即失败】：
-   - 选项必须严格以 A. B. C. D. 给出，且【主语必须全部为玩家（你/玩家姓名）的行动、言语或内心抉择】！
-   - 【严禁输出托尼·斯塔克或其他NPC视角的行动】！例如严禁写“A. 托尼决定换上战甲”，必须写“A. 你走上前阻止托尼换上战甲”！
-   - 四个选项必须涵盖截然不同的态度（如：坚定反驳、温柔陪伴、调侃回怼、提出专业质疑）。`;
-})(),
 
+  const more={
+    worldline:(()=>{
+      const r=wlWordRange();
+      const isBi = storyBilingualOn();
+      return `【世界线深度文学模式】
+1. 篇幅：单次输出字数严格控制在 ${r.min}~${r.max} 字之间。
+2. 【叙事人称铁律】${narrativePersonRule()}
+3. 【电影对白语言铁律 · 极其严格】：
+   ${isBi ? `【当前处于中英双语模式 · 绝对铁律】：
+   所有角色的出声对话，必须 100% 输出为英文原句并在紧随其后的中文括号内给出地道中文翻译！
+   格式范例：
+   *"Take it easy, kid. You're making me look like a responsible adult."*（放轻松点。你这样显得我像个正经长辈似的。）
+   *"Don't look at me like that."*（别用那种眼神看着我。）
+   【严禁直接输出纯中文对话！每句出声对话都必须是 *"English"*（中文）！旁白和心理描写使用中文。】` : `【当前处于纯中文模式】：
+   所有角色台词必须全部以自然地道的中文口语输出，用中文双引号 “...” 包裹，绝对严禁出现任何英文对话单词与括号翻译！`}
+4. 【生活人情与情感张力】：
+   不要把剧情局限在冰冷的机油、代码与参数测试里！多描写托尼在派对端着酒杯时的眼神逗弄、在车库台阶上并肩坐下时分你一半披萨的随意、海风吹乱西装时的疲惫侧脸、注意到你冷时默默把风口关小的动作。要有真实的生活温度与暧昧暗涌。
+5. 【末尾输出格式绝对标准】：
+   剧情正文完整写完后，另起一行输出好感度变动与四个第一人称行动选项：
+   【Affinity（好感度）变动：+N】（N 为 -3 到 +3 之间的整数，有情绪触动或默契则加分）
+   【选项】
+   A. [必须是玩家第一人称行动/对话]
+   B. [必须是玩家第一人称行动/对话]
+   C. [必须是玩家第一人称行动/对话]
+   D. [必须是玩家第一人称行动/对话]`;
+    })(),
     chat:`【手机即时通讯模式 · 短信】
 严禁任何动作/神态/旁白/括号心理描写！每条消息控制在 10~45 字内，像真人在移动端打字。根据联系人设定回复对应的条数（多条使用 || 隔开）。若是纯中文模式严禁出现任何英文字母；若是英文模式，英文原句在前，译文通过换行规整呈现。`,
-
     social:`【社交平台推文模式 · Twitter/Instagram】
 每条推文正文控制在 80~140 字，口语化、碎片化、带强烈的公众舆论感。包含热点事件目击、键盘侠反讽、公关部克制避重就轻等多元视角，严禁长篇大论。评论区每条互动控制在 15~35 字，快节奏嘴炮与官方辟谣并存。`,
-
     mail:`【企业加密与私人邮件模式】
 严格遵循高端商业/私人信函格式：需包含规范主题行、商务/私人专属称谓、结构清晰的正文、及个性化落款。
 字数范围：正文控制在 200~450 字。商业邮件讲求法律严密性与供应链数据支撑；托尼私人信件则要求言简意赅、拒绝客套、要点置顶，文末多以 T.S. 快速收尾。`,
-
     news:`【严肃报业与调查媒体模式】
 字数范围：800~1500 字深度报道。
 纽约时报/华尔街日报必须具备深度导语、信源交叉互证、市政与产业影响深度剖析、各方平衡声明；号角日报则充斥耸动大号黑体标题、主观臆测与挑衅性社论。末尾必须附带标准【编者按】。`,
-
     group:`【战术频道/复仇者群聊模式】
 六人作战群聊，杜绝长篇独白。每人单次发言仅限 1~2 句短语（15~35 字），体现战场通讯与日常插科打诨的混合风格。严格体现发言延迟差，展现角色各自性格（美队严谨求实、托尼抢话吐槽、雷神古语今用、娜塔莎一针见血）。格式严格按：姓名 ||| 内容。`,
-
     terminal:`【J.A.R.V.I.S. 终端底座模式】
 纯硬核系统输出：每条仅输出 1~2 行精准遥测或系统内核日志（20~60 字符），英式管家克制腔调，绝不多言。严守保密权限，遇到越界指令直接打印 [CLEARANCE DENIED] 并以受限话术终止。`,
-
     npc:`【斯塔克工业人事建档模式】
 只输出单行结构化文本：姓名 ||| 身份标签 ||| 20字以内核心背景/执念。不带任何冗余解释。`,
   }[scope]||'【通用】内容必须严格与当前公元年时间锚点吻合，严禁角色跨时代认知。';
@@ -4146,16 +4131,35 @@ function renderOnboard(){
       <button class="btn gold" id="ob_next1_5">确认阶段 · 进入人设填写 →</button>
     </div>
     ` : ''}
-    ${obState.step===2?`
+        ${obState.step===2?`
     <div class="ob-sec"><div class="lb">◉ 第二步 · 人设填写</div>
-      <div class="row"><div class="field"><label>姓名 *</label><input id="ob_name" value="${esc(p.name||'')}" placeholder="例如：林越"></div>
-      <div class="field" style="flex:0 0 96px"><label>性别</label><select id="ob_gender"><option>女</option><option>男</option><option>非二元</option></select></div></div>
-      <div class="field"><label>身份 *（越具体越好）</label><input id="ob_identity" value="${esc(p.identity||'')}" placeholder="斯塔克工业实习工程师 / 战地记者 / 董事会顾问"></div>
+      <div class="row">
+        <div class="field" style="flex:1"><label>姓名 *</label><input id="ob_name" value="${esc(p.name||'')}" placeholder="例如：oo"></div>
+        <div class="field" style="flex:0 0 96px"><label>性别</label><select id="ob_gender"><option>女</option><option>男</option><option>非二元</option></select></div>
+      </div>
+      <div class="field"><label>身份 *</label><input id="ob_identity" value="${esc(p.identity||'')}" placeholder="例如：斯塔克工业实习研究员 / 战地记者 / 董事会顾问"></div>
+      
+      <!-- 我的身份类型（带精致图标的点选） -->
+      <div class="field">
+        <label>🥷 我的身份类型 *</label>
+        <select id="ob_origin_type" class="inp" style="font-size:13px;font-weight:700">
+          <option value="普通人（没有超能力）" ${(p.originType||'')==='普通人（没有超能力）'?'selected':''}>👤 普通人（没有超能力）</option>
+          <option value="变种人 / 异能者" ${(p.originType||'')==='变种人 / 异能者'?'selected':''}>🧬 变种人 / 异能者</option>
+          <option value="魔法 / 超自然能力" ${(p.originType||'')==='魔法 / 超自然能力'?'selected':''}>🔮 魔法 / 超自然能力</option>
+          <option value="科技改造 / 有特殊装备" ${(p.originType||'')==='科技改造 / 有特殊装备'?'selected':''}>⚙️ 科技改造 / 有特殊装备</option>
+          <option value="其他特殊身份" ${(p.originType||'')==='其他特殊身份'?'selected':''}>❓ 其他特殊身份</option>
+        </select>
+        <div class="hint" style="font-size:10px;margin-top:2px">影响托尼及神盾局对你的安全评估等级与相处防备心</div>
+      </div>
+
       <div class="field"><label>开局年龄 * / 当前年龄 *</label><div class="row"><input id="ob_sa" type="number" min="1" max="120" value="${esc(sa)}" placeholder="开局"><input id="ob_ca" type="number" min="1" max="120" value="${esc(ca)}" placeholder="当前"></div></div>
       <div class="agebox">${ageBoxInner(e,yr,sa,ca)}</div>
-      <div class="field" style="margin-top:10px"><label>性格 *</label><textarea id="ob_person" rows="2" placeholder="冷静、嘴硬、护短">${esc(p.personality||'')}</textarea></div>
-      <div class="field"><label>背景</label><textarea id="ob_bg" rows="2" placeholder="出身、与斯塔克工业／复联的关系…">${esc(p.background||'')}</textarea></div>
-      <div class="field"><label>备注（选填）</label><input id="ob_notes" value="${esc(p.notes||'')}" placeholder="任何想补充给 AI 的设定"></div>
+      
+      <div class="field" style="margin-top:10px"><label>性格 * (简短描述 1-2 句，AI 会据此把握说话方式)</label><textarea id="ob_person" rows="2" placeholder="对朋友很护短，不谙世事，嘴硬心软">${esc(p.personality||'')}</textarea></div>
+      <div class="field"><label>背景 * (出身、和托尼/其他角色的关系)</label><textarea id="ob_bg" rows="2" placeholder="精神系变种人，隐藏在普通人中…">${esc(p.background||'')}</textarea></div>
+      <div class="field"><label>外貌特征 (例如：黑色短发，戴黑框眼镜，常穿灰色卫衣)</label><input id="ob_appearance" value="${esc(p.appearance||'')}" placeholder="发色、穿搭风格、身形细节…"></div>
+      <div class="field"><label>喜好偏好 (例如：喜欢科幻、黑咖啡、下雨天；讨厌嘈杂的人群)</label><input id="ob_prefs" value="${esc(p.preferences||'')}" placeholder="饮食偏好、日常爱好、厌恶事物…"></div>
+      <div class="field"><label>补充备注（选填）</label><input id="ob_notes" value="${esc(p.notes||'')}" placeholder="任何想要特别关照的个人细节"></div>
     </div>
     <div class="row"><button class="btn ghost" id="ob_back2">← 时间线</button><button class="btn" id="ob_next2">下一步 · 宇宙开关 →</button></div>`:''}
     ${obState.step===3?`
@@ -4237,10 +4241,13 @@ function saveObDraft(){
   const q=s=>$('#onboardLayer').querySelector(s);
   obState.name=q('#ob_name')?.value.trim()||obState.name;
   obState.identity=q('#ob_identity')?.value.trim()||obState.identity;
+  obState.originType=q('#ob_origin_type')?.value||obState.originType;
   obState.person=q('#ob_person')?.value.trim()||obState.person;
   obState.startAge=q('#ob_sa')?.value.trim()||obState.startAge;
   obState.currentAge=q('#ob_ca')?.value.trim()||obState.currentAge;
   obState.bg=q('#ob_bg')?.value.trim()||obState.bg;
+  obState.appearance=q('#ob_appearance')?.value.trim()||obState.appearance;
+  obState.preferences=q('#ob_prefs')?.value.trim()||obState.preferences;
   obState.notes=q('#ob_notes')?.value.trim()||obState.notes;
   obState.gender=q('#ob_gender')?.value||obState.gender;
 }
@@ -4249,8 +4256,20 @@ function finishOnboard(){
   const e=WORLD.eras.find(x=>x.id===obState.era)||WORLD.eras[2];
   const customY = obState.custom || e.year;
 
-  store.setProfile({name:obState.name||'访客',gender:obState.gender||'女',identity:obState.identity||'',personality:obState.person||'',
-    background:obState.bg||'',notes:obState.notes||'',startAge:+obState.startAge||null,currentAge:+obState.currentAge||null,_era:obState.era});
+    store.setProfile({
+    name:obState.name||'访客',
+    gender:obState.gender||'女',
+    identity:obState.identity||'',
+    originType:obState.originType||'普通人（没有超能力）',
+    personality:obState.person||'',
+    background:obState.bg||'',
+    appearance:obState.appearance||'',
+    preferences:obState.preferences||'',
+    notes:obState.notes||'',
+    startAge:+obState.startAge||null,
+    currentAge:+obState.currentAge||null,
+    _era:obState.era
+  });
   
   store.setState({
     era:obState.era,customYear:obState.custom||null,startYear:customY,
@@ -5350,7 +5369,19 @@ function openProfileEditModal(onDone){
             ${['女','男','非二元'].map(g=>`<option value="${g}" ${(p.gender||'女')===g?'selected':''}>${g}</option>`).join('')}
           </select></div>
       </div>
-      <div class="field"><label>身份 *</label><input id="pe_identity" class="inp" value="${esc(p.identity||'')}" placeholder="斯塔克工业实习工程师 / 战地记者 / 董事会顾问"></div>
+            <div class="field"><label>身份 *</label><input id="pe_identity" class="inp" value="${esc(p.identity||'')}" placeholder="斯塔克工业实习工程师 / 战地记者 / 董事会顾问"></div>
+      
+      <div class="field">
+        <label>🥷 我的身份类型 *</label>
+        <select id="pe_origin_type" class="inp" style="font-size:13px;font-weight:700">
+          <option value="普通人（没有超能力）" ${(p.originType||'')==='普通人（没有超能力）'?'selected':''}>👤 普通人（没有超能力）</option>
+          <option value="变种人 / 异能者" ${(p.originType||'')==='变种人 / 异能者'?'selected':''}>🧬 变种人 / 异能者</option>
+          <option value="魔法 / 超自然能力" ${(p.originType||'')==='魔法 / 超自然能力'?'selected':''}>🔮 魔法 / 超自然能力</option>
+          <option value="科技改造 / 有特殊装备" ${(p.originType||'')==='科技改造 / 有特殊装备'?'selected':''}>⚙️ 科技改造 / 有特殊装备</option>
+          <option value="其他特殊身份" ${(p.originType||'')==='其他特殊身份'?'selected':''}>❓ 其他特殊身份</option>
+        </select>
+      </div>
+
       <div class="field"><label>开局年龄 * / 当前年龄 *</label>
         <div class="row">
           <input id="pe_sa" class="inp" type="number" min="1" max="120" value="${esc(p.startAge||'')}" placeholder="开局">
@@ -5359,6 +5390,8 @@ function openProfileEditModal(onDone){
       <div class="agebox" id="pe_agebox"></div>
       <div class="field" style="margin-top:10px"><label>性格 *</label><textarea id="pe_person" rows="2" placeholder="冷静、嘴硬、护短">${esc(p.personality||'')}</textarea></div>
       <div class="field"><label>背景</label><textarea id="pe_bg" rows="2" placeholder="出身、与斯塔克工业／复联的关系…">${esc(p.background||'')}</textarea></div>
+      <div class="field"><label>外貌特征</label><input id="pe_appearance" class="inp" value="${esc(p.appearance||'')}" placeholder="发色、穿搭细节、常戴饰品…"></div>
+      <div class="field"><label>喜好偏好</label><input id="pe_prefs" class="inp" value="${esc(p.preferences||'')}" placeholder="饮食偏好、爱好、厌恶事物…"></div>
       <div class="field"><label>备注（给 AI 的补充设定，选填）</label><input id="pe_notes" class="inp" value="${esc(p.notes||'')}" placeholder="任何想补充给 AI 的设定"></div>
       <div class="row" style="margin-top:4px">
         <button class="btn" id="pe_save">💾 保存并热刷新人设</button>
@@ -5395,9 +5428,12 @@ function openProfileEditModal(onDone){
       ...old,
       name,
       gender:d.querySelector('#pe_gender').value,
-      identity,
+            identity,
+      originType:d.querySelector('#pe_origin_type').value,
       personality:person,
       background:d.querySelector('#pe_bg').value.trim(),
+      appearance:d.querySelector('#pe_appearance').value.trim(),
+      preferences:d.querySelector('#pe_prefs').value.trim(),
       notes:d.querySelector('#pe_notes').value.trim(),
       startAge:+sa||null,
       currentAge:+ca||null
@@ -8668,9 +8704,9 @@ apps.worldline = {
         const optsContainer = v.querySelector('#w_opts');
         if (st0) {
           const shortTitle = safeAnchor.title.length > 20 ? safeAnchor.title.slice(0, 20) + '…' : safeAnchor.title;
-          st0.innerHTML = `<div class="hint" style="line-height:1.8">
+                    st0.innerHTML = `<div class="hint" style="line-height:1.8">
             <div class="spin" style="display:inline-block;width:14px;height:14px;border-width:2px;vertical-align:middle;margin-right:6px"></div>
-            贾维斯正在推演：【${esc(shortTitle)}】第 ${currentTurnInAnchor}/${ancMax} 回合…
+            贾维斯正在推演：【${esc(shortTitle)}】第 ${currentTurnInAnchor} 回合…
           </div>`;
         }
 
@@ -8774,23 +8810,40 @@ ${userDirectRule}
             optPart = parts[1] || '';
           }
 
-          let affDelta = 0;
+                    let affDelta = 0;
           const curAff = s.affinity || 0;
-          const tailSlice = res.slice(-350);
-          const mDeltaStrict = tailSlice.match(/【\s*(?:Affinity|好感度)?\s*(?:变动)?\s*[:：]\s*([+-]?\d+)\s*】/i);
+          const tailSlice = res.slice(-450);
+
+          // 1. 强力匹配好感度变动量 (+N 或 -N)
+          // 完美匹配各种格式：
+          // 【Affinity (好感度) 变动: +3】
+          // 【好感度变动：+3】
+          // 【好感度+3】
+          const mDeltaStrict = tailSlice.match(/【\s*(?:Affinity)?\s*[（\(]?(?:好感度)?[）\)]?\s*(?:变动)?\s*[:：]?\s*([+-]?\d+)\s*】/i);
           if (mDeltaStrict) {
             affDelta = parseInt(mDeltaStrict[1]) || 0;
           }
-          affDelta = Math.max(-3, Math.min(3, affDelta));
+
+          // 2. 如果 AI 输出了（当前好感度: 74/200），且远大于当前系统好感度，说明 AI 自行推演出了累计好感度，自动同步！
+          const mTotalStrict = tailSlice.match(/[（\(]\s*(?:当前)?\s*(?:好感度)?\s*[:：]?\s*(\d{1,3})\s*\/\s*200/i);
+          if (mTotalStrict) {
+            const aiTotal = parseInt(mTotalStrict[1]);
+            if (!isNaN(aiTotal) && aiTotal > curAff) {
+              // 自动补齐差值，让顶栏即刻跳到目标分数！
+              affDelta = aiTotal - curAff;
+            }
+          }
+
+          affDelta = Math.max(-5, Math.min(80, affDelta));
           s.lastGainTurn = s.turn;
 
-          // 彻底清洗系统标签（包括【锚点完成】、【阶段完成】、【好感度变动】）
+          // 彻底清洗系统标签（包括【锚点完成】、【好感度变动】以及随后的当前好感括号）
           s.story = storyPart
             .replace(/【剧情】/g, '')
             .replace(/【\s*锚点完成.*?】/gi, '')
             .replace(/【\s*阶段完成.*?】/gi, '')
-            .replace(/【\s*(?:当前)?\s*(?:Affinity|好感度).*?】/gi, '')
-            .replace(/[（\(]\s*(?:当前)?\s*(?:Affinity|好感度).*?[）\)]/gi, '')
+            .replace(/【\s*(?:Affinity)?\s*[（\(]?(?:好感度)?[）\)]?\s*(?:变动)?\s*[:：]?\s*[+-]?\d+\s*】/gi, '')
+            .replace(/[（\(]\s*(?:当前)?\s*(?:好感度)?\s*[:：]?\s*\d{1,3}\s*\/\s*200[^）\)]*[）\)]/gi, '')
             .trim();
 
           s.options = optPart.replace(/【\s*锚点完成.*?】/gi, '').replace(/【\s*阶段完成.*?】/gi, '').trim();
@@ -8883,22 +8936,21 @@ ${userDirectRule}
     }, 'E-WL-002');
 
     // F2 顶端锚点条（展示当前锚点回合 + 下一拍预告）
-    fill('wl_f2', () => {
+        fill('wl_f2', () => {
       if (!curAnchor) return '';
       const curT = Math.max(1, curAnchor.curTurns || 1);
-      const maxT = Math.min(MAX_BEAT_TURNS, Math.max(MIN_BEAT_TURNS, curAnchor.maxTurns || 4));
       const nextAnc = getNextPendingAnchor(curAnchor);
       const rawPhase = String(curAnchor.phaseTitle || '');
       const rawTitle = String(curAnchor.title || '');
       const rawDesc = String(curAnchor.desc || '');
       const isLong = (rawPhase.length + rawTitle.length + rawDesc.length) > 65;
-      const isReady = (curT >= maxT) || (curT >= MIN_BEAT_TURNS && s._anchorReadyToComplete);
+      const isReady = (curT >= 5) || (curT >= MIN_BEAT_TURNS && s._anchorReadyToComplete);
 
       return `
         <div class="card" style="padding:10px 12px;margin-bottom:8px;border-left:3px solid ${isReady ? 'var(--green)' : 'var(--gold)'};background:var(--panel2)">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
             <span class="eyebrow" style="color:var(--gold);font-size:10px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(rawPhase)}">${esc(rawPhase)}</span>
-            <span class="tag ${isReady ? 'green' : 'gold'}" style="margin:0;flex-shrink:0">${curT}/${maxT} 回合${isReady ? ' · 选后入下一拍' : ''}</span>
+            <span class="tag ${isReady ? 'green' : 'gold'}" style="margin:0;flex-shrink:0">第 ${curT} 回合${isReady ? ' · 选后入下一拍' : ''}</span>
             <span class="chip mini" id="wl_open_anc_mgr" style="cursor:pointer;margin:0;color:var(--cyan);flex-shrink:0">⚙ 锚点管理</span>
           </div>
           <div id="wl_anchor_desc_box" style="margin-top:4px;${isLong ? 'display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer;' : ''}" title="点击展开/收起完整阶段概括">
