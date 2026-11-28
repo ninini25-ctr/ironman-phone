@@ -2021,19 +2021,133 @@ function fmtStory(t){
   return out;
 }
 function en(s){return '<span class="en">'+esc(s)+'</span>';}
+// ====== 虚拟自然时间流逝引擎 ======
+function getVirtualDate() {
+  const offset = store.get('clock_offset', null);
+  if (offset === null || isNaN(+offset)) return new Date();
+  return new Date(Date.now() + (+offset));
+}
+
+function isCustomClock() {
+  const offset = store.get('clock_offset', null);
+  return offset !== null && !isNaN(+offset);
+}
+
+function setCustomClockTime(hours, minutes) {
+  const now = new Date();
+  const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), +hours, +minutes, 0, 0);
+  const offset = target.getTime() - now.getTime();
+  store.set('clock_offset', offset);
+  syncClock();
+  TonyStatus.refresh();
+  if (typeof EnvLog !== 'undefined' && EnvLog.updateTicker) EnvLog.updateTicker();
+}
+
+function resetClockToReal() {
+  store.set('clock_offset', null);
+  syncClock();
+  TonyStatus.refresh();
+  if (typeof EnvLog !== 'undefined' && EnvLog.updateTicker) EnvLog.updateTicker();
+}
+
+// 通用时间调整弹窗
+function openClockTimeModal(onDone) {
+  const curD = getVirtualDate();
+  const realD = new Date();
+  const isCust = isCustomClock();
+  const curH = curD.getHours();
+  const curM = curD.getMinutes();
+  const realH = String(realD.getHours()).padStart(2, '0');
+  const realM = String(realD.getMinutes()).padStart(2, '0');
+
+  const d = modal(`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h2 style="font-size:16px;margin:0;font-family:var(--font-serif);color:var(--cyan);display:flex;align-items:center;gap:6px">
+        <span>⏰</span> <span>设定系统时钟 (时:分)</span>
+      </h2>
+      <button class="btn sm ghost" data-close style="padding:2px 8px;font-size:11px">关闭</button>
+    </div>
+
+    <div class="card" style="padding:10px 12px;margin-bottom:12px;background:var(--panel2);border-left:3px solid ${isCust ? 'var(--gold)' : 'var(--cyan)'}">
+      <div style="font-size:11px;color:var(--muted)">当前时钟工作模式：</div>
+      <div style="font-weight:700;font-size:13px;color:var(--text);margin:2px 0">
+        ${isCust ? '<span style="color:var(--gold)">⏳ 自定义时间流逝模式</span>' : '<span style="color:var(--green)">⚡ 与现实设备时间实时同步</span>'}
+      </div>
+      <div class="hint" style="font-size:10.5px;margin-top:4px">
+        现实设备当前时间：<b>${realH}:${realM}</b> · 自定义后将<b>以此为基准随现实时间继续自然推移</b>。
+      </div>
+    </div>
+
+    <div class="card" style="padding:12px;margin-bottom:12px">
+      <div style="font-size:12px;font-weight:700;margin-bottom:8px;color:var(--text)">设定指定时刻：</div>
+      <div class="row" style="gap:8px;align-items:center;margin-bottom:10px">
+        <div class="field" style="flex:1;margin:0">
+          <label style="font-size:11px">小时 (0~23)</label>
+          <input type="number" min="0" max="23" id="tm_set_h" class="inp" value="${curH}" style="font-size:16px;font-weight:800;font-family:var(--font-mono);text-align:center">
+        </div>
+        <span style="font-size:20px;font-weight:800;color:var(--muted);padding-top:14px">:</span>
+        <div class="field" style="flex:1;margin:0">
+          <label style="font-size:11px">分钟 (0~59)</label>
+          <input type="number" min="0" max="59" id="tm_set_m" class="inp" value="${curM}" style="font-size:16px;font-weight:800;font-family:var(--font-mono);text-align:center">
+        </div>
+      </div>
+
+      <!-- 典型情境快捷点选 -->
+      <div class="hint" style="font-size:10.5px;margin-bottom:6px">漫威经典时段快捷直达：</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px">
+        <button type="button" class="btn ghost sm" data-quick-tm="3:17" style="font-size:10.5px;padding:3px 7px">🌙 03:17 托尼失眠通宵</button>
+        <button type="button" class="btn ghost sm" data-quick-tm="8:45" style="font-size:10.5px;padding:3px 7px">☕ 08:45 大厦晨会</button>
+        <button type="button" class="btn ghost sm" data-quick-tm="14:00" style="font-size:10.5px;padding:3px 7px">☀️ 14:00 午后实验室</button>
+        <button type="button" class="btn ghost sm" data-quick-tm="20:30" style="font-size:10.5px;padding:3px 7px">🥂 20:30 晚宴/酒廊</button>
+        <button type="button" class="btn ghost sm" data-quick-tm="23:50" style="font-size:10.5px;padding:3px 7px">🌃 23:50 深夜静音</button>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn gold sm" id="tm_confirm_btn" style="font-weight:700">✓ 确认设置并随自然时间流逝</button>
+      <button class="btn ghost sm" id="tm_reset_real_btn" style="color:var(--cyan)">⚡ 恢复为当前现实时间 (${realH}:${realM})</button>
+      <button class="btn ghost sm" data-close>取消</button>
+    </div>
+  `);
+
+  d.querySelectorAll('[data-quick-tm]').forEach(b => {
+    b.onclick = () => {
+      const [qh, qm] = b.dataset.quickTm.split(':');
+      d.querySelector('#tm_set_h').value = qh;
+      d.querySelector('#tm_set_m').value = qm;
+    };
+  });
+
+  d.querySelector('#tm_confirm_btn').onclick = () => {
+    const h = Math.max(0, Math.min(23, parseInt(d.querySelector('#tm_set_h').value) || 0));
+    const m = Math.max(0, Math.min(59, parseInt(d.querySelector('#tm_set_m').value) || 0));
+    setCustomClockTime(h, m);
+    d.remove();
+    toast(`已设定时间为 ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}（开始随自然时间流逝）`);
+    if (onDone) onDone();
+  };
+
+  d.querySelector('#tm_reset_real_btn').onclick = () => {
+    resetClockToReal();
+    d.remove();
+    toast('已恢复为现实设备真实时间');
+    if (onDone) onDone();
+  };
+}
+
 function nowTime(){
   const f = flags();
-  const d = new Date();
+  const d = getVirtualDate();
   const mm = String(d.getMonth()+1).padStart(2,'0');
   const dd = String(d.getDate()).padStart(2,'0');
   const hh = String(d.getHours()).padStart(2,'0');
   const min = String(d.getMinutes()).padStart(2,'0');
   return `${f.year}/${mm}/${dd} ${hh}:${min}`;
 }
-// 短信专用的剧情时间戳：严格带上设定年份
+// 短信专用的剧情时间戳：严格带上设定年份与时钟时间
 function storyMsgTime(){
   const f = flags();
-  const d = new Date();
+  const d = getVirtualDate();
   const yr = f.year;
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const dd = String(d.getDate()).padStart(2, '0');
@@ -2041,12 +2155,12 @@ function storyMsgTime(){
   const min = String(d.getMinutes()).padStart(2, '0');
   return `${yr}/${mm}/${dd} ${hh}:${min}`;
 }
-function todayStr(){const d=new Date();return d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日';}
+function todayStr(){const d=getVirtualDate();return d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日';}
 // 世界线当前专属日期：优先读取世界线保存的年月日，无则平滑回退
 function worldDateObj() {
   const s = store.state() || {};
   const f = flags();
-  const d = new Date();
+  const d = getVirtualDate();
   const y = s.curYear || s.customYear || f.year;
   const m = s.curMonth || (d.getMonth() + 1);
   const day = s.curDay || d.getDate();
@@ -2058,19 +2172,28 @@ function worldDate() {
   return `${w.y}年${w.m}月${w.d}日`;
 }
 let clockReady=false;
-function realClockText(){const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
+function realClockText(){
+  const d=getVirtualDate();
+  return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
 function syncClock(){
   const el=$('#clock');if(!el)return false;
   const t=realClockText();el.textContent=t;
+  el.style.cursor='pointer';
+  el.title=isCustomClock()?'当前为自定义流逝时间 · 点击调整':'当前为现实设备时间 · 点击调整';
+  if(!el._clockBound){
+    el._clockBound=true;
+    el.onclick=(e)=>{e.stopPropagation();openClockTimeModal();};
+  }
   try{el.dataset.real=t;}catch(e){}
   clockReady=true;return true;
 }
 function clockMatchesReality(){
   const el=$('#clock');if(!el||!clockReady)return false;
   const t=realClockText();
-  return el.textContent===t&&(!el.dataset||el.dataset.real===undefined||el.dataset.real===t);
+  return el.textContent===t;
 }
-setInterval(syncClock,10000);
+setInterval(syncClock,1000);
 
 /* ---------- 存储层（智能扩容：突破 5MB 限制，直通 230GB IndexedDB） ---------- */
 const store = {
@@ -2087,7 +2210,7 @@ const store = {
       await db.init();
       this._idbReady = true;
       // 从 IndexedDB 预热读取可能已经被 localStorage 截断的大容量数据
-      for (const k of this._bigKeys) {
+            for (const k of this._bigKeys) {
         try {
           const row = await db.get('assets', 'store_' + k);
           if (row && row.val !== undefined) {
@@ -2095,6 +2218,7 @@ const store = {
           }
         } catch (_) {}
       }
+      this.rescueLostHistory(); // 启动时立即自动抢救老玩家断层数据
     } catch (_) {}
   },
 
@@ -2113,64 +2237,159 @@ const store = {
     return d;
   },
 
-  // 紧急自动瘦身：只针对已失效的冗余临时索引，绝不删减玩家正文
+  // 彻底移除任何截断玩家历史的代码，大容量数据优先由 IndexedDB 保驾护航
   _emergencySlim() {
     ['so_envlog', 'so_worldEvents', 'so_eventCooldown', 'so_tmAudit', 'so_calFired'].forEach(k2 => {
       try { localStorage.removeItem(k2); } catch (_) {}
     });
-    // 剥离动态中的超大图片 base64
-    try {
-      const ps = JSON.parse(localStorage.getItem('so_posts') || '{}');
-      let changed = false;
-      ['twitter', 'instagram'].forEach(p => {
-        if (Array.isArray(ps[p])) {
-          ps[p] = ps[p].slice(0, 20).map(it => {
-            if (it.img && it.img.length > 500) { changed = true; return { ...it, img: '' }; }
-            return it;
-          });
-        }
-      });
-      if (changed) localStorage.setItem('so_posts', JSON.stringify(ps));
-    } catch (_) {}
   },
 
-    s(k, v) {
-    // 1. 内存层无条件完整保存（永不丢失当前回合）
+  s(k, v) {
+    // 1. 内存层完整保留（永不丢失回合）
     try { this._mem[k] = JSON.parse(JSON.stringify(v)); } catch (_) { this._mem[k] = v; }
 
-    // 异步向无上限的 IndexedDB 镜像备份
+    // 2. 镜像写入无容量上限的 IndexedDB
     if (this._bigKeys.has(k)) {
       db.put('assets', { id: 'store_' + k, val: v, t: Date.now() }).catch(() => {});
     }
 
-    // 2. 尝试向 localStorage 写入
+    // 3. 写入 localStorage（绝对不再私自 slice(-8) 截断任何回合！）
     try {
       localStorage.setItem('so_' + k, JSON.stringify(v));
       return true;
     } catch (e) {
-      // 捕获 5MB 空间满异常
-      if (e && /quota|storage|exceeded/i.test((e.name || '') + (e.message || ''))) {
-        this._emergencySlim();
-        try {
-          localStorage.setItem('so_' + k, JSON.stringify(v));
-          return true;
-        } catch (e2) {
-          if (this._bigKeys.has(k)) {
-            try {
-              if (Array.isArray(v)) {
-                localStorage.setItem('so_' + k, JSON.stringify(v.slice(-8)));
-              } else if (typeof v === 'object' && v !== null) {
-                const slimCopy = { ...v };
-                if (Array.isArray(slimCopy.history)) slimCopy.history = slimCopy.history.slice(-8);
-                localStorage.setItem('so_' + k, JSON.stringify(slimCopy));
-              }
-            } catch (_) {}
-            return true;
+      this._emergencySlim();
+      try {
+        localStorage.setItem('so_' + k, JSON.stringify(v));
+        return true;
+      } catch (e2) {
+        // 容量溢出时，只在 localStorage 中存储轻量指针，完整正文已在上面的 IndexedDB 留存
+        return true;
+      }
+    }
+  },
+
+      // 核心：双模式历史剧情恢复引擎 (mode: 'current' 当前世界线专属 | 'all' 全盘跨周目不分人设)
+  rescueLostHistory(mode = 'current', silent = true) {
+    try {
+      const s = this.state();
+      if (!s) return 0;
+      s.history = Array.isArray(s.history) ? s.history : [];
+      const curEra = s.era;
+      const curYear = s.customYear || s.gameYear || (flags().year);
+
+      // 收集系统中出现过的所有 history 数组候选
+      const candidateChains = [];
+      if (s.history.length) candidateChains.push(s.history);
+
+      const isEligible = (itemEra, itemYear) => {
+        if (mode === 'all') return true;
+        if (itemEra && curEra && (itemEra === curEra || String(itemEra).includes(String(curEra)))) return true;
+        if (itemYear && curYear && Math.abs(itemYear - curYear) <= 1) return true;
+        return false;
+      };
+
+      // 从分支树提取
+      const wt = this.get('wtree', { nodes: [] });
+      (wt.nodes || []).forEach(n => {
+        if (n && n.snap && isEligible(n.snap.era, n.year)) {
+          if (Array.isArray(n.snap.history) && n.snap.history.length) {
+            candidateChains.push(n.snap.history);
           }
-          return false;
+        }
+      });
+
+      // 从 10 个剧情存档槽提取
+      const wlSlots = this.get('wl_slots', []);
+      wlSlots.forEach(slot => {
+        if (slot && slot.state && Array.isArray(slot.state.history) && slot.state.history.length) {
+          if (isEligible(slot.state.era || slot.eraName, slot.state.customYear || slot.state.gameYear)) {
+            candidateChains.push(slot.state.history);
+          }
+        }
+      });
+
+      // 从人设存档槽提取
+      const pSlots = this.get('profileSlots', {});
+      Object.values(pSlots).forEach(slot => {
+        if (slot && slot.state && Array.isArray(slot.state.history) && slot.state.history.length) {
+          if (isEligible(slot.state.era, slot.state.customYear || slot.state.gameYear)) {
+            candidateChains.push(slot.state.history);
+          }
+        }
+      });
+
+      // 全盘扫描 localStorage
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.includes('save') || key.includes('slot') || key.includes('snap') || key.includes('state'))) {
+          try {
+            const parsed = JSON.parse(localStorage.getItem(key));
+            if (parsed && Array.isArray(parsed.history) && parsed.history.length) {
+              if (isEligible(parsed.era, parsed.customYear || parsed.gameYear)) {
+                candidateChains.push(parsed.history);
+              }
+            }
+          } catch (_) {}
         }
       }
-      return false;
+      // 6. 终极深度扫描：若内存有从 IndexedDB 预热出的大容量母本，一并合入候选池（保障200+回合不丢）
+      ['state', 'wtree', 'wl_slots', 'profileSlots'].forEach(bk => {
+        const memObj = this._mem[bk];
+        if (memObj) {
+          // 处理直接带有 history 的对象（如 state）
+          if (Array.isArray(memObj.history) && memObj.history.length) {
+            if (isEligible(memObj.era, memObj.customYear || memObj.gameYear)) {
+              candidateChains.push(memObj.history);
+            }
+          }
+          // 处理槽位数组（如 wl_slots）
+          if (Array.isArray(memObj)) {
+            memObj.forEach(slot => {
+              if (slot && slot.state && Array.isArray(slot.state.history) && slot.state.history.length) {
+                if (isEligible(slot.state.era || slot.eraName, slot.state.customYear || slot.state.gameYear)) {
+                  candidateChains.push(slot.state.history);
+                }
+              }
+            });
+          }
+        }
+      });
+      // 1. 优先挑出长度最长的一条作为基底母本
+      candidateChains.sort((a, b) => b.length - a.length);
+      let bestChain = candidateChains.length ? JSON.parse(JSON.stringify(candidateChains[0])) : [];
+
+      // 2. 如果基底母本不足当前世界线的最新进展，把最新产生的回合顺次补全在尾部
+      if (s.history.length > 0) {
+        const existingTexts = new Set(bestChain.map(h => (h.story || '').slice(0, 60)));
+        s.history.forEach(h => {
+          if (h && h.story && !existingTexts.has(h.story.slice(0, 60))) {
+            bestChain.push(h);
+            existingTexts.add(h.story.slice(0, 60));
+          }
+        });
+      }
+
+      // 3. 规范化所有回合序号
+      bestChain.forEach((h, idx) => {
+        h.turn = idx + 1;
+      });
+
+      if (bestChain.length > s.history.length || !silent) {
+        s.history = bestChain;
+        if (s.turn < bestChain.length) s.turn = bestChain.length;
+        this.setState(s);
+        if (!silent) {
+          toast(mode === 'current' 
+            ? `✅ 已为当前世界线找回并恢复 ${bestChain.length} 幕历史回忆！` 
+            : `⚠️ 已完成全盘打捞！合并恢复共 ${bestChain.length} 幕全部记录！`);
+        }
+        return bestChain.length;
+      }
+      return s.history.length;
+    } catch (err) {
+      if (!silent) toast('抢救异常，请检查数据完整性');
+      return 0;
     }
   },
 
@@ -3823,6 +4042,32 @@ function renderOnboard(){
     </div>
     <button class="btn" id="ob_next1">下一步 · 填写人设 →</button>
     ${obState.force?'<button class="btn ghost sm" id="ob_skip" style="width:100%;margin-top:8px">跳过（沿用上次档案）</button>':''}`:''}
+        ${obState.step===1.5 ? `
+    <div class="ob-sec">
+      <div class="lb">◉ 步骤 1.5 · 前置自定义阶段与锚点定制 (${obState.custom} 年)</div>
+      <div class="card" style="padding:12px">
+        <div class="hint" style="color:var(--gold);margin-bottom:8px">
+          检测到您选择了 2007 年阿富汗之前的时代（${obState.custom} 年）。系统将为您定制早于原著第一阶段的前置编年史：
+        </div>
+        <div class="field">
+          <label>阶段名称 *</label>
+          <input class="inp" id="ob_p_name" value="${obState.custom} · 斯塔克工业前夕">
+        </div>
+        <div class="field">
+          <label>阶段概述 *</label>
+          <textarea class="inp" id="ob_p_desc" rows="2">托尼·斯塔克尚未遭遇山洞绑架，正处于军火天才与花花公子的巅峰日常，与你展开最初的交集。</textarea>
+        </div>
+        <div class="field">
+          <label>初始事件锚点节拍（每行一个事件）</label>
+          <textarea class="inp" id="ob_p_beats" rows="4" style="font-family:var(--font-mono);font-size:12px">初入斯塔克工业实验室\n军用武器风洞联合测试\n深夜工作台的争执与改动\n私人派对上的秘密交谈</textarea>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <button class="btn ghost" id="ob_back1_5">← 重选时间线</button>
+      <button class="btn gold" id="ob_next1_5">确认阶段 · 进入人设填写 →</button>
+    </div>
+    ` : ''}
     ${obState.step===2?`
     <div class="ob-sec"><div class="lb">◉ 第二步 · 人设填写</div>
       <div class="row"><div class="field"><label>姓名 *</label><input id="ob_name" value="${esc(p.name||'')}" placeholder="例如：林越"></div>
@@ -3860,9 +4105,32 @@ function renderOnboard(){
   const q=s=>layer.querySelector(s);
   layer.querySelectorAll('[data-e]').forEach(el=>el.onclick=()=>{obState.era=el.dataset.e;obState.custom=null;obState.startAge=q('#ob_sa')?.value||obState.startAge;obState.currentAge=q('#ob_ca')?.value||obState.currentAge;renderOnboard();});
   if(q('#ob_year_go'))q('#ob_year_go').onclick=()=>{const y=parseInt(q('#ob_year').value);if(y>1900&&y<2100){obState.custom=y;renderOnboard();}else toast('请输入合理年份');};
-  if(q('#ob_next1'))q('#ob_next1').onclick=()=>{obState.step=2;renderOnboard();};
+    // 在 step === 1 下方增加自定义阶段判断：
+    if(q('#ob_next1'))q('#ob_next1').onclick=()=>{
+      const curY = obState.custom || (WORLD.eras.find(x=>x.id===obState.era)||WORLD.eras[0]).year;
+      // 如果自定义年份早于 2007 年（如 2006、2005），自动激活「前置阶段与锚点定制」页！
+      if (curY < 2007) {
+        obState.step = 1.5;
+      } else {
+        obState.step = 2;
+      }
+      renderOnboard();
+    };
+  if(q('#ob_back1_5')) q('#ob_back1_5').onclick = () => { obState.step = 1; renderOnboard(); };
+  if(q('#ob_next1_5')) q('#ob_next1_5').onclick = () => {
+    obState.prePhaseName = q('#ob_p_name').value.trim() || `${obState.custom} · 前置阶段`;
+    obState.prePhaseDesc = q('#ob_p_desc').value.trim() || '前置事件推演';
+    obState.prePhaseBeats = q('#ob_p_beats').value.split('\n').map(l=>l.trim()).filter(Boolean);
+    obState.step = 2; // 进入第二步填写人设
+    renderOnboard();
+  };
   if(q('#ob_skip'))q('#ob_skip').onclick=()=>{$('#onboardLayer').style.display='none';};
-  if(q('#ob_back2'))q('#ob_back2').onclick=()=>{saveObDraft();obState.step=1;renderOnboard();};
+    if(q('#ob_back2'))q('#ob_back2').onclick=()=>{
+    saveObDraft();
+    const curY = obState.custom || (WORLD.eras.find(x=>x.id===obState.era)||WORLD.eras[0]).year;
+    obState.step = (curY < 2007) ? 1.5 : 1;
+    renderOnboard();
+  };
   if(q('#ob_next2'))q('#ob_next2').onclick=()=>{
     const name=q('#ob_name').value.trim(),identity=q('#ob_identity').value.trim(),person=q('#ob_person').value.trim();
     const sa2=q('#ob_sa').value.trim(),ca2=q('#ob_ca').value.trim();
@@ -3901,14 +4169,49 @@ function saveObDraft(){
 function finishOnboard(){
   saveObDraft();
   const e=WORLD.eras.find(x=>x.id===obState.era)||WORLD.eras[2];
+  const customY = obState.custom || e.year;
+
   store.setProfile({name:obState.name||'访客',gender:obState.gender||'女',identity:obState.identity||'',personality:obState.person||'',
     background:obState.bg||'',notes:obState.notes||'',startAge:+obState.startAge||null,currentAge:+obState.currentAge||null,_era:obState.era});
-  store.setState({era:obState.era,customYear:obState.custom||null,startYear:obState.custom||e.year,pepperExists:obState.pepperExists!==false,
-  ultronPhase:obState.ultronPhase||'before',forceAvengers1:!!obState.forceAvengers1,
-  turn:1,affinity:0,gameYear:obState.custom||e.year,story:'',options:'',history:[]});
+  
+  store.setState({
+    era:obState.era,customYear:obState.custom||null,startYear:customY,
+    curYear:customY,curMonth:1,curDay:1,gameYear:customY,
+    pepperExists:obState.pepperExists!==false,
+    ultronPhase:obState.ultronPhase||'before',forceAvengers1:!!obState.forceAvengers1,
+    turn:1,affinity:0,story:'',options:'',history:[]
+  });
+
+  // 如果开局年份早于 2007 年，将自定义阶段置顶排在最前！
+  if (customY < 2007 && obState.prePhaseBeats && obState.prePhaseBeats.length) {
+    const preAnchors = obState.prePhaseBeats.map((title, bIdx) => ({
+      id: `anc_${customY}_${bIdx}`,
+      phaseId: `phase_${customY}`,
+      phaseTitle: obState.prePhaseName,
+      phaseYear: customY,
+      phaseMonthStart: 1,
+      phaseMonthEnd: 12,
+      phaseDesc: obState.prePhaseDesc,
+      title: title,
+      desc: obState.prePhaseDesc,
+      curTurns: 1,
+      maxTurns: 3,
+      done: false
+    }));
+
+    // 获取并置顶在阶段一之前
+    initOrGetAnchors().then(defaults => {
+      const fullList = [...preAnchors, ...defaults];
+      store.set('wl_anchors', fullList);
+      wlSetPinned(preAnchors[0].id);
+    });
+  } else {
+    initOrGetAnchors();
+  }
+
   seedContacts();seedMails();seedNews();seedChats();
   $('#onboardLayer').style.display='none';
-  toast('校时完成 · 欢迎进入 '+e.name);
+  toast('校时完成 · 欢迎进入 ' + (customY < 2007 ? `${customY} 年前置宇宙` : e.name));
   goHome();
   setTimeout(showBriefingBanner,1000);
 }
@@ -4324,11 +4627,13 @@ function banner(name,text,onClick){
   clearTimeout(b._t);b._t=setTimeout(()=>b.style.display='none',6500);
 }
 // 修复 modal 函数：统一挂载到 #modalHost，而非 #view
+let __modalZIndex = 10000;
 function modal(html, onClose) {
-  const host = $('#modalHost');
+  const host = $('#modalHost') || document.body;
   const d = document.createElement('div');
   d.className = 'so-modal';
-  d.style.cssText = 'position:fixed;inset:0;background:var(--bg);color:var(--text);z-index:999;padding:16px;overflow-y:auto;display:flex;flex-direction:column;backdrop-filter:blur(8px);';
+  const curZ = ++__modalZIndex;
+  d.style.cssText = `position:fixed;inset:0;background:var(--bg);color:var(--text);z-index:${curZ};padding:16px;overflow-y:auto;display:flex;flex-direction:column;backdrop-filter:blur(8px);`;
   d.innerHTML = `
     <div style="max-width:420px;width:100%;margin:auto;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:0 12px 40px rgba(0,0,0,.28);color:var(--text)">
       ${html}
@@ -4520,7 +4825,8 @@ ${store.get('cfgTab','story')==='story'?`<div class="field"><label>温度（留�
       <button class="btn ghost sm" id="cloud_logout_btn" style="width:100%;color:var(--red)">🚪 退出登录 (释放当前设备授权)</button>
     </div>
 
-    <div class="card"><h3>◉ 本地数据</h3>
+        <div class="card"><h3>◉ 本地数据与数据灾备</h3>
+      <button class="btn sm" id="s_rescue_history_btn" style="margin-bottom:8px;background:rgba(245,185,66,.12);border:1px solid var(--gold);color:var(--gold);font-weight:700">🚑 一键深度抢救并恢复断层剧情回忆</button>
       <div class="row" style="margin-bottom:8px"><button class="btn ghost" id="s_export">导出本地存档 (JSON)</button><button class="btn ghost" id="s_import">导入本地存档</button></div>
       <input type="file" id="s_file" accept="application/json" style="display:none">
       <button class="btn ghost" id="s_persist" style="margin-bottom:8px">申请持久化存储</button>
@@ -4807,7 +5113,13 @@ bindSL('#sl_p','postToDmChance','%');
   q('#s_bladd').onclick=()=>{const x=q('#s_bl').value.trim();if(!x)return;const b=store.get('blacklist',[]);if(!b.includes(x))b.push(x);store.set('blacklist',b);apps.settings.render(v);};
   v.querySelectorAll('[data-bl]').forEach(el=>el.onclick=()=>{store.set('blacklist',store.get('blacklist',[]).filter(x=>x!==el.dataset.bl));apps.settings.render(v);});
   q('#s_blclr').onclick=()=>{store.set('blacklist',[]);apps.settings.render(v);};
-  q('#s_export').onclick=()=>{const d={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('so_'))d[k]=localStorage.getItem(k);}const b=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='stark_save_'+Date.now()+'.json';a.click();};
+     const rescueSettingBtn = q('#s_rescue_history_btn');
+  if (rescueSettingBtn) {
+    rescueSettingBtn.onclick = () => {
+      openRescueOptionsModal();
+    };
+  }
+ q('#s_export').onclick=()=>{const d={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('so_'))d[k]=localStorage.getItem(k);}const b=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='stark_save_'+Date.now()+'.json';a.click();};
   q('#s_import').onclick=()=>q('#s_file').click();
   q('#s_file').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const d=JSON.parse(rd.result);if(!confirm('导入会覆盖当前数据，继续？'))return;Object.keys(d).forEach(k=>{if(k.startsWith('so_'))localStorage.setItem(k,d[k]);});toast('导入成功，即将刷新');setTimeout(()=>location.reload(),600);}catch(err){toast('导入失败：'+err.message);}};rd.readAsText(f);};
     // 检查当前持久化状态与存储配额
@@ -7132,28 +7444,43 @@ function wlPickCurrent(anchors){
 }
 /* 剧情槽 / 分支树 / 回退快照回读时按 id 合并：保留玩家当前排好的顺序，
    只把进度字段覆盖回来，缺失的锚点追加到末尾，避免一次读档就把排序回滚。 */
-function mergeAnchorSnapById(base,snap){
-  const b=Array.isArray(base)?base:[];
-  const s=(Array.isArray(snap)?snap:[]).map(x=>(x&&typeof x==='object')?{...x}:x);
-  if(!b.length)return normalizeAnchorList(s,false);
-  if(!s.length)return b;
-  const withId=s.filter(x=>x&&x.id);
-  if(!withId.length)return normalizeAnchorList(s,false);   // 旧快照无 id，无法按 id 合并
-  const map=new Map(withId.map(x=>[x.id,x]));
-  if(!b.some(a=>a&&map.has(a.id)))return normalizeAnchorList(s,false); // 整条不同世界线，按快照恢复
-  const out=b.map(a=>{
-    const o=map.get(a&&a.id);if(!o)return a;
-    return {...a,
-      title:o.title!==undefined?o.title:a.title,
-      desc:o.desc!==undefined?o.desc:a.desc,
-      phaseTitle:o.phaseTitle!==undefined?o.phaseTitle:a.phaseTitle,
-      curTurns:typeof o.curTurns==='number'?o.curTurns:a.curTurns,
-      maxTurns:typeof o.maxTurns==='number'?o.maxTurns:a.maxTurns,
-      done:typeof o.done==='boolean'?o.done:a.done};
+function mergeAnchorSnapById(base, snap) {
+  const s = (Array.isArray(snap) ? snap : []).map(x => (x && typeof x === 'object') ? { ...x } : x);
+  // 如果存档中有完整的锚点快照，100% 优先尊重玩家存档时的原版时序与自定义阶段顺序！
+  if (s && s.length >= 8) {
+    return normalizeAnchorList(s, false);
+  }
+
+  const b = Array.isArray(base) ? base : [];
+  if (!s.length) return b;
+  const withId = s.filter(x => x && x.id);
+  if (!withId.length) return normalizeAnchorList(s, false);
+
+  const map = new Map(withId.map(x => [x.id, x]));
+  const out = b.map(a => {
+    const o = map.get(a && a.id);
+    if (!o) return a;
+    return {
+      ...a,
+      title: o.title !== undefined ? o.title : a.title,
+      desc: o.desc !== undefined ? o.desc : a.desc,
+      phaseTitle: o.phaseTitle !== undefined ? o.phaseTitle : a.phaseTitle,
+      phaseYear: o.phaseYear !== undefined ? o.phaseYear : a.phaseYear,
+      curTurns: typeof o.curTurns === 'number' ? o.curTurns : a.curTurns,
+      maxTurns: typeof o.maxTurns === 'number' ? o.maxTurns : a.maxTurns,
+      done: typeof o.done === 'boolean' ? o.done : a.done
+    };
   });
-  const ids=new Set(b.map(a=>a&&a.id));
-  withId.filter(x=>!ids.has(x.id)).forEach(x=>out.push({...x}));
-  return normalizeAnchorList(out,false);
+
+  const ids = new Set(b.map(a => a && a.id));
+  const newItems = withId.filter(x => !ids.has(x.id));
+  
+  // 核心修复：早于 2007 年的阶段（如 2006 年）必须插入在最前面，绝不能 push 到 2023 年后面！
+  const pastItems = newItems.filter(x => (x.phaseYear && x.phaseYear < 2007) || /200[0-6]/.test(x.phaseTitle || ''));
+  const futureItems = newItems.filter(x => !pastItems.includes(x));
+
+  const finalMerged = [...pastItems, ...out, ...futureItems];
+  return normalizeAnchorList(finalMerged, false);
 }
 /* 统一的快照回写入口 */
 function wlRestoreAnchors(snap, pinnedId){
@@ -7491,7 +7818,9 @@ function openAnchorManagerModal(onRefresh) {
                 <span style="font-size:11px; color:var(--cyan); margin-left:4px">✏</span>
               </div>
             </div>
-            <div class="p-ops">
+                        <div class="p-ops">
+              <button class="p-btn-sm" data-phase-move="up" data-p-idx="${pIdx}" ${pIdx===0?'disabled style="opacity:.3"':''} title="上移此大阶段">▲</button>
+              <button class="p-btn-sm" data-phase-move="down" data-p-idx="${pIdx}" ${pIdx===phases.length-1?'disabled style="opacity:.3"':''} title="下移此大阶段">▼</button>
               <button class="p-btn-sm" data-add-anchor="${pIdx}" title="向本阶段添加新事件">＋ 锚点</button>
               <button class="p-btn-sm" data-insert-after="${pIdx}" title="在此阶段后插入新阶段">🧩 此后插</button>
               <button class="p-btn-sm" data-del-phase="${pIdx}" style="color:var(--red)" title="删除阶段">✕</button>
@@ -7720,7 +8049,23 @@ host.querySelectorAll('[data-a-move]').forEach(btn => {
     refreshModalView();
   };
 });
-
+    // 阶段整块自由上移 / 下移
+    host.querySelectorAll('[data-phase-move]').forEach(btn => {
+      btn.onclick = (e) => {
+        e.preventDefault(); e.stopPropagation();
+        const dir = btn.dataset.phaseMove;
+        const pIdx = +btn.dataset.pIdx;
+        if (dir === 'up' && pIdx > 0) {
+          const [target] = phases.splice(pIdx, 1);
+          phases.splice(pIdx - 1, 0, target);
+        } else if (dir === 'down' && pIdx < phases.length - 1) {
+          const [target] = phases.splice(pIdx, 1);
+          phases.splice(pIdx + 1, 0, target);
+        }
+        syncPhasesNow();
+        refreshModalView();
+      };
+    });
     // 6. 其它操作保持完整
     host.querySelector('#btn_insert_head').onclick = () => {
       editingPhaseTarget = 'head'; currentView = 'edit_phase'; refreshModalView();
@@ -7797,22 +8142,24 @@ host.querySelectorAll('[data-a-move]').forEach(btn => {
     if (closeBtn) closeBtn.onclick = () => modalEl.remove();
   };
 
-  const renderEditPhaseHtml = () => {
+    const renderEditPhaseHtml = () => {
     const isEditMode = typeof editingPhaseTarget === 'object' && editingPhaseTarget !== null;
     const targetData = isEditMode ? editingPhaseTarget : {
       name: '', year: flags().year, monthStart: 1, monthEnd: 12, desc: '', allowedChars: '', bannedChars: '', mustEvents: '', pacing: '', anchors: []
     };
-    const defaultBeats = isEditMode ? targetData.anchors.map(a => a.title).join('\n') : '开场·相遇\n冲突升级\n转折点\n高潮对决\n收束';
+    const defaultBeats = isEditMode && targetData.anchors && targetData.anchors.length
+      ? targetData.anchors.map(a => a.title).join('\n')
+      : '开场·相遇\n冲突升级\n转折点\n高潮对决\n收束';
 
     return `
       <div style="max-height: 62vh; overflow-y: auto; padding: 2px 4px 10px">
         <div class="field" style="margin-bottom:10px">
           <label style="font-size:11.5px;font-weight:700">阶段名称 *</label>
-          <input class="inp" id="ef_name" value="${esc(targetData.name)}" placeholder="例如：暗影危机支线">
+          <input class="inp" id="ef_name" value="${esc(targetData.name)}" placeholder="例如：2006 · 斯塔克工业前夕">
         </div>
         <div class="row" style="gap:8px;margin-bottom:10px">
           <div class="field" style="flex:1">
-            <label style="font-size:11.5px;font-weight:700">起始年</label>
+            <label style="font-size:11.5px;font-weight:700">起始年份</label>
             <input type="number" class="inp" id="ef_year" value="${targetData.year || flags().year}">
           </div>
           <div class="field" style="flex:1">
@@ -7828,8 +8175,31 @@ host.querySelectorAll('[data-a-move]').forEach(btn => {
           <label style="font-size:11.5px;font-weight:700">阶段概述 *</label>
           <textarea class="inp" id="ef_desc" rows="3" placeholder="这个阶段讲的是什么故事……">${esc(targetData.desc)}</textarea>
         </div>
+
+        <!-- 恢复遗漏的 4 个专业核心字段 -->
+        <div class="row" style="gap:8px;margin-bottom:10px">
+          <div class="field" style="flex:1">
+            <label style="font-size:11.5px;font-weight:700;color:var(--cyan)">👥 允许出场角色</label>
+            <input class="inp" id="ef_allowed" value="${esc(targetData.allowedChars || '')}" placeholder="如：托尼、罗迪、哈皮（留空不限）">
+          </div>
+          <div class="field" style="flex:1">
+            <label style="font-size:11.5px;font-weight:700;color:var(--red)">🚫 严禁出场角色</label>
+            <input class="inp" id="ef_banned" value="${esc(targetData.bannedChars || '')}" placeholder="如：小辣椒、奥创（本阶段不登场）">
+          </div>
+        </div>
+
         <div class="field" style="margin-bottom:10px">
-          <label style="font-size:11.5px;font-weight:700">锚点节拍（每行一个，自动拆分为事件）</label>
+          <label style="font-size:11.5px;font-weight:700;color:var(--gold)">⚡ 必然发生的大事件</label>
+          <textarea class="inp" id="ef_must" rows="2" placeholder="本阶段推进中必须达成的标志性事件……">${esc(targetData.mustEvents || '')}</textarea>
+        </div>
+
+        <div class="field" style="margin-bottom:10px">
+          <label style="font-size:11.5px;font-weight:700">📜 节奏说明与生成要求</label>
+          <textarea class="inp" id="ef_pacing" rows="2" placeholder="如：注重日常磨合，节奏放慢，着重写车库对白……">${esc(targetData.pacing || '')}</textarea>
+        </div>
+
+        <div class="field" style="margin-bottom:10px">
+          <label style="font-size:11.5px;font-weight:700">事件锚点节拍（每行一个，自动拆分为事件）</label>
           <textarea class="inp" id="ef_beats" rows="4" style="font-family:var(--font-mono);font-size:12px">${esc(defaultBeats)}</textarea>
         </div>
       </div>
@@ -7850,6 +8220,10 @@ host.querySelectorAll('[data-a-move]').forEach(btn => {
       const year = parseInt(host.querySelector('#ef_year').value) || flags().year;
       const monthStart = parseInt(host.querySelector('#ef_m_start').value) || 1;
       const monthEnd = parseInt(host.querySelector('#ef_m_end').value) || 12;
+      const allowedChars = host.querySelector('#ef_allowed').value.trim();
+      const bannedChars = host.querySelector('#ef_banned').value.trim();
+      const mustEvents = host.querySelector('#ef_must').value.trim();
+      const pacing = host.querySelector('#ef_pacing').value.trim();
       const beatsLines = host.querySelector('#ef_beats').value.split('\n').map(l => l.trim()).filter(Boolean);
 
       const isEditMode = typeof editingPhaseTarget === 'object' && editingPhaseTarget !== null;
@@ -7862,6 +8236,10 @@ host.querySelectorAll('[data-a-move]').forEach(btn => {
       targetPhaseObj.monthStart = monthStart;
       targetPhaseObj.monthEnd = monthEnd;
       targetPhaseObj.desc = desc;
+      targetPhaseObj.allowedChars = allowedChars;
+      targetPhaseObj.bannedChars = bannedChars;
+      targetPhaseObj.mustEvents = mustEvents;
+      targetPhaseObj.pacing = pacing;
 
       if (beatsLines.length) {
         const oldAnchorMap = new Map((targetPhaseObj.anchors || []).map(a => [a.title, a]));
@@ -7881,8 +8259,9 @@ host.querySelectorAll('[data-a-move]').forEach(btn => {
         else phases.push(targetPhaseObj);
       }
 
-      toast(isEditMode ? '阶段修改已保存' : '已插入新阶段');
+      toast(isEditMode ? '阶段设置已全部保存' : '已插入新阶段');
       currentView = 'list';
+      syncPhasesNow();
       refreshModalView();
     };
   };
@@ -7907,6 +8286,9 @@ host.querySelectorAll('[data-a-move]').forEach(btn => {
 // 补全缺失的自定义年月日与跨阶段跳跃弹窗函数
 function openWorldlineDateModal(onDone) {
   const curW = worldDateObj();
+  const curD = getVirtualDate();
+  const realD = new Date();
+  const isCust = isCustomClock();
   const phasesList = wlGetPhasesFromAnchors();
   const activeAnchor = getCurrentAnchor();
   
@@ -7918,7 +8300,7 @@ function openWorldlineDateModal(onDone) {
   const d = modal(`
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
       <h2 style="font-size:16px; margin:0; font-family:var(--font-serif); color:var(--text); display:flex; align-items:center; gap:6px">
-        <span>📅</span> <span>世界线时间设定</span>
+        <span>📅</span> <span>世界线时间与时钟设定</span>
       </h2>
       <button class="btn sm ghost" data-close style="padding:2px 8px; font-size:11px">关闭</button>
     </div>
@@ -7937,7 +8319,7 @@ function openWorldlineDateModal(onDone) {
         <input type="number" min="2007" max="2026" class="inp" id="wd_year" value="${curW.y}" style="font-size:14px; font-weight:700; font-family:var(--font-mono)">
       </div>
 
-      <div class="row" style="gap:8px; margin-bottom:6px">
+      <div class="row" style="gap:8px; margin-bottom:10px">
         <div class="field" style="flex:1">
           <label style="font-size:11.5px; font-weight:700; color:var(--text); margin-bottom:5px; display:block">月份 (1 ~ 12)</label>
           <input type="number" min="1" max="12" class="inp" id="wd_month" value="${curW.m}" style="text-align:center; font-size:14px; font-weight:700; font-family:var(--font-mono)">
@@ -7947,23 +8329,48 @@ function openWorldlineDateModal(onDone) {
           <input type="number" min="1" max="31" class="inp" id="wd_day" value="${curW.d}" style="text-align:center; font-size:14px; font-weight:700; font-family:var(--font-mono)">
         </div>
       </div>
-    </div>
 
-    <div class="hint" style="font-size:11px; line-height:1.6; margin-bottom:12px; color:var(--muted); padding:0 2px">
-      💡 在本阶段区间内调整年月日，剧情平滑承接；跨阶段调整会自动跳跃至对应时代。
+      <!-- 新增：几点几分设定联动 -->
+      <div style="padding-top:10px; border-top:1px dashed var(--line)">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px">
+          <label style="font-size:11.5px; font-weight:700; color:var(--cyan)">⏰ 时钟时间 (时:分)</label>
+          <button type="button" class="btn ghost sm" id="wd_sync_real_btn" style="padding:2px 6px; font-size:10px; color:var(--cyan)">
+            切回现实时间 (${String(realD.getHours()).padStart(2,'0')}:${String(realD.getMinutes()).padStart(2,'0')})
+          </button>
+        </div>
+        <div class="row" style="gap:8px; align-items:center">
+          <input type="number" min="0" max="23" id="wd_hour" class="inp" value="${curD.getHours()}" style="text-align:center; font-size:14px; font-weight:700; font-family:var(--font-mono)">
+          <span style="font-size:18px; font-weight:700; color:var(--muted)">:</span>
+          <input type="number" min="0" max="59" id="wd_min" class="inp" value="${curD.getMinutes()}" style="text-align:center; font-size:14px; font-weight:700; font-family:var(--font-mono)">
+        </div>
+        <div class="hint" style="font-size:10px; margin-top:4px">
+          ${isCust ? '<span style="color:var(--gold)">当前处于自定义流逝模式</span>' : '<span style="color:var(--green)">当前跟随现实时间</span>'} · 设定时分后将以此为基点继续随自然时间流逝。
+        </div>
+      </div>
     </div>
 
     <div style="display:flex; gap:8px">
-      <button class="btn gold sm" id="wd_submit" style="flex:1; font-weight:700">✓ 确认调整时间</button>
+      <button class="btn gold sm" id="wd_submit" style="flex:1; font-weight:700">✓ 确认调整全部时间</button>
       <button class="btn ghost sm" data-close style="flex:0 0 70px">取消</button>
     </div>
   `);
+
+  d.querySelector('#wd_sync_real_btn').onclick = () => {
+    const rd = new Date();
+    d.querySelector('#wd_hour').value = rd.getHours();
+    d.querySelector('#wd_min').value = rd.getMinutes();
+    resetClockToReal();
+    toast('已填充现实时分');
+  };
 
   d.querySelector('#wd_submit').onclick = () => {
     const inputY = parseInt(d.querySelector('#wd_year').value) || curW.y;
     const inputM = Math.max(1, Math.min(12, parseInt(d.querySelector('#wd_month').value) || 1));
     const inputD = Math.max(1, Math.min(31, parseInt(d.querySelector('#wd_day').value) || 1));
+    const inputH = Math.max(0, Math.min(23, parseInt(d.querySelector('#wd_hour').value) || 0));
+    const inputMin = Math.max(0, Math.min(59, parseInt(d.querySelector('#wd_min').value) || 0));
 
+    // 1. 保存年月日
     const curSt = store.state() || {};
     curSt.curYear = inputY;
     curSt.curMonth = inputM;
@@ -7973,10 +8380,13 @@ function openWorldlineDateModal(onDone) {
 
     const matchedEra = WORLD.eras.filter(e => e.year <= inputY).pop();
     if (matchedEra) curSt.era = matchedEra.id;
-
     store.setState(curSt);
+
+    // 2. 保存时钟时分偏移（启动随自然时间流逝）
+    setCustomClockTime(inputH, inputMin);
+
     d.remove();
-    toast(`✅ 世界线时间已调整为：${inputY}年${inputM}月${inputD}日`);
+    toast(`✅ 时间已调整为：${inputY}年${inputM}月${inputD}日 ${String(inputH).padStart(2,'0')}:${String(inputMin).padStart(2,'0')}`);
     if (typeof onDone === 'function') onDone();
   };
 }
@@ -8522,11 +8932,15 @@ fill('wl_f2', () => {
       };
     });
 
-    // 剧情存读档
+       // 剧情存读档（扩容至 10 槽位）
     const saveSlotBtn = v.querySelector('#w_save_slot');
     if (saveSlotBtn) {
       saveSlotBtn.onclick = () => {
-        const slots = store.get('wl_slots', Array(5).fill(null));
+        // 扩容至 10 槽位，并兼容旧 5 槽位存档无损迁移
+        let slots = store.get('wl_slots', []);
+        if (!Array.isArray(slots)) slots = [];
+        while (slots.length < 10) slots.push(null);
+
         const renderSlots = () => slots.map((sl, idx) => `
           <div class="card" style="padding:10px;margin-bottom:8px;background:var(--panel2)">
             <div style="display:flex;justify-content:space-between;align-items:center">
@@ -8543,9 +8957,11 @@ fill('wl_f2', () => {
               ${sl ? `<button class="btn ghost sm" data-wldel="${idx}" style="color:var(--red);flex:0 0 46px">删</button>` : ''}
             </div>
           </div>`).join('');
-        const d = modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:16px">💾 世界线剧情存读档 (5 槽位)</h2>
-          <div id="wl_slot_box" style="max-height:65vh;overflow-y:auto">${renderSlots()}</div>
+
+        const d = modal(`<h2 style="color:var(--cyan);margin-top:0;font-size:16px">💾 世界线剧情存读档 (10 槽位)</h2>
+          <div id="wl_slot_box" style="max-height:65vh;overflow-y:auto;padding-right:2px">${renderSlots()}</div>
           <button class="btn ghost" data-close style="margin-top:10px">关闭</button>`);
+
         const bind = () => {
           d.querySelectorAll('[data-wlsave]').forEach(b => b.onclick = () => {
             const idx = +b.dataset.wlsave;
@@ -8577,6 +8993,7 @@ fill('wl_f2', () => {
           });
           d.querySelectorAll('[data-wldel]').forEach(b => b.onclick = () => {
             const idx = +b.dataset.wldel;
+            if (!confirm(`确定清空槽位 ${idx + 1} 的存档？`)) return;
             slots[idx] = null;
             store.set('wl_slots', slots);
             d.querySelector('#wl_slot_box').innerHTML = renderSlots();
@@ -8654,7 +9071,8 @@ fill('wl_f2', () => {
       const anchorsSnap = JSON.parse(JSON.stringify(store.get('wl_anchors', [])));
       const activeAnchorId = curAnchor ? curAnchor.id : '';
 
-      s.history.push({
+               s.history.push({
+        turn: s.turn,
         story: s.story,
         options: s.options,
         choice,
@@ -8664,7 +9082,7 @@ fill('wl_f2', () => {
         _anchorId: activeAnchorId,
         _anchorsSnap: anchorsSnap
       });
-      if (s.history.length > 50) s.history = s.history.slice(-50);
+      // 永久解除回合截断，保障单局 200+ 回合完整保留
 
       const tags = WT.keyTag(choice, s.story);
       WT.addNode(choice, tags);
@@ -8758,6 +9176,67 @@ function useLocalStory(){
   store.setState(s);
   safeRender('worldline', document.getElementById('appBody'));
 }
+// 弹出恢复模式选择器：用户可自由选择“恢复当前局”还是“跨周目不分人设全量打捞”
+function openRescueOptionsModal(onSuccess) {
+  const f = flags();
+  const curY = f.year;
+  const d = modal(`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h2 style="font-size:16px;margin:0;font-family:var(--font-serif);color:var(--gold);display:flex;align-items:center;gap:6px">
+        <span>🚑</span> <span>历史剧情回忆恢复中心</span>
+      </h2>
+      <button class="btn sm ghost" data-close style="padding:2px 8px;font-size:11px">关闭</button>
+    </div>
+
+    <div class="card" style="padding:12px;margin-bottom:12px;background:var(--panel2);border-left:3px solid var(--cyan)">
+      <div style="font-size:11.5px;color:var(--text);line-height:1.6">
+        系统已在底层为您建立了数据抢救隧道。请根据您的需求选择恢复模式：
+      </div>
+    </div>
+
+    <!-- 方案一：当前这局专属恢复（推荐） -->
+    <div class="card" style="padding:12px;margin-bottom:10px;border:1.5px solid var(--cyan);cursor:pointer;transition:.15s" id="res_mode_current">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <b style="font-size:13.5px;color:var(--cyan)">方案 A：恢复当前这局的全部回忆 (推荐)</b>
+        <span class="tag green" style="margin:0">时序安全</span>
+      </div>
+      <div class="hint" style="font-size:11.5px;line-height:1.6;color:var(--text);opacity:.9">
+        仅定向扫描与<b>当前时代 (${curY} 年 · ${esc(f.era.name)})</b>吻合的历史碎片。精准找回当前局因缓存溢出断层的 20 多个回合，<b>100% 保证时间线严谨无冲突</b>。
+      </div>
+      <button class="btn sm" style="margin-top:8px;pointer-events:none">⚡ 执行方案 A (安全恢复当前局)</button>
+    </div>
+
+    <!-- 方案二：全盘所有记忆无差别恢复（跨人设档位） -->
+    <div class="card" style="padding:12px;margin-bottom:12px;border:1.5px solid var(--gold);cursor:pointer;transition:.15s" id="res_mode_all">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <b style="font-size:13.5px;color:var(--gold)">方案 B：游玩时的所有记忆不分档位全部恢复</b>
+        <span class="tag red" style="margin:0">全盘深捞</span>
+      </div>
+      <div class="hint" style="font-size:11.5px;line-height:1.6;color:var(--text);opacity:.9">
+        跨越所有 10 个人设存档槽、不同年代分支树进行绝对穷举合并，将所有存在过的回忆全数灌入回忆录。
+      </div>
+      <div style="margin-top:6px;padding:6px 8px;background:rgba(226,54,54,.1);border-left:2px solid var(--red);border-radius:4px;font-size:10.5px;color:#ff8f8f;line-height:1.5">
+        ⚠️ <b>时间线紊乱风险提示</b>：若您曾游玩过多个不同时代/不同身份的档位，此操作会将其他世界线的剧情一并合并到本列表，可能会造成跨时代角色认知与时间线穿插！
+      </div>
+      <button class="btn gold sm" style="margin-top:8px;pointer-events:none">🌪 执行方案 B (全盘不分档位恢复)</button>
+    </div>
+
+    <button class="btn ghost sm" data-close style="width:100%">取消并返回</button>
+  `);
+
+  d.querySelector('#res_mode_current').onclick = () => {
+    d.remove();
+    const cnt = store.rescueLostHistory('current', false);
+    if (onSuccess) onSuccess(cnt);
+  };
+
+  d.querySelector('#res_mode_all').onclick = () => {
+    if (!confirm('【高危确认】全盘合并将导入所有档位的剧情碎片，可能导致回忆录中不同时代的对话混杂。确定执行全盘恢复？')) return;
+    d.remove();
+    const cnt = store.rescueLostHistory('all', false);
+    if (onSuccess) onSuccess(cnt);
+  };
+}
 function showMemory() {
   const s = store.state() || {};
   const f = flags();
@@ -8781,15 +9260,18 @@ function showMemory() {
       <button class="btn ghost sm" id="mem_close_btn" style="width:auto;padding:4px 12px;font-size:12px">✕ 关闭</button>
     </div>
 
-    <!-- 顶栏快捷操作：全部折叠/展开 + 导出 -->
-    <div style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 14px;background:var(--panel2);border-bottom:1px solid var(--line)">
+       <!-- 顶栏快捷操作：全部折叠/展开 + 强制抢救 + 导出 -->
+    <div style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:8px 14px;background:var(--panel2);border-bottom:1px solid var(--line);flex-wrap:wrap">
       <div style="display:flex;gap:6px">
         <button class="btn ghost sm" id="mem_toggle_all" style="width:auto;padding:3px 9px;font-size:11px">
-          📖 展开全部正文
+          📖 展开全部
+        </button>
+        <button class="btn sm" id="mem_force_rescue_btn" style="width:auto;padding:3px 9px;font-size:11px;background:rgba(226,54,54,.15);border:1px solid var(--red);color:#ff8f8f;font-weight:700" title="若发现回合缺失，点击扫描全部存档与分支树深度恢复">
+          🚑 一键强制恢复全部回忆
         </button>
       </div>
       <button class="btn gold sm" id="mem_export_txt" ${hist.length ? '' : 'disabled'} style="width:auto;padding:3px 10px;font-size:11px">
-        📥 导出全本 TXT
+        📥 导出 TXT
       </button>
     </div>
 
@@ -8830,10 +9312,13 @@ function showMemory() {
           </div>
         `;
       }).join('') : `
-        <div class="card" style="padding:40px 16px;text-align:center;margin-top:20px">
+                <div class="card" style="padding:30px 16px;text-align:center;margin-top:20px">
           <div style="font-size:32px;margin-bottom:10px">📜</div>
-          <div style="font-family:var(--font-serif);font-size:15px;font-weight:700;margin-bottom:6px">暂无历史推演记录</div>
-          <div class="hint" style="font-size:12px">在世界线中进行抉择并推进剧情后，每一次经历都会在此沉淀记录。</div>
+          <div style="font-family:var(--font-serif);font-size:15px;font-weight:700;margin-bottom:6px">当前未检测到历史推演记录</div>
+          <div class="hint" style="font-size:12px;margin-bottom:14px">若此前曾游玩过多回合但此处不显示，可点击下方按钮深度找回：</div>
+          <button class="btn sm gold" id="mem_empty_rescue_btn" style="width:auto;padding:6px 16px;font-weight:700">
+            🚑 立即深度扫描并抢救丢失回忆
+          </button>
         </div>
       `}
     </div>
@@ -8871,6 +9356,33 @@ function showMemory() {
         if (full) full.style.display = allExpanded ? 'block' : 'none';
         if (prev) prev.style.display = allExpanded ? 'none' : 'block';
         if (arrow) arrow.textContent = allExpanded ? '收起 ▴' : '展开 ▾';
+      });
+    };
+  }
+    // 绑定一键强制恢复所有回忆记录按钮（弹出方案 A/B 供用户自由选择）
+  const rescueBtn = d.querySelector('#mem_force_rescue_btn');
+  if (rescueBtn) {
+    rescueBtn.onclick = () => {
+      openRescueOptionsModal((cnt) => {
+        d.remove();
+        showMemory();
+        if (currentApp === 'worldline') {
+          safeRender('worldline', document.getElementById('appBody'));
+        }
+      });
+    };
+  }
+
+  // 空列表提示卡片中的按钮同样接入弹窗
+  const emptyRescueBtn = d.querySelector('#mem_empty_rescue_btn');
+  if (emptyRescueBtn) {
+    emptyRescueBtn.onclick = () => {
+      openRescueOptionsModal((cnt) => {
+        d.remove();
+        showMemory();
+        if (currentApp === 'worldline') {
+          safeRender('worldline', document.getElementById('appBody'));
+        }
       });
     };
   }
@@ -11305,7 +11817,7 @@ const ParallelData={
     const snap={label:nowTime()+' · '+eraName(),snap:{turn:s.turn||1,affinity:s.affinity||0,rel:{...relGet()},
       era:s.era,customYear:s.customYear,pepperExists:s.pepperExists,ultronPhase:s.ultronPhase,
       forceAvengers1:s.forceAvengers1,keyChoices:(s.keyChoices||[]).slice(),
-      history:(s.history||[]).slice(-30).map(h=>({...h}))}};
+            history:(s.history||[]).map(h=>({...h}))}};
     const a=store.get('parallelSnaps',[]);a.unshift(snap);store.set('parallelSnaps',a.slice(0,12));
     return snap.label;
   }
@@ -11382,19 +11894,26 @@ function allTheaterQuests(){
    ============================================================ */
 const TonyStatus={
   cur:null,coffee:3,
-  pool(){const h=new Date().getHours();const f=flags();
+  pool(){
+    // 接入全局虚拟时间，确保托尼昼夜状态与玩家设定完全同频
+    const d=typeof getVirtualDate==='function'?getVirtualDate():new Date();
+    const h=d.getHours();const f=flags();
     if(h>=23||h<4)return f.avengers1?[['失眠 · 陈列廊','🌙','他在战甲陈列廊待到凌晨'],['浅眠 · 随时会醒','😴','沙发，不是床'],['实验室 · 通宵','🌙','咖啡机今晚第三次工作']]
       :[['实验室 · 通宵','🌙','咖啡机今晚第三次工作'],['车库 · 古董车旁','🔧','他不承认在躲什么']];
     if(h<8)return[['睡着（罕见）','😴','贾维斯调暗了全部灯'],['实验室 · 刚醒','☕','黑咖啡，第一杯']];
     if(h<12)return[['会议中','📊','42 层，他只听最后八分钟'],['实验室','🔬','全息屏开着三层']];
     if(h<14)return[['餐会','🍽️','他在给侍者讲弧光原理'],['飞行中','🚀','低空，别问']];
     if(h<19)return[['实验室','🔬','焊点重做第三遍'],['试飞 · 近海','🚀','罗迪又要写报告了']];
-    return[['酒会','🥂','黑领结，领带还是歪的'],['放映厅','🎬','老电影，他看一半改参数'],['实验室','🔬','灯亮着，没叫人']];},
-  refresh(){const p=this.pool();const s=p[Math.floor(Math.random()*p.length)];
+    return[['酒会','🥂','黑领结，领带还是歪的'],['放映厅','🎬','老电影，他看一半改参数'],['实验室','🔬','灯亮着，没叫人']];
+  },
+  refresh(){
+    const p=this.pool();const s=p[Math.floor(Math.random()*p.length)];
     this.cur={emoji:s[1],label:s[0],note:s[2]};
-    this.coffee=1+Math.floor(Math.random()*(new Date().getHours()>19?6:4));
+    const d=typeof getVirtualDate==='function'?getVirtualDate():new Date();
+    this.coffee=1+Math.floor(Math.random()*(d.getHours()>19?6:4));
     const el=$('#sbTonyTxt');if(el)el.textContent=s[0];
-    return this.cur;},
+    return this.cur;
+  },
   get(){return this.cur||this.refresh();},
 };
 const ENV_POOL=[
@@ -11420,23 +11939,42 @@ const ENV_POOL=[
   '楼顶直升机停机坪的风力传感器归零',
 ];
 const EnvLog={list:[],_i:0,
-  init(){this.list=store.get('envlog',[]);
+  // 核心：跑马灯时间戳强制动态读取全局唯一的 nowTime()，绝不再读历史旧时间
+  updateTicker(){
+    const el=$('#envTickerTxt');if(!el)return;
+    const item=this.list[this._i]||this.list[0]||{x:'J.A.R.V.I.S. · 系统自检完成'};
+    el.textContent=nowTime()+' · '+item.x;
+  },
+  init(){
+    this.list=store.get('envlog',[]);
     if(!this.list.length){this.push('J.A.R.V.I.S. · 系统自检完成');return;}
-    const el=$('#envTickerTxt');if(el)el.textContent=this.list[0].t+' · '+this.list[0].x;this._rotate();},
-  push(x){const t=nowTime();this.list.unshift({t,x});this.list=this.list.slice(0,40);store.set('envlog',this.list);
-    const el=$('#envTickerTxt');if(el)el.textContent=t+' · '+x;},
-  _rotate(){clearTimeout(this._t);this._t=setTimeout(()=>{
-      if(!this.list.length)return;this._i=(this._i+1)%this.list.length;
-      const el=$('#envTickerTxt');if(el)el.textContent=this.list[this._i].t+' · '+this.list[this._i].x;
-      this._rotate();},16000);},
+    this.updateTicker();
+    this._rotate();
+  },
+  push(x){
+    const t=nowTime();
+    this.list.unshift({t,x});
+    this.list=this.list.slice(0,40);
+    store.set('envlog',this.list);
+    this._i=0;
+    this.updateTicker();
+  },
+  _rotate(){
+    clearTimeout(this._t);
+    this._t=setTimeout(()=>{
+      if(!this.list.length)return;
+      this._i=(this._i+1)%this.list.length;
+      this.updateTicker();
+      this._rotate();
+    },16000);
+  },
   tick(){
-  // 从最近 6 条里排除已用过的，降低重复
-  const recent=new Set(this.list.slice(0,6).map(l=>l.x));
-  const pool=ENV_POOL.filter(t=>!recent.has(t.replace('{coffee}',TonyStatus.coffee)));
-  const pick=(pool.length?pool:ENV_POOL)[Math.floor(Math.random()*(pool.length||ENV_POOL.length))];
-  const x=pick.replace('{coffee}',TonyStatus.coffee);
-    this.push(x);TonyStatus.refresh();
-    // 世界事件引擎：按真实时间间隔掷骰，用户不操作时世界仍持续运转
+    const recent=new Set(this.list.slice(0,6).map(l=>l.x));
+    const pool=ENV_POOL.filter(t=>!recent.has(t.replace('{coffee}',TonyStatus.coffee)));
+    const pick=(pool.length?pool:ENV_POOL)[Math.floor(Math.random()*(pool.length||ENV_POOL.length))];
+    const x=pick.replace('{coffee}',TonyStatus.coffee);
+    this.push(x);
+    TonyStatus.refresh();
     try{EventEngine.roll('tick');}catch(e){console.warn('EventEngine.roll',e);}
   },
 };
@@ -11930,15 +12468,16 @@ const WT={
     return t;
   },
   save(t){store.set('wtree',t);},
-  snap(){const s=store.state()||{};const p=store.profile()||{};
+    snap(){const s=store.state()||{};const p=store.profile()||{};
     return {turn:s.turn||1,affinity:s.affinity||0,rel:{...relGet()},curAge:p.currentAge||null,
       era:s.era,customYear:s.customYear,pepperExists:s.pepperExists,ultronPhase:s.ultronPhase,forceAvengers1:s.forceAvengers1,
-      story:s.story||'',options:s.options||'',history:(s.history||[]).slice(-30).map(h=>({...h})),keyChoices:(s.keyChoices||[]).slice()};},
+      story:s.story||'',options:s.options||'',history:(s.history||[]).map(h=>({...h})),keyChoices:(s.keyChoices||[]).slice()};},
   addNode(choice,tags){
     const t=this.nodes();const snap=this.snap();
     const n={id:'w'+Date.now()+Math.random().toString(36).slice(2,5),parent:t.active,year:flags().year,turn:snap.turn,
       choice:String(choice).slice(0,60),tags:tags||[],snap,t:nowTime()};
-    t.nodes.push(n);if(t.nodes.length>40)t.nodes=t.nodes.slice(-40);
+    t.nodes.push(n);
+    // 永久解除分支树 40 节点的截断限制，支持长线推演
     t.active=n.id;this.save(t);return n;},
   keyTag(choice,story){
     const t=(choice||'')+' '+(story||'');const tags=[];
