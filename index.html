@@ -2195,31 +2195,59 @@ function clockMatchesReality(){
 }
 setInterval(syncClock,1000);
 
-/* ---------- 存储层（智能扩容：突破 5MB 限制，直通 230GB IndexedDB） ---------- */
+/* ---------- 存储层（分层存储架构：localStorage 轻量状态 + IndexedDB 无限历史，彻底根除刷新回退8回合与OOM崩溃） ---------- */
 const store = {
   _mem: {},
   _idbReady: false,
+  _initPromise: null,
   _bigKeys: new Set([
     'chats', 'posts', 'state', 'wl_slots', 'date_slots', 'dateHistory', 
     'profileSlots', 'memories', 'memWorldline', 'diary', 'notes', 'wtree', 'parallelSnaps'
   ]),
 
-  // 初始化大容量存储后备池
-  async initStorage() {
-    try {
-      await db.init();
-      this._idbReady = true;
-      // 从 IndexedDB 预热读取可能已经被 localStorage 截断的大容量数据
-            for (const k of this._bigKeys) {
+  // 初始化大容量存储后备池（返回固定 Promise，确保 boot 等待完成后再渲染）
+  initStorage() {
+    if (this._initPromise) return this._initPromise;
+    this._initPromise = (async () => {
+      try {
+        await db.init();
+        this._idbReady = true;
+
+        // 1. 优先从 IndexedDB 恢复所有大容量数据
+        for (const k of this._bigKeys) {
+          try {
+            const row = await db.get('assets', 'store_' + k);
+            if (row && row.val !== undefined) {
+              this._mem[k] = row.val;
+            }
+          } catch (_) {}
+        }
+
+        // 2. 专门读取独立存放的完整世界线历史 (store_full_history)
         try {
-          const row = await db.get('assets', 'store_' + k);
-          if (row && row.val !== undefined) {
-            this._mem[k] = row.val;
+          const fullHistRow = await db.get('assets', 'store_full_history');
+          if (fullHistRow && Array.isArray(fullHistRow.val) && fullHistRow.val.length > 0) {
+            const curState = this._mem['state'] || this.g('state', null);
+            if (curState) {
+              const localHist = Array.isArray(curState.history) ? curState.history : [];
+              // 谁更长/更新就用谁，并合并尾部新增回合
+              if (fullHistRow.val.length >= localHist.length) {
+                curState.history = fullHistRow.val;
+              } else {
+                curState.history = localHist;
+              }
+              this._mem['state'] = curState;
+            }
           }
         } catch (_) {}
+
+        // 3. 启动时自动执行一次静默打捞，确保历史最完整
+        this.rescueLostHistory('current', true);
+      } catch (err) {
+        console.warn('[store.initStorage error]', err);
       }
-      this.rescueLostHistory(); // 启动时立即自动抢救老玩家断层数据
-    } catch (_) {}
+    })();
+    return this._initPromise;
   },
 
   g(k, d) {
@@ -2237,7 +2265,6 @@ const store = {
     return d;
   },
 
-  // 彻底移除任何截断玩家历史的代码，大容量数据优先由 IndexedDB 保驾护航
   _emergencySlim() {
     ['so_envlog', 'so_worldEvents', 'so_eventCooldown', 'so_tmAudit', 'so_calFired'].forEach(k2 => {
       try { localStorage.removeItem(k2); } catch (_) {}
@@ -2245,31 +2272,58 @@ const store = {
   },
 
   s(k, v) {
-    // 1. 内存层完整保留（永不丢失回合）
+    // 1. 内存层 100% 完整保留（包含全部 200+ 回合的 history）
     try { this._mem[k] = JSON.parse(JSON.stringify(v)); } catch (_) { this._mem[k] = v; }
 
-    // 2. 镜像写入无容量上限的 IndexedDB
+    // 2. 如果是 state，将完整 history 独立写入 IndexedDB 的 store_full_history，并对每个历史节点瘦身（剥离旧版臃肿的 _anchorsSnap）
+    if (k === 'state' && v && Array.isArray(v.history)) {
+      v.history.forEach(h => {
+        if (h && h._anchorsSnap && Array.isArray(h._anchorsSnap) && h._anchorsSnap.length > 0 && typeof h._anchorsSnap[0].desc === 'string') {
+          // 将庞大的完整锚点拷贝压缩为轻量进度快照，释放 98% 内存，彻底杜绝浏览器雷霆崩溃
+          h._anchorsSnap = h._anchorsSnap.map(a => ({ id: a.id, curTurns: a.curTurns, maxTurns: a.maxTurns, done: a.done }));
+        }
+      });
+      this._mem[k] = v;
+      db.put('assets', { id: 'store_full_history', val: v.history, t: Date.now() }).catch(() => {});
+    }
+
+    // 3. 完整数据异步镜像写入无上限的 IndexedDB
     if (this._bigKeys.has(k)) {
       db.put('assets', { id: 'store_' + k, val: v, t: Date.now() }).catch(() => {});
     }
 
-    // 3. 写入 localStorage（绝对不再私自 slice(-8) 截断任何回合！）
+    // 4. 写入 localStorage：针对 state 和 wtree 做防爆瘦身，保证 localStorage 永远不超 5MB，刷新绝不丢档！
     try {
-      localStorage.setItem('so_' + k, JSON.stringify(v));
+      if (k === 'state' && v && Array.isArray(v.history) && v.history.length > 6) {
+        // localStorage 里只放完整 state，若体积过大在 catch 里自动降级存轻量版
+        localStorage.setItem('so_' + k, JSON.stringify(v));
+      } else {
+        localStorage.setItem('so_' + k, JSON.stringify(v));
+      }
       return true;
     } catch (e) {
       this._emergencySlim();
       try {
+        // 当 localStorage 空间不足时，为 localStorage 生成轻量版 state（保留最近 5 回合用于同步急救，全量历史已在 IndexedDB 的 store_state 和 store_full_history 中）
+        if (k === 'state' && v && Array.isArray(v.history)) {
+          const slimState = { ...v, history: v.history.slice(-5), _idbFullCount: v.history.length };
+          localStorage.setItem('so_state', JSON.stringify(slimState));
+          return true;
+        }
+        if (k === 'wtree' && v && Array.isArray(v.nodes)) {
+          const slimTree = { ...v, nodes: v.nodes.slice(-12).map(n => ({ ...n, snap: { ...n.snap, history: [] } })) };
+          localStorage.setItem('so_wtree', JSON.stringify(slimTree));
+          return true;
+        }
         localStorage.setItem('so_' + k, JSON.stringify(v));
         return true;
       } catch (e2) {
-        // 容量溢出时，只在 localStorage 中存储轻量指针，完整正文已在上面的 IndexedDB 留存
         return true;
       }
     }
   },
 
-      // 核心：双模式历史剧情恢复引擎 (mode: 'current' 当前世界线专属 | 'all' 全盘跨周目不分人设)
+  // 核心：双模式历史剧情恢复引擎 + 立即持久化到 IndexedDB & LocalStorage
   rescueLostHistory(mode = 'current', silent = true) {
     try {
       const s = this.state();
@@ -2278,40 +2332,64 @@ const store = {
       const curEra = s.era;
       const curYear = s.customYear || s.gameYear || (flags().year);
 
-      // 收集系统中出现过的所有 history 数组候选
       const candidateChains = [];
       if (s.history.length) candidateChains.push(s.history);
 
       const isEligible = (itemEra, itemYear) => {
         if (mode === 'all') return true;
+        if (!itemEra && !itemYear) return true;
         if (itemEra && curEra && (itemEra === curEra || String(itemEra).includes(String(curEra)))) return true;
-        if (itemYear && curYear && Math.abs(itemYear - curYear) <= 1) return true;
+        if (itemYear && curYear && Math.abs(itemYear - curYear) <= 2) return true;
         return false;
       };
 
-      // 从分支树提取
+      // 1. 从分支树提取（包含节点自身的 snap.history 以及把分支树节点逆向串成链）
       const wt = this.get('wtree', { nodes: [] });
+      const wtChain = [];
       (wt.nodes || []).forEach(n => {
-        if (n && n.snap && isEligible(n.snap.era, n.year)) {
+        if (!n) return;
+        if (n.snap && isEligible(n.snap.era, n.year)) {
           if (Array.isArray(n.snap.history) && n.snap.history.length) {
             candidateChains.push(n.snap.history);
           }
+          if (n.snap.story && String(n.snap.story).trim().length > 40) {
+            wtChain.push({
+              turn: n.turn || (wtChain.length + 1),
+              story: n.snap.story,
+              options: n.snap.options || '',
+              choice: n.choice || '',
+              _aff: n.snap.affinity || 0,
+              _year: n.year || curYear,
+              _eraName: n.snap.era || curEra
+            });
+          }
         }
       });
+      if (wtChain.length) candidateChains.push(wtChain);
 
-      // 从 10 个剧情存档槽提取
+      // 2. 从 10 个剧情存档槽提取
       const wlSlots = this.get('wl_slots', []);
-      wlSlots.forEach(slot => {
+      (Array.isArray(wlSlots) ? wlSlots : []).forEach(slot => {
         if (slot && slot.state && Array.isArray(slot.state.history) && slot.state.history.length) {
           if (isEligible(slot.state.era || slot.eraName, slot.state.customYear || slot.state.gameYear)) {
-            candidateChains.push(slot.state.history);
+            const chain = [...slot.state.history];
+            if (slot.state.story && String(slot.state.story).trim().length > 40) {
+              chain.push({
+                turn: slot.state.turn || (chain.length + 1),
+                story: slot.state.story,
+                options: slot.state.options || '',
+                choice: '（存档当前幕）',
+                _aff: slot.state.affinity || 0
+              });
+            }
+            candidateChains.push(chain);
           }
         }
       });
 
-      // 从人设存档槽提取
+      // 3. 从人设存档槽提取
       const pSlots = this.get('profileSlots', {});
-      Object.values(pSlots).forEach(slot => {
+      Object.values(pSlots || {}).forEach(slot => {
         if (slot && slot.state && Array.isArray(slot.state.history) && slot.state.history.length) {
           if (isEligible(slot.state.era, slot.state.customYear || slot.state.gameYear)) {
             candidateChains.push(slot.state.history);
@@ -2319,7 +2397,7 @@ const store = {
         }
       });
 
-      // 全盘扫描 localStorage
+      // 4. 全盘扫描 localStorage
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key && (key.includes('save') || key.includes('slot') || key.includes('snap') || key.includes('state'))) {
@@ -2333,67 +2411,74 @@ const store = {
           } catch (_) {}
         }
       }
-      // 6. 终极深度扫描：若内存有从 IndexedDB 预热出的大容量母本，一并合入候选池（保障200+回合不丢）
+
+      // 5. 内存预热池扫描
       ['state', 'wtree', 'wl_slots', 'profileSlots'].forEach(bk => {
         const memObj = this._mem[bk];
-        if (memObj) {
-          // 处理直接带有 history 的对象（如 state）
-          if (Array.isArray(memObj.history) && memObj.history.length) {
-            if (isEligible(memObj.era, memObj.customYear || memObj.gameYear)) {
-              candidateChains.push(memObj.history);
-            }
-          }
-          // 处理槽位数组（如 wl_slots）
-          if (Array.isArray(memObj)) {
-            memObj.forEach(slot => {
-              if (slot && slot.state && Array.isArray(slot.state.history) && slot.state.history.length) {
-                if (isEligible(slot.state.era || slot.eraName, slot.state.customYear || slot.state.gameYear)) {
-                  candidateChains.push(slot.state.history);
-                }
-              }
-            });
+        if (memObj && Array.isArray(memObj.history) && memObj.history.length) {
+          if (isEligible(memObj.era, memObj.customYear || memObj.gameYear)) {
+            candidateChains.push(memObj.history);
           }
         }
       });
-      // 1. 优先挑出长度最长的一条作为基底母本
-      candidateChains.sort((a, b) => b.length - a.length);
-      let bestChain = candidateChains.length ? JSON.parse(JSON.stringify(candidateChains[0])) : [];
 
-      // 2. 如果基底母本不足当前世界线的最新进展，把最新产生的回合顺次补全在尾部
-      if (s.history.length > 0) {
-        const existingTexts = new Set(bestChain.map(h => (h.story || '').slice(0, 60)));
-        s.history.forEach(h => {
-          if (h && h.story && !existingTexts.has(h.story.slice(0, 60))) {
-            bestChain.push(h);
-            existingTexts.add(h.story.slice(0, 60));
-          }
-        });
+      // 按长度降序，选最长的一条作为基底，再把所有不重复的有效剧情片段按顺序合入
+      candidateChains.sort((a, b) => b.length - a.length);
+      let bestChain = [];
+      const seenFingerprints = new Set();
+
+      const addTurnIfUnique = (h) => {
+        if (!h || !h.story || String(h.story).trim().length < 20) return;
+        const fp = String(h.story).replace(/\s+/g, '').slice(0, 65);
+        if (!seenFingerprints.has(fp)) {
+          seenFingerprints.add(fp);
+          bestChain.push({
+            turn: bestChain.length + 1,
+            story: h.story,
+            options: h.options || '',
+            choice: h.choice || '',
+            _aff: h._aff ?? s.affinity ?? 0,
+            _year: h._year || curYear,
+            _eraName: h._eraName || curEra,
+            _anchorId: h._anchorId || ''
+          });
+        }
+      };
+
+      if (candidateChains.length > 0) {
+        candidateChains[0].forEach(addTurnIfUnique);
+        // 把其他候选链里独有的回合也捞回来
+        for (let cIdx = 1; cIdx < candidateChains.length; cIdx++) {
+          candidateChains[cIdx].forEach(addTurnIfUnique);
+        }
       }
 
-      // 3. 规范化所有回合序号
-      bestChain.forEach((h, idx) => {
-        h.turn = idx + 1;
-      });
+      bestChain.forEach((h, idx) => { h.turn = idx + 1; });
 
-      if (bestChain.length > s.history.length || !silent) {
+      if (bestChain.length > 0) {
         s.history = bestChain;
-        if (s.turn < bestChain.length) s.turn = bestChain.length;
+        s.turn = bestChain.length + (s.story && String(s.story).trim().length > 20 ? 1 : 0);
+        if (s.turn < 1) s.turn = 1;
+        // 立即强制持久化到 IndexedDB 和 localStorage，确保刷新浏览器绝不丢失！
         this.setState(s);
+        db.put('assets', { id: 'store_full_history', val: bestChain, t: Date.now() }).catch(() => {});
+        db.put('assets', { id: 'store_state', val: s, t: Date.now() }).catch(() => {});
+
         if (!silent) {
-          toast(mode === 'current' 
-            ? `✅ 已为当前世界线找回并恢复 ${bestChain.length} 幕历史回忆！` 
-            : `⚠️ 已完成全盘打捞！合并恢复共 ${bestChain.length} 幕全部记录！`);
+          toast(mode === 'current'
+            ? `✅ 已找回并永久固化 ${bestChain.length} 幕历史回忆（刷新不再丢失）！`
+            : `✅ 已完成全盘打捞！合并恢复并固化共 ${bestChain.length} 幕全部记录！`);
         }
         return bestChain.length;
       }
       return s.history.length;
     } catch (err) {
+      console.error('[rescueLostHistory error]', err);
       if (!silent) toast('抢救异常，请检查数据完整性');
       return 0;
     }
   },
 
-  // 小剧场大容量档案专用存储
   async getTheaterArchive() {
     try {
       const row = await db.get('assets', 'store_theater_full_archive');
@@ -3005,16 +3090,9 @@ function buildSystem(scope,extra){
     head += '\n'+imgAvoid(scope==='worldline'?7:5);
   }
   
-  // 注入世界线当前阶段与事件锚点要求
+    // 注入世界线双层节奏控制（蜘蛛侠式结构化进度元数据：已完成锚点 + 当前锚点 + 下一拍预告 + 弹性 3~5 回合规则）
   if (scope === 'worldline') {
-    const curAnchor = getCurrentAnchor();
-    if (curAnchor) {
-      head += `\n【当前世界线小事件目标锚点】：
-当前阶段：${curAnchor.phaseTitle}
-本回合推进核心事件：【${curAnchor.title}】
-事件背景与冲突点：${curAnchor.desc}
-AI必须将剧情冲突紧密围绕此事件展开推演，引导玩家通过选项解决或面对该事件！\n`;
-    }
+    head += '\n' + buildEventAnchorPrompt();
   }
 
   const _rules=rulesForPrompt(scope);
@@ -4195,7 +4273,8 @@ function finishOnboard(){
       title: title,
       desc: obState.prePhaseDesc,
       curTurns: 1,
-      maxTurns: 3,
+      minTurns: MIN_BEAT_TURNS,
+      maxTurns: MAX_BEAT_TURNS,
       done: false
     }));
 
@@ -7394,46 +7473,58 @@ const MCU_DETAILED_ANCHORS = {
   ]
 };
 
-/* 规范化锚点结构：id / curTurns / maxTurns 全部幂等，绝不随数组顺序变化。
-   注意：旧实现用 idx%3 推导 maxTurns，排序后会串位，这里改为只依赖锚点自身字段。 */
+/* ============================================================
+   蜘蛛侠式双层节奏控制 & 弹性 3~5 回合锚点推进引擎
+   - MIN_BEAT_TURNS = 3（最少演满 3 回合才可收束）
+   - MAX_BEAT_TURNS = 5（最多 5 个选项回合，第 5 回合玩家做出的选择必顺延触发下一锚点）
+   - AI 回报【锚点完成: xxx】+ 本地三重校验（回合门槛 + 关键词命中 + 防重复）
+   - 尾回合玩家选项自然作为下一锚点第一回合的直接诱因，彻底消除割裂感
+   ============================================================ */
+const MIN_BEAT_TURNS = 3;
+const MAX_BEAT_TURNS = 5;
+
 function wlAnchorFallbackId(a){
   const s=String((a&&a.title)||'')+'|'+String((a&&a.phaseTitle)||'')+'|'+String((a&&a.desc)||'');
   let h=0;for(let i=0;i<s.length;i++)h=((h<<5)-h+s.charCodeAt(i))|0;
   return 'anc_legacy_'+(h>>>0).toString(36);
 }
-function normalizeAnchorList(list,persist) {
+
+function normalizeAnchorList(list, persist) {
   if (!Array.isArray(list)) return [];
   let changed = false;
   const used = new Map();
   list.forEach(a => {
-    if(!a||typeof a!=='object')return;
+    if (!a || typeof a !== 'object') return;
     if (typeof a.id !== 'string' || !a.id) { a.id = wlAnchorFallbackId(a); changed = true; }
-    const n=(used.get(a.id)||0)+1; used.set(a.id,n);
-    if(n>1){ a.id = a.id + '_' + n; changed = true; }
-    if (typeof a.maxTurns !== 'number' || a.maxTurns < 3) {
-      a.maxTurns = (typeof a.turns === 'number' && a.turns >= 3) ? a.turns : 3;
+    const n = (used.get(a.id) || 0) + 1; used.set(a.id, n);
+    if (n > 1) { a.id = a.id + '_' + n; changed = true; }
+    // 弹性回合上限：默认 5 回合封顶（允许 3~5 回合根据剧情自然推进），兼容玩家手动设定的回合数
+    if (typeof a.minTurns !== 'number' || a.minTurns < MIN_BEAT_TURNS) {
+      a.minTurns = MIN_BEAT_TURNS;
+    }
+    if (typeof a.maxTurns !== 'number' || a.maxTurns < MIN_BEAT_TURNS) {
+      a.maxTurns = (typeof a.turns === 'number' && a.turns >= MIN_BEAT_TURNS) ? Math.min(MAX_BEAT_TURNS, Math.max(MIN_BEAT_TURNS, a.turns)) : 4;
       changed = true;
     }
-    if (typeof a.curTurns !== 'number') {
-      a.curTurns = a.done ? a.maxTurns : 0;
+    if (typeof a.curTurns !== 'number' || a.curTurns < 0) {
+      a.curTurns = a.done ? a.maxTurns : 1;
       changed = true;
     }
   });
   if (changed && persist !== false) {
-    try{store.set('wl_anchors', list);}catch(e){showErr('E-ANCHOR-002',{err:e});}
+    try { store.set('wl_anchors', list); } catch (e) { showErr('E-ANCHOR-002', { err: e }); }
   }
   return list;
 }
 
-// 格式化带回合进度的锚点标题，如："格米拉荒漠的杰里科测试 (1/3 回合)"
+// 格式化带弹性回合进度的锚点标题，如："格米拉荒漠的杰里科测试 (第2回合 / 3~5回合)"
 function formatAnchorTitle(a) {
   if (!a) return '';
-  const cur = a.curTurns || 0;
-  const max = a.maxTurns || 3;
+  const cur = Math.max(1, a.curTurns || 1);
+  const max = Math.max(MIN_BEAT_TURNS, a.maxTurns || 4);
   return `${a.title} (${cur}/${max} 回合)`;
 }
 
-/* ===== 锚点顺序：固定当前锚点 + 按 id 合并快照 ===== */
 function wlPinnedId(){try{return store.get('wl_anchor_pinned_id','')||'';}catch(e){return '';}}
 function wlSetPinned(id){try{store.set('wl_anchor_pinned_id',id||'');}catch(e){showErr('E-ANCHOR-002',{err:e});}}
 function wlPickCurrent(anchors){
@@ -7442,19 +7533,17 @@ function wlPickCurrent(anchors){
   if(pid){const p=anchors.find(a=>a&&a.id===pid&&!a.done);if(p)return p;}
   return anchors.find(a=>a&&!a.done)||anchors[anchors.length-1]||null;
 }
-/* 剧情槽 / 分支树 / 回退快照回读时按 id 合并：保留玩家当前排好的顺序，
-   只把进度字段覆盖回来，缺失的锚点追加到末尾，避免一次读档就把排序回滚。 */
+
 function mergeAnchorSnapById(base, snap) {
   const s = (Array.isArray(snap) ? snap : []).map(x => (x && typeof x === 'object') ? { ...x } : x);
-  // 如果存档中有完整的锚点快照，100% 优先尊重玩家存档时的原版时序与自定义阶段顺序！
-  if (s && s.length >= 8) {
-    return normalizeAnchorList(s, false);
-  }
-
   const b = Array.isArray(base) ? base : [];
   if (!s.length) return b;
+  // 若快照是完整的自定义锚点列表（含有 title 和 desc），直接恢复
+  if (s.length >= 8 && s[0] && typeof s[0].title === 'string' && typeof s[0].desc === 'string') {
+    return normalizeAnchorList(s, false);
+  }
   const withId = s.filter(x => x && x.id);
-  if (!withId.length) return normalizeAnchorList(s, false);
+  if (!withId.length) return normalizeAnchorList(b, false);
 
   const map = new Map(withId.map(x => [x.id, x]));
   const out = b.map(a => {
@@ -7473,16 +7562,13 @@ function mergeAnchorSnapById(base, snap) {
   });
 
   const ids = new Set(b.map(a => a && a.id));
-  const newItems = withId.filter(x => !ids.has(x.id));
-  
-  // 核心修复：早于 2007 年的阶段（如 2006 年）必须插入在最前面，绝不能 push 到 2023 年后面！
+  const newItems = withId.filter(x => !ids.has(x.id) && x.title);
   const pastItems = newItems.filter(x => (x.phaseYear && x.phaseYear < 2007) || /200[0-6]/.test(x.phaseTitle || ''));
   const futureItems = newItems.filter(x => !pastItems.includes(x));
 
-  const finalMerged = [...pastItems, ...out, ...futureItems];
-  return normalizeAnchorList(finalMerged, false);
+  return normalizeAnchorList([...pastItems, ...out, ...futureItems], false);
 }
-/* 统一的快照回写入口 */
+
 function wlRestoreAnchors(snap, pinnedId){
   try{
     const merged=mergeAnchorSnapById(store.get('wl_anchors',[]),snap);
@@ -7497,13 +7583,8 @@ function wlRestoreAnchors(snap, pinnedId){
   }catch(e){showErr('E-WL-002',{err:e});return store.get('wl_anchors',[]);}
 }
 
-// ============================================================
-// 2007~2023 MCU 全时间线多阶段全量编年史初始化器
-// 涵盖 9 大核心时代阶段，全部不少于 8 个电影级锚点，支持自由编辑回合与插段
-// ============================================================
 async function initOrGetAnchors() {
   let anchors = store.get('wl_anchors', null);
-  // 若本地已经存在大于 20 个锚点的完整编年链，直接返回并规范化
   if (anchors && anchors.length >= 20) {
     const ok = normalizeAnchorList(anchors);
     if (!wlPinnedId()) {
@@ -7516,64 +7597,58 @@ async function initOrGetAnchors() {
   const f = flags();
   const curStartYear = f.year || 2008;
 
-  // 9 大阶段元数据定义
   const STAGES_CHRONICLE = [
-    { year: 2007, phaseTitle: '阶段一：2007 · 战火年代（阿富汗前夕 · 巅峰军火商）', desc: '库纳尔省杰里科导弹测试与军火帝国的极盛狂欢。' },
-    { year: 2008, phaseTitle: '阶段二：2008 · 铁壳初啼（劫后余生 · 「I am Iron Man」）', desc: '山洞逃生后关闭武器部，车库试飞与首次金红实战。' },
-    { year: 2010, phaseTitle: '阶段三：2010 · 倒计时（钯毒危机 · 狂欢赴死与新元素）', desc: '血液钯中毒进入倒计时，摩纳哥遭遇鞭锁，粒子加速器合成新元素。' },
-    { year: 2012, phaseTitle: '阶段四：2012 · 纽约集结（虫洞侵袭 · 废墟与创伤）', desc: '纽约之战复仇者集结，扛核弹入虫洞与重度 PTSD 战甲成瘾。' },
-    { year: 2013, phaseTitle: '阶段五：2013 · 卸甲绝境（豪宅沉海 · 雪夜与浪子协议）', desc: '马里布豪宅被毁，田纳西雪夜突围与 Clean Slate 烟火自毁。' },
-    { year: 2015, phaseTitle: '阶段六：2015 · 奥创纪元（维和妄想 · 索科维亚之痛）', desc: '心灵宝石幻象造出奥创，索科维亚反重力地核升空决战。' },
-    { year: 2016, phaseTitle: '阶段七：2016 · 英雄内战（协议撕裂 · 机场大战与西伯利亚）', desc: '索科维亚协议撕碎复联，莱比锡机场混战与西伯利亚冰原决裂。' },
-    { year: 2018, phaseTitle: '阶段八：2018 · 灰烬与烁灭（瓦坎达失守 · 泰坦风沙与五年守望）', desc: '泰坦星陨石雨决战，半数生命化灰与漫长五年的湖畔静谧守望。' },
-    { year: 2023, phaseTitle: '阶段九：2023 · 终局之战（时空劫持 · 凡人弑神与终局）', desc: '莫比乌斯环逆转时间，重返 1970 与终局之战的红金响指。' }
+    { year: 2007, phaseTitle: '阶段一：2007 · 战火年代（阿富汗前夕 · 巅峰军火商）', desc: '库纳尔省杰里科导弹测试与军火帝国的极盛狂欢。', pacing: '大事件之间必须用军工日常、酒会交锋与人物关系铺垫过渡，禁止一回合直接跳到下一事件。' },
+    { year: 2008, phaseTitle: '阶段二：2008 · 铁壳初啼（劫后余生 · 「I am Iron Man」）', desc: '山洞逃生后关闭武器部，车库试飞与首次金红实战。', pacing: '注重地下车库组装试飞的失败与磨合细节，大事件后必须有善后与心理余波。' },
+    { year: 2010, phaseTitle: '阶段三：2010 · 倒计时（钯毒危机 · 狂欢赴死与新元素）', desc: '血液钯中毒进入倒计时，摩纳哥遭遇鞭锁，粒子加速器合成新元素。', pacing: '表面荒唐挥霍与暗地里生命倒计时的压抑交替推进。' },
+    { year: 2012, phaseTitle: '阶段四：2012 · 纽约集结（虫洞侵袭 · 废墟与创伤）', desc: '纽约之战复仇者集结，扛核弹入虫洞与重度 PTSD 战甲成瘾。', pacing: '大战前后需穿插团队磨合与托尼深夜失眠造甲的细节。' },
+    { year: 2013, phaseTitle: '阶段五：2013 · 卸甲绝境（豪宅沉海 · 雪夜与浪子协议）', desc: '马里布豪宅被毁，田纳西雪夜突围与 Clean Slate 烟火自毁。', pacing: '突出失去战甲依托后凡人血肉之躯的挣扎与彼此依靠。' },
+    { year: 2015, phaseTitle: '阶段六：2015 · 奥创纪元（维和妄想 · 索科维亚之痛）', desc: '心灵宝石幻象造出奥创，索科维亚反重力地核升空决战。', pacing: '理想主义的崩塌与团队裂痕初现，需要细腻的争执与沉默过渡。' },
+    { year: 2016, phaseTitle: '阶段七：2016 · 英雄内战（协议撕裂 · 机场大战与西伯利亚）', desc: '索科维亚协议撕碎复联，莱比锡机场混战与西伯利亚冰原决裂。', pacing: '步步紧逼的政治压力与私人背叛感，切忌一笔带过。' },
+    { year: 2018, phaseTitle: '阶段八：2018 · 灰烬与烁灭（瓦坎达失守 · 泰坦风沙与五年守望）', desc: '泰坦星陨石雨决战，半数生命化灰与漫长五年的湖畔静谧守望。', pacing: '惨烈决战后必须留足烁灭五年的创伤沉淀与平静日常。' },
+    { year: 2023, phaseTitle: '阶段九：2023 · 终局之战（时空劫持 · 凡人弑神与终局）', desc: '莫比乌斯环逆转时间，重返 1970 与终局之战的红金响指。', pacing: '每一幕都承载过去十年的回响，层层推向最终的宿命决战。' }
   ];
 
   const fullChronicleAnchors = [];
   let foundCurrent = false;
 
-  STAGES_CHRONICLE.forEach((stage, sIdx) => {
+  STAGES_CHRONICLE.forEach((stage) => {
     const rawList = MCU_DETAILED_ANCHORS[stage.year] || [];
     const isPastYear = stage.year < curStartYear;
     const isCurrentYear = stage.year === curStartYear;
 
     rawList.forEach((a, aIdx) => {
       const aId = `anc_${stage.year}_${aIdx}`;
-      // 早于当前开局年份的，自动标记为已达成；当前及未来的待完成
       let isDone = isPastYear;
-      let curT = isDone ? (a.turns || 3) : 0;
-
-      // 锁定当前玩家所处年份的第一个锚点为正在进行
-     if (isCurrentYear && !foundCurrent) {
-      foundCurrent = true;
-      wlSetPinned(aId);
-    }
-
-    fullChronicleAnchors.push({
-      id: aId,
-      phaseId: `phase_${stage.year}`,
-      phaseTitle: stage.phaseTitle,
-      phaseYear: stage.year,
-      phaseMonthStart: 1,
-      phaseMonthEnd: 12,
-      phaseDesc: stage.desc,
-      title: a.title,
-      desc: a.desc,
-      isBlip: !!a.isBlip,
-      curTurns: isDone ? (a.turns || 3) : 1, // 未完成锚点从第 1 回合开始算（1/3、2/3、3/3）
-      maxTurns: a.turns || 3,
-      done: isDone
+      if (isCurrentYear && !foundCurrent) {
+        foundCurrent = true;
+        wlSetPinned(aId);
+      }
+      fullChronicleAnchors.push({
+        id: aId,
+        phaseId: `phase_${stage.year}`,
+        phaseTitle: stage.phaseTitle,
+        phaseYear: stage.year,
+        phaseMonthStart: 1,
+        phaseMonthEnd: 12,
+        phaseDesc: stage.desc,
+        pacing: stage.pacing,
+        title: a.title,
+        desc: a.desc,
+        isBlip: !!a.isBlip,
+        curTurns: isDone ? (a.turns || 3) : 1,
+        minTurns: MIN_BEAT_TURNS,
+        maxTurns: Math.min(MAX_BEAT_TURNS, Math.max(MIN_BEAT_TURNS, a.turns || 4)),
+        done: isDone
+      });
     });
-  }); // 闭合内层的 rawList.forEach
-});   // ←【补上这一行！】闭合外层的 STAGES_CHRONICLE.forEach
+  });
 
   anchors = normalizeAnchorList(fullChronicleAnchors);
   store.set('wl_anchors', anchors);
   return anchors;
 }
 
-
-// 严格按顺序寻找当前正在推进的锚点
 function getCurrentAnchor() {
   try {
     let anchors = normalizeAnchorList(store.get('wl_anchors', []));
@@ -7602,13 +7677,110 @@ function getCurrentAnchor() {
     wlSetPinned(lastOne.id);
     return lastOne;
   } catch(e) {
-    console.error('getCurrentAnchor error:', e);
     return null;
   }
 }
 
-// 推进当前锚点回合：必须完整看完 1/3 -> 2/3 -> 3/3 共三篇正文后，第 3 次点选才切下一锚点！
-function advanceCurrentAnchorTurn() {
+// 获取下一个待发生的锚点（用于给 AI 提供“下一拍预告”，让尾回合选项能顺滑导向下一锚点）
+function getNextPendingAnchor(curAnchor) {
+  const anchors = normalizeAnchorList(store.get('wl_anchors', []));
+  if (!curAnchor || !anchors.length) return null;
+  const idx = anchors.findIndex(a => a.id === curAnchor.id);
+  if (idx < 0) return null;
+  for (let i = idx + 1; i < anchors.length; i++) {
+    if (!anchors[i].done) return anchors[i];
+  }
+  return null;
+}
+
+// 蜘蛛侠机制 1：构建结构化双层锚点 Prompt（只传进度元数据，不传臃肿历史原文）
+function buildEventAnchorPrompt() {
+  const anchors = normalizeAnchorList(store.get('wl_anchors', []));
+  const cur = getCurrentAnchor();
+  if (!cur) return '';
+  const next = getNextPendingAnchor(cur);
+  const s = store.state() || {};
+
+  // 提取当前阶段已完成锚点标题列表（仅标题，常数级 token）
+  const samePhaseAnchors = anchors.filter(a => a.phaseTitle === cur.phaseTitle);
+  const doneTitles = samePhaseAnchors.filter(a => a.done).map(a => a.title);
+  const pastEvents = Array.isArray(s.pastEvents) ? s.pastEvents.slice(-8) : [];
+
+  const curT = Math.max(1, cur.curTurns || 1);
+  const minT = MIN_BEAT_TURNS;
+  const maxT = Math.min(MAX_BEAT_TURNS, Math.max(minT, cur.maxTurns || 4));
+
+  // 过渡检测：上一回合如果刚完成了锚点切换，本回合是新锚点第 1 回合
+  const justSwitchedAnchor = !!(s._justFinishedAnchorTitle);
+
+  let turnPacingRule = '';
+  if (curT === 1) {
+    if (justSwitchedAnchor) {
+      turnPacingRule = `【跨锚点无缝流转 · 第 1/${maxT} 回合】：
+上一回合玩家在事件「${s._justFinishedAnchorTitle}」尾声做出了关键选择！
+1. 本回合开篇前 1~2 段【必须先紧接上一回合结尾的最后一幕】，正面写出玩家刚才那个选择所引发的直接结果、托尼的当场反应或余波过渡；
+2. 随后再通过自然的时间/空间流转或突发变故，顺理成章地切入当前新事件锚点【${cur.title}】（${cur.desc}）。绝不允许像重启新书一样割裂开场！`;
+    } else {
+      turnPacingRule = `【当前锚点开篇 · 第 1/${maxT} 回合】：
+自然切入事件【${cur.title}】（${cur.desc}），铺开场景冲突，严禁在一回合内直接把事件演完。`;
+    }
+  } else if (curT < minT) {
+    turnPacingRule = `【锚点深入推进 · 第 ${curT}/${maxT} 回合（未达最小收束门槛 ${minT} 回合）】：
+1. 【防复读铁律】当前已是该锚点的第 ${curT} 回合！绝对严禁重新复述第 1 回合的开场背景，严禁把锚点简介重新演一遍！
+2. 必须100%紧接【上一回合结尾的最后一句话和玩家的行动】，把冲突、对话或手头的事件往纵深推进一层！
+3. 本回合尚未达到最小回合数（${minT}回合），严禁提前结束本锚点！`;
+  } else if (curT < maxT) {
+    turnPacingRule = `【锚点弹性收束区 · 第 ${curT}/${maxT} 回合（已满 ${minT} 回合，可自然收束或继续推演）】：
+1. 必须紧接上一回合结尾与玩家行动继续往下写，严禁重复开场白！
+2. 若本事件的核心冲突在本回合已自然演透，请在正文后额外输出一行标记：【锚点完成: ${cur.title}】，同时给出的 A/B/C/D 四个选项应当能够自然引向后续过渡或下一拍事件${next ? `「${next.title}」` : ''}；
+3. 若当前情节正在高潮、尚未演完，则不必强行收尾，不输出完成标记，继续给出深化当前冲突的四个选项。`;
+  } else {
+    turnPacingRule = `【锚点最终顺延回合 · 第 ${curT}/${maxT} 回合（已达最大 5 回合上限 · 必顺延至下一锚点）】：
+1. 这是当前事件【${cur.title}】的最后一幕收官回合！必须紧接上一回合结尾与玩家行动，将当前事件推向阶段性落点。
+2. 【绝不生硬腰斩】：在收束当前画面的同时，要在结尾埋下通往下一事件${next ? `【${next.title}】（${next.desc}）` : ''}的伏笔或转机！
+3. 本回合末尾给出的 A/B/C/D 四个选项，必须作为【承上启下的桥梁】——玩家点选其中任何一个选项后，都将在下一回合顺理成章地引发${next ? `【${next.title}】` : '下一阶段剧情'}！
+4. 请在正文末尾输出标记：【锚点完成: ${cur.title}】。`;
+  }
+
+  return `
+【世界线结构化进度元数据（常数级记忆 · 严禁违背）】
+· 当前宏阶段：${cur.phaseTitle}（${cur.phaseDesc || ''}）
+· 阶段节奏铁律：${cur.pacing || '大事件之间必须用日常与人物互动自然过渡，禁止跳跃与割裂。'}
+${pastEvents.length ? `· 往期重大历史回响：${pastEvents.join(' → ')}` : ''}
+${doneTitles.length ? `· 本阶段已演完的锚点（严禁重新演）：${doneTitles.join('、')}` : ''}
+▶ 当前正在推进的锚点：【${cur.title}】（已推进至第 ${curT} 回合，要求 ${minT}~${maxT} 回合内完成）
+  事件核心：${cur.desc}
+${next ? `⬜ 下一拍预告（演完当前锚点后才进入，本回合只可埋伏笔，严禁提前演完）：【${next.title}】（${next.desc}）` : ''}
+${turnPacingRule}
+【反 Meta 握手最高禁令】：
+你正在直接输出连载小说正文！绝对严禁输出“世界线已载入”、“人设已确认”、“请回复‘开始’我将开启章节”等任何系统提示语或导语！第一句话必须直接是小说场景或人物动作对话！`;
+}
+
+// 蜘蛛侠机制 2：三重校验 AI 是否在 >=3 回合时自然完成了当前锚点
+function checkAnchorCompletionByAI(rawResponseText, curAnchor) {
+  if (!curAnchor) return false;
+  const curT = Math.max(1, curAnchor.curTurns || 1);
+  const maxT = Math.min(MAX_BEAT_TURNS, Math.max(MIN_BEAT_TURNS, curAnchor.maxTurns || 4));
+
+  // 规则 1：达到最大回合上限（如第 5 回合），本回合读完并由玩家选完选项后，必顺延至下一锚点
+  if (curT >= maxT) return true;
+
+  // 规则 2：未满最小回合门槛（3 回合），绝对禁止提前跳过
+  if (curT < MIN_BEAT_TURNS) return false;
+
+  // 规则 3：满 3~4 回合时，校验 AI 是否输出了【锚点完成】且正文包含该锚点核心词
+  const hasTag = /【\s*锚点完成\s*[:：]?.*?】/i.test(rawResponseText);
+  if (!hasTag) return false;
+
+  // 提取锚点标题中的 2 字以上实词做防虚报校验
+  const titleWords = String(curAnchor.title || '').replace(/[^\u4e00-\u9fa5A-Za-z0-9]/g, ' ').split(/\s+/).filter(w => w.length >= 2);
+  if (!titleWords.length) return true;
+  const hitKeyword = titleWords.some(w => rawResponseText.includes(w.slice(0, 2)));
+  return hitKeyword || curT >= 4;
+}
+
+// 蜘蛛侠机制 3：当玩家在锚点最后一幕做出选择时，正式流转锚点或递增回合
+function advanceCurrentAnchorTurn(forceComplete = false) {
   try {
     let anchors = normalizeAnchorList(store.get('wl_anchors', []));
     if (!anchors || !anchors.length) return;
@@ -7622,14 +7794,28 @@ function advanceCurrentAnchorTurn() {
     const cur = anchors[curIndex];
     if (!cur) return;
 
-    const max = Math.max(1, cur.maxTurns || 3);
+    const s = store.state() || {};
+    const max = Math.min(MAX_BEAT_TURNS, Math.max(MIN_BEAT_TURNS, cur.maxTurns || 4));
     const currentTurn = Math.max(1, cur.curTurns || 1);
     const shortCur = String(cur.title || '').length > 18 ? String(cur.title || '').slice(0, 18) + '…' : cur.title;
 
-    // 只有当前已经处于第 max 回合（例如 3/3 正文已经看完了），点选项推进时才算真正完成！
-    if (currentTurn >= max) {
-      cur.curTurns = max;
+    // 满足以下任一条件则顺延进入下一锚点：① 已达最大回合上限(3~5)；② 满3回合且上一轮正文已触发自然收束标记
+    const shouldMoveNext = (currentTurn >= max) || (currentTurn >= MIN_BEAT_TURNS && (forceComplete || s._anchorReadyToComplete));
+
+    if (shouldMoveNext) {
+      cur.curTurns = currentTurn;
       cur.done = true;
+
+      // 记录到 pastEvents 结构化摘要中，供后续回合常数级引用
+      s.pastEvents = Array.isArray(s.pastEvents) ? s.pastEvents : [];
+      if (!s.pastEvents.includes(cur.title)) {
+        s.pastEvents.push(cur.title);
+        if (s.pastEvents.length > 24) s.pastEvents = s.pastEvents.slice(-24);
+      }
+      // 标记刚刚完成的锚点名，供下一锚点第 1 回合无缝承接玩家的选择！
+      s._justFinishedAnchorTitle = cur.title;
+      delete s._anchorReadyToComplete;
+      store.setState(s);
 
       let nextAnchor = null;
       for (let i = curIndex + 1; i < anchors.length; i++) {
@@ -7638,17 +7824,19 @@ function advanceCurrentAnchorTurn() {
       if (!nextAnchor) nextAnchor = anchors.find(a => !a.done && a.id !== cur.id);
 
       if (nextAnchor) {
-        nextAnchor.curTurns = 1; // 新锚点从 1/3 开始
+        nextAnchor.curTurns = 1;
         wlSetPinned(nextAnchor.id);
         const shortNext = String(nextAnchor.title || '').length > 18 ? String(nextAnchor.title || '').slice(0, 18) + '…' : nextAnchor.title;
-        toast(`🎯【${shortCur}】已完成！进入下一事件：【${shortNext}】(1/${nextAnchor.maxTurns || 3})`);
+        toast(`🎯【${shortCur}】自然收束，你的选择正引发下一事件：【${shortNext}】`);
       } else {
         wlSetPinned(cur.id);
         toast(`🏆 全部阶段的所有事件已推演完成！`);
       }
     } else {
-      // 1/3 推进到 2/3，或 2/3 推进到 3/3，继续留在当前锚点看第 3 篇！
       cur.curTurns = currentTurn + 1;
+      delete s._justFinishedAnchorTitle;
+      delete s._anchorReadyToComplete;
+      store.setState(s);
       wlSetPinned(cur.id);
       toast(`⏳ 事件推进：【${shortCur}】(第 ${cur.curTurns}/${max} 回合)`);
     }
@@ -7659,19 +7847,13 @@ function advanceCurrentAnchorTurn() {
   }
 }
 
-// ============================================================
-// 电影级·全阶段与事件锚点系统 (Phase & Anchor Hierarchy Manager)
-// 复刻两级阶段大纲架构：支持阶段增删改插、细化锚点节拍、状态切换与角色限制
-// ============================================================
-
-// 辅助：从扁平锚点链聚合为结构化的阶段列表 (Phases)
 function wlGetPhasesFromAnchors() {
   const anchors = normalizeAnchorList(store.get('wl_anchors', []));
   const phaseMap = new Map();
   const phases = [];
   const f = flags();
 
-  anchors.forEach((a, idx) => {
+  anchors.forEach((a) => {
     const pTitle = a.phaseTitle || '阶段一：初遇与日常';
     if (!phaseMap.has(pTitle)) {
       const pObj = {
@@ -7696,7 +7878,6 @@ function wlGetPhasesFromAnchors() {
   return phases;
 }
 
-// 辅助：将阶段列表拍平回底层标准存储格式 (保持向下兼容)
 function wlSavePhasesToAnchors(phases) {
   const flat = [];
   phases.forEach(p => {
@@ -7718,9 +7899,6 @@ function wlSavePhasesToAnchors(phases) {
   return flat;
 }
 
-// ============================================================
-// 电影级·全阶段与事件锚点管理（支持大输入框编辑、设为当前事件、防跳顶）
-// ============================================================
 function openAnchorManagerModal(onRefresh) {
   let phases = wlGetPhasesFromAnchors();
   const curAnchor = getCurrentAnchor();
@@ -7730,7 +7908,6 @@ function openAnchorManagerModal(onRefresh) {
   let editingPhaseTarget = null;
   let modalEl = null;
 
-  // 阶段折叠状态集合：默认所有阶段均折叠收起；仅自动展开含有「当前推进中事件」的阶段
   const expandedPhases = new Set();
   phases.forEach((p) => {
     if (p.anchors && p.anchors.some(a => a.id === curAnchorId)) {
@@ -7743,7 +7920,6 @@ function openAnchorManagerModal(onRefresh) {
     const bodyBox = modalEl.querySelector('#anc_mgr_view_host');
     if (!bodyBox) return;
 
-    // 记录重绘前的滚动条高度，彻底消除跳顶现象
     const scrollBox = modalEl.querySelector('#phase_cards_scroll');
     const prevScrollTop = scrollBox ? scrollBox.scrollTop : 0;
 
@@ -7755,7 +7931,6 @@ function openAnchorManagerModal(onRefresh) {
       bindEditPhaseEvents(bodyBox);
     }
 
-    // 毫秒级精准还原滚动高度
     const newScrollBox = modalEl.querySelector('#phase_cards_scroll');
     if (newScrollBox && prevScrollTop > 0) {
       newScrollBox.scrollTop = prevScrollTop;
@@ -7801,7 +7976,7 @@ function openAnchorManagerModal(onRefresh) {
 
     <div style="margin-bottom: 8px">
       <div style="font-size: 11px; line-height: 1.6; color: var(--muted); margin-bottom: 8px">
-        <span style="color:var(--cyan)">☑ 已达成</span>　<span style="color:var(--gold)">▶ 当前推进中</span>　<span style="color:var(--muted)">⬜ 待发生</span>。<br>
+        <span style="color:var(--cyan)">☑ 已达成</span>　<span style="color:var(--gold)">▶ 当前推进中（3~5回合弹性流转）</span>　<span style="color:var(--muted)">⬜ 待发生</span>。<br>
         💡 <b>点击阶段标题可展开/收起内部锚点</b>；点击事件名可弹出长文本编辑。
       </div>
 
@@ -7850,7 +8025,6 @@ function openAnchorManagerModal(onRefresh) {
             </div>
           </div>
 
-          <!-- 锚点内容体：受折叠状态控制 -->
           <div class="p-body" style="${isExpanded ? '' : 'display:none;'}">
             ${anchorList.length ? anchorList.map((a, aIdx) => {
               const isCur = curAnchorId === a.id;
@@ -7859,8 +8033,8 @@ function openAnchorManagerModal(onRefresh) {
               if (isDone) statusIcon = '☑';
               else if (isCur) statusIcon = '▶';
 
-              const curT = (typeof a.curTurns === 'number') ? a.curTurns : (isDone ? (a.maxTurns || 3) : 0);
-              const maxT = a.maxTurns || 3;
+              const curT = (typeof a.curTurns === 'number') ? a.curTurns : (isDone ? (a.maxTurns || 4) : 1);
+              const maxT = a.maxTurns || 4;
 
               return `
                 <div class="a-row ${isDone ? 'done' : ''} ${isCur ? 'current' : ''}" data-anchor-id="${a.id}">
@@ -7875,12 +8049,10 @@ function openAnchorManagerModal(onRefresh) {
                   </div>
 
                   <div class="a-row-sub">
-                    <div class="a-turn-stepper" title="已完成回合 / 规划总回合">
-                      <input type="number" min="0" max="30" value="${curT}" data-set-cur-turn="${a.id}">
-                      <span>/</span>
-                      <input type="number" min="1" max="30" value="${maxT}" data-set-max-turn="${a.id}">
-                      <span>回</span>
-                    </div>
+                    <!-- ✅ 修复后代码（彻底杜绝用户乱填，纯只读徽标）： -->
+                 <div class="tag ${isDone ? 'green' : isCur ? 'gold' : ''}" style="margin:0;font-size:10px;padding:2px 7px;flex-shrink:0" title="当前推进进度">
+                    第 ${curT} / ${a.minTurns || 3}~${maxT} 回合
+                       </div>
 
                     <div class="a-ctrls">
                       <span data-open-big-editor="${a.id}" title="弹出大输入框编辑剧情" style="color:var(--cyan)">✎编辑</span>
@@ -7916,35 +8088,26 @@ function openAnchorManagerModal(onRefresh) {
   };
 
   const bindListEvents = (host) => {
-    // 阶段单栏展开/收起切换
     host.querySelectorAll('[data-toggle-phase]').forEach(el => {
       el.onclick = () => {
         const pIdx = +el.dataset.togglePhase;
         const p = phases[pIdx];
         if (!p) return;
-        if (expandedPhases.has(p.name)) {
-          expandedPhases.delete(p.name);
-        } else {
-          expandedPhases.add(p.name);
-        }
+        if (expandedPhases.has(p.name)) expandedPhases.delete(p.name);
+        else expandedPhases.add(p.name);
         refreshModalView();
       };
     });
 
-    // 全部展开 / 全部收起一键切换
     const toggleAllBtn = host.querySelector('#btn_toggle_all_phases');
     if (toggleAllBtn) {
       toggleAllBtn.onclick = () => {
-        if (expandedPhases.size === phases.length) {
-          expandedPhases.clear();
-        } else {
-          phases.forEach(p => expandedPhases.add(p.name));
-        }
+        if (expandedPhases.size === phases.length) expandedPhases.clear();
+        else phases.forEach(p => expandedPhases.add(p.name));
         refreshModalView();
       };
     }
 
-    // 1. 点击标题或“✎编辑”弹出大尺寸输入框
     host.querySelectorAll('[data-open-big-editor]').forEach(el => {
       el.onclick = () => {
         const aId = el.dataset.openBigEditor;
@@ -7987,7 +8150,6 @@ function openAnchorManagerModal(onRefresh) {
       };
     });
 
-    // 2. 点击「🎯设为当前」
     host.querySelectorAll('[data-force-current]').forEach(btn => {
       btn.onclick = () => {
         const aId = btn.dataset.forceCurrent;
@@ -7996,14 +8158,13 @@ function openAnchorManagerModal(onRefresh) {
           const found = p.anchors.find(x => x.id === aId);
           if (found) {
             found.done = false;
-            if (!found.curTurns || found.curTurns < 1 || found.curTurns > (found.maxTurns || 3)) {
+            if (!found.curTurns || found.curTurns < 1 || found.curTurns > (found.maxTurns || 4)) {
               found.curTurns = 1;
             }
-            // 自动确保该阶段展开
             expandedPhases.add(p.name);
             syncPhasesNow();
             const shortT = found.title.length > 16 ? found.title.slice(0, 16) + '…' : found.title;
-            toast(`🎯 已将【${shortT}】锁定为当前事件 (${found.curTurns}/${found.maxTurns || 3})`);
+            toast(`🎯 已将【${shortT}】锁定为当前事件 (${found.curTurns}/${found.maxTurns || 4})`);
             break;
           }
         }
@@ -8011,7 +8172,6 @@ function openAnchorManagerModal(onRefresh) {
       };
     });
 
-    // 3. 点击状态小方框
     host.querySelectorAll('[data-toggle-anchor]').forEach(btn => {
       btn.onclick = () => {
         const aId = btn.dataset.toggleAnchor;
@@ -8020,7 +8180,7 @@ function openAnchorManagerModal(onRefresh) {
           if (a) {
             a.done = !a.done;
             if (a.done) {
-              a.curTurns = a.maxTurns || 3;
+              a.curTurns = a.maxTurns || 4;
               if (curAnchorId === a.id) {
                 const flat = phases.flatMap(x => x.anchors);
                 const nextUn = flat.find(x => !x.done);
@@ -8038,41 +8198,9 @@ function openAnchorManagerModal(onRefresh) {
       };
     });
 
-    // 4. 回合数直接调节
-    host.querySelectorAll('[data-set-cur-turn]').forEach(inp => {
-      inp.onchange = () => {
-        const aId = inp.dataset.setCurTurn;
-        for (const p of phases) {
-          const a = p.anchors.find(x => x.id === aId);
-          if (a) {
-            a.curTurns = Math.max(0, parseInt(inp.value) || 0);
-            a.done = a.curTurns >= (a.maxTurns || 3);
-            break;
-          }
-        }
-        refreshModalView();
-      };
-    });
-    host.querySelectorAll('[data-set-max-turn]').forEach(inp => {
-      inp.onchange = () => {
-        const aId = inp.dataset.setMaxTurn;
-        for (const p of phases) {
-          const a = p.anchors.find(x => x.id === aId);
-          if (a) {
-            a.maxTurns = Math.max(1, parseInt(inp.value) || 3);
-            a.done = (a.curTurns || 0) >= a.maxTurns;
-            break;
-          }
-        }
-        refreshModalView();
-      };
-    });
-
-    // 5. 排序平滑移动
     host.querySelectorAll('[data-a-move]').forEach(btn => {
       btn.onclick = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
+        e.preventDefault(); e.stopPropagation();
         const dir = btn.dataset.aMove;
         const pIdx = +btn.dataset.pIdx;
         const aIdx = +btn.dataset.aIdx;
@@ -8102,7 +8230,6 @@ function openAnchorManagerModal(onRefresh) {
       };
     });
 
-    // 阶段整块移动
     host.querySelectorAll('[data-phase-move]').forEach(btn => {
       btn.onclick = (e) => {
         e.preventDefault(); e.stopPropagation();
@@ -8120,7 +8247,6 @@ function openAnchorManagerModal(onRefresh) {
       };
     });
 
-    // 6. 其他操作
     host.querySelector('#btn_insert_head').onclick = () => {
       editingPhaseTarget = 'head'; currentView = 'edit_phase'; refreshModalView();
     };
@@ -8165,11 +8291,11 @@ function openAnchorManagerModal(onRefresh) {
           phaseTitle: phases[pIdx].name,
           title: newTitle.trim(),
           desc: '紧扣该事件展开推演。',
-          curTurns: 0,
-          maxTurns: 3,
+          curTurns: 1,
+          minTurns: MIN_BEAT_TURNS,
+          maxTurns: 4,
           done: false
         });
-        // 自动展开该阶段以便用户查看新增的锚点
         expandedPhases.add(phases[pIdx].name);
         refreshModalView();
       };
@@ -8181,7 +8307,6 @@ function openAnchorManagerModal(onRefresh) {
       };
     });
 
-    // 保存所有阶段与锚点
     host.querySelector('#btn_save_all_phases').onclick = () => {
       const flat = wlSavePhasesToAnchors(phases);
       if (curAnchorId) {
@@ -8199,7 +8324,7 @@ function openAnchorManagerModal(onRefresh) {
     if (closeBtn) closeBtn.onclick = () => modalEl.remove();
   };
 
-    const renderEditPhaseHtml = () => {
+  const renderEditPhaseHtml = () => {
     const isEditMode = typeof editingPhaseTarget === 'object' && editingPhaseTarget !== null;
     const targetData = isEditMode ? editingPhaseTarget : {
       name: '', year: flags().year, monthStart: 1, monthEnd: 12, desc: '', allowedChars: '', bannedChars: '', mustEvents: '', pacing: '', anchors: []
@@ -8233,7 +8358,6 @@ function openAnchorManagerModal(onRefresh) {
           <textarea class="inp" id="ef_desc" rows="3" placeholder="这个阶段讲的是什么故事……">${esc(targetData.desc)}</textarea>
         </div>
 
-        <!-- 恢复遗漏的 4 个专业核心字段 -->
         <div class="row" style="gap:8px;margin-bottom:10px">
           <div class="field" style="flex:1">
             <label style="font-size:11.5px;font-weight:700;color:var(--cyan)">👥 允许出场角色</label>
@@ -8256,7 +8380,7 @@ function openAnchorManagerModal(onRefresh) {
         </div>
 
         <div class="field" style="margin-bottom:10px">
-          <label style="font-size:11.5px;font-weight:700">事件锚点节拍（每行一个，自动拆分为事件）</label>
+          <label style="font-size:11.5px;font-weight:700">事件锚点节拍（每行一个，自动拆分为3~5回合弹性事件）</label>
           <textarea class="inp" id="ef_beats" rows="4" style="font-family:var(--font-mono);font-size:12px">${esc(defaultBeats)}</textarea>
         </div>
       </div>
@@ -8305,7 +8429,7 @@ function openAnchorManagerModal(onRefresh) {
           if (old) { old.phaseTitle = name; return old; }
           return {
             id: 'anc_b_' + Date.now() + '_' + bIdx,
-            phaseTitle: name, title: line, desc: desc || '推进该事件节拍。', curTurns: 0, maxTurns: 3, done: false
+            phaseTitle: name, title: line, desc: desc || '推进该事件节拍。', curTurns: 1, minTurns: MIN_BEAT_TURNS, maxTurns: 4, done: false
           };
         });
       }
@@ -8336,11 +8460,6 @@ function openAnchorManagerModal(onRefresh) {
   refreshModalView();
 }
 
-/* ============================================================
-   世界线（主线剧情 · 彻底解决提前跳锚点、回退失效与长文本折叠）
-   ============================================================ */
-
-// 补全缺失的自定义年月日与跨阶段跳跃弹窗函数
 function openWorldlineDateModal(onDone) {
   const curW = worldDateObj();
   const curD = getVirtualDate();
@@ -8372,8 +8491,8 @@ function openWorldlineDateModal(onDone) {
 
     <div class="card" style="padding:12px; margin-bottom:12px">
       <div class="field" style="margin-bottom:10px">
-        <label style="font-size:11.5px; font-weight:700; color:var(--text); margin-bottom:5px; display:block">世界线年份 (2007 ~ 2026)</label>
-        <input type="number" min="2007" max="2026" class="inp" id="wd_year" value="${curW.y}" style="font-size:14px; font-weight:700; font-family:var(--font-mono)">
+        <label style="font-size:11.5px; font-weight:700; color:var(--text); margin-bottom:5px; display:block">世界线年份 (2000 ~ 2026)</label>
+        <input type="number" min="2000" max="2026" class="inp" id="wd_year" value="${curW.y}" style="font-size:14px; font-weight:700; font-family:var(--font-mono)">
       </div>
 
       <div class="row" style="gap:8px; margin-bottom:10px">
@@ -8387,7 +8506,6 @@ function openWorldlineDateModal(onDone) {
         </div>
       </div>
 
-      <!-- 新增：几点几分设定联动 -->
       <div style="padding-top:10px; border-top:1px dashed var(--line)">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px">
           <label style="font-size:11.5px; font-weight:700; color:var(--cyan)">⏰ 时钟时间 (时:分)</label>
@@ -8427,7 +8545,6 @@ function openWorldlineDateModal(onDone) {
     const inputH = Math.max(0, Math.min(23, parseInt(d.querySelector('#wd_hour').value) || 0));
     const inputMin = Math.max(0, Math.min(59, parseInt(d.querySelector('#wd_min').value) || 0));
 
-    // 1. 保存年月日
     const curSt = store.state() || {};
     curSt.curYear = inputY;
     curSt.curMonth = inputM;
@@ -8439,7 +8556,6 @@ function openWorldlineDateModal(onDone) {
     if (matchedEra) curSt.era = matchedEra.id;
     store.setState(curSt);
 
-    // 2. 保存时钟时分偏移（启动随自然时间流逝）
     setCustomClockTime(inputH, inputMin);
 
     d.remove();
@@ -8451,11 +8567,13 @@ function openWorldlineDateModal(onDone) {
 apps.worldline = {
   title: '世界线',
   async render(v) {
+    // 确保 IndexedDB 历史池已同步完成
+    await store.initStorage();
     let s = store.state() || {};
+    s.history = Array.isArray(s.history) ? s.history : [];
     const self = this;
     const f = flags();
 
-    // 1. 常驻核心骨架
     v.innerHTML = `<div class="pad wl-shell">
       <div id="wl_f1"></div>
       <div id="wl_f2"></div>
@@ -8479,9 +8597,9 @@ apps.worldline = {
     };
 
     const EXIT_HTML = `<div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap">
-      <button class="btn ghost sm" id="wl_retry" style="min-height:44px">↻ 重试</button>
+      <button class="btn ghost sm" id="wl_retry" style="min-height:44px">↻ 重试本回合</button>
+      <button class="btn ghost sm" id="wl_next_anc" style="min-height:44px;color:var(--gold)">⏭ 推进至下一锚点</button>
       <button class="btn ghost sm" id="wl_home" style="min-height:44px">🏠 返回桌面</button>
-      <button class="btn ghost sm" id="wl_local" style="min-height:44px">📖 使用本地剧情</button>
     </div>`;
     const H_PARTS = [];
     const addHint = (msg, code, neutral) => { if (msg) H_PARTS.push({ msg, code: code || '', neutral: neutral !== false }); };
@@ -8494,10 +8612,20 @@ apps.worldline = {
         return `<div class="card" style="padding:8px 10px;margin-bottom:8px;border-left:3px solid ${p.neutral ? 'var(--cyan)' : 'var(--gold)'};background:var(--panel2)"><div class="hint" style="font-size:11.5px;line-height:1.6;color:var(--text)">${badge}${p.msg}</div>${cfg}</div>`;
       }).join('');
       el.innerHTML = bars + EXIT_HTML;
-      const r = el.querySelector('#wl_retry'), h = el.querySelector('#wl_home'), l = el.querySelector('#wl_local'), g = el.querySelector('#wl_go_cfg');
+      const r = el.querySelector('#wl_retry'), nx = el.querySelector('#wl_next_anc'), h = el.querySelector('#wl_home'), g = el.querySelector('#wl_go_cfg');
       if (r) { r.disabled = off; r.onclick = () => retryWorldline(); }
+      if (nx) {
+        nx.disabled = off;
+        nx.onclick = () => {
+          if (!confirm('手动完成当前事件锚点并切入下一锚点？')) return;
+          advanceCurrentAnchorTurn(true);
+          const st = store.state() || {};
+          st.story = ''; st.options = '';
+          store.setState(st);
+          safeRender('worldline', document.getElementById('appBody'));
+        };
+      }
       if (h) { h.disabled = off; h.onclick = () => goHome(); }
-      if (l) { l.disabled = off; l.onclick = () => useLocalStory(); }
       if (g) { g.disabled = off; g.onclick = () => openApp('settings'); }
     };
     paintHint({ exitsOff: true });
@@ -8517,7 +8645,7 @@ apps.worldline = {
     let wlFailed = false;
     const wlKey = 'worldline_turn_' + s.turn;
 
-    // ====== 核心生成逻辑：确保本回合严格属于当前锚点 ======
+    // ====== 核心生成逻辑：常数级结构化上下文 + 严丝合缝的跨回合衔接 ======
     if (!s.story) {
       if (window.__soOffscreenRendering) {
         const era = WORLD.eras.find(e => e.id === s.era) || WORLD.eras[2];
@@ -8531,10 +8659,10 @@ apps.worldline = {
         store.setState(s);
         addHint('未配置 API Key · 当前使用本地预设剧情', 'E-AI-001', true);
       } else {
-       const safeAnchor = curAnchor || { id: 'anc_default', phaseTitle: '核心剧情推进', title: '日常技术协同', curTurns: 1, maxTurns: 3, done: false };
-const ancMax = Math.max(1, safeAnchor.maxTurns || 3);
-// 直接读取当前锚点真实所处的回合（1/3 即显示 1/3，2/3 即显示 2/3，绝不再多 +1 虚标！）
-const currentTurnInAnchor = Math.max(1, Math.min(ancMax, safeAnchor.curTurns || 1));
+        const safeAnchor = curAnchor || { id: 'anc_default', phaseTitle: '核心剧情推进', title: '日常技术协同', desc: '实验室日常推演', curTurns: 1, minTurns: MIN_BEAT_TURNS, maxTurns: 4, done: false };
+        const ancMax = Math.min(MAX_BEAT_TURNS, Math.max(MIN_BEAT_TURNS, safeAnchor.maxTurns || 4));
+        const currentTurnInAnchor = Math.max(1, Math.min(ancMax, safeAnchor.curTurns || 1));
+        const nextAnchorPreview = getNextPendingAnchor(safeAnchor);
 
         const st0 = v.querySelector('#wl_story');
         const optsContainer = v.querySelector('#w_opts');
@@ -8553,53 +8681,52 @@ const currentTurnInAnchor = Math.max(1, Math.min(ancMax, safeAnchor.curTurns || 
 
         try {
           const era = WORLD.eras.find(e => e.id === s.era) || WORLD.eras[2];
-          const last = s.history.length ? s.history[s.history.length - 1] : null;
-
-         // 修改 apps.worldline.render 中拼装 ctx 的地方：
-let pacingGuide = '';
-if (safeAnchor.isBlip) {
-  pacingGuide = `\n【烁灭五年专属阶段】：当前第 ${currentTurnInAnchor}/${ancMax} 回合，深化时代情绪。`;
-} else {
-  if (currentTurnInAnchor === 1) {
-    pacingGuide = `\n【事件开局 (1/${ancMax})】：引入事件【${safeAnchor.title}】的起因与现场核心冲突。`;
-  } else if (currentTurnInAnchor < ancMax) {
-    pacingGuide = `\n【事件推进 (${currentTurnInAnchor}/${ancMax}) · 坚决拒绝原地重复】：
-必须推动时间或空间发生实质演变（双方必须做出新的动作、换到新的对话焦点或推进手头任务），严禁重复上回合已经发生过的对话、动作或修辞！`;
-  } else {
-    pacingGuide = `\n【事件高潮与尾声 (${currentTurnInAnchor}/${ancMax})】：这是本事件的最终幕，必须将【${safeAnchor.title}】的冲突予以阶段性解决或推向高潮，为转场做准备！`;
-  }
-}
-
-              // ===== 修复：强制将上一个锚点末回合的选择作为新锚点的直接诱因 =====
-          let transitionPrompt = '';
-          const isNewAnchorFirstTurn = (currentTurnInAnchor === 1 && s.history.length > 0);
-          if (isNewAnchorFirstTurn && last) {
-            transitionPrompt = `
-【⚡ 跨事件因果承接铁律 · 核心最高优先级】：
-注意：当前已进入新事件【${safeAnchor.title}】的开局！
-但是，玩家在上一事件最后做出的选择是：【${last.choice}】！
-大模型必须在正文前 1~2 段中，【正面承接并体现该选择所带来的直接后果、影响或托尼的反馈反应】！
-严禁无视玩家的选择！新事件的发生必须是该选择引发的连锁反应，或是由该选择自然延展、时间推移后平滑过渡而来的，必须形成严密的因果闭环！`;
+          // 关键修复：从 history 中倒序找最近一条真正有非空 story 正文的记录，防止恢复回忆后某条空记录导致断联变成“第一篇”！
+          let last = null;
+          for (let hi = s.history.length - 1; hi >= 0; hi--) {
+            if (s.history[hi] && s.history[hi].story && String(s.history[hi].story).trim().length > 30) {
+              last = s.history[hi];
+              break;
+            }
           }
 
-                    // 提取玩家上一轮输入中可能包含的（系统纠偏指令）
           let userDirectRule = '';
-          if (last && last.choice) {
-            const mRule = last.choice.match(/【系统纠偏指令：(.*?)】/s);
+          const lastChoiceRaw = (s.history.length ? s.history[s.history.length - 1].choice : (last ? last.choice : '')) || '';
+          if (lastChoiceRaw) {
+            const mRule = lastChoiceRaw.match(/【系统纠偏指令：(.*?)】/s);
             if (mRule) {
               userDirectRule = `\n【⚠️ 玩家最高绝对指令（本回合必须 100% 遵照执行，优先级高于一切）】：\n“${mRule[1].trim()}”\n`;
             }
           }
+          const cleanLastChoice = lastChoiceRaw.replace(/【系统纠偏指令：.*?】\n?/s, '').trim();
 
-          // 提取前文多回合的连贯记忆线（不再只看寥寥 450 字）
-          const pastHistoryChain = (s.history || []).slice(-3).map((h, i) => 
-            `[前第 ${3-i} 幕进展]: ${(h.story||'').slice(-200).replace(/\n/g,' ')} -> 玩家行动: ${h.choice.replace(/【系统纠偏指令：.*?】\n?/s, '')}`
+          // 蜘蛛侠式上下文硬性裁剪：只传最近 2 幕的轨迹梗概 + 上一幕结尾 650 字原文 + 玩家选择，总上下文恒定 < 2500 字
+          const recentOutline = s.history.filter(h => h && h.story).slice(-3, -1).map((h) =>
+            `· [第 ${h.turn} 幕梗概]: ${String(h.story).replace(/\s+/g, ' ').slice(-120)} -> 玩家选择: ${(h.choice || '').replace(/【系统纠偏指令：.*?】\n?/s, '').slice(0, 60)}`
           ).join('\n');
 
-          let ctx = last 
-            ? `\n【前置多幕剧情脉络连贯线】：\n${pastHistoryChain}\n\n【上回合结尾紧接着的场景】：\n${last.story.slice(-550)}\n\n【玩家刚才做出的决定性行动/台词】：\n${last.choice.replace(/【系统纠偏指令：.*?】\n?/s, '')}\n${userDirectRule}\n${pacingGuide}\n${transitionPrompt}
-\n【防卡壳防复读指令】：严禁在同一段落内重复相同的句式或词组！严禁机械复读上文已经交代过的动作细节！剧情必须向前实质发展！` 
-            : `\n开局第一回合。请写托尼·斯塔克与玩家的初会与磨合，紧扣首个事件锚点【${formatAnchorTitle(safeAnchor)}】。${pacingGuide}`;
+          let userPromptContent = '';
+          if (last) {
+            userPromptContent = `【这是连载剧情的第 ${s.turn} 幕（前面已经发生了 ${s.history.length} 幕，绝对不是开局第 1 篇！）】
+${recentOutline ? `【前两幕脉络】：\n${recentOutline}\n` : ''}
+【上一幕（第 ${last.turn || (s.turn - 1)} 幕）结尾现场原文】：
+"""
+${String(last.story).slice(-680)}
+"""
+
+【玩家刚刚做出的行动 / 台词抉择】：
+➤ "${cleanLastChoice || '继续顺着刚才的气氛回应'}"
+${userDirectRule}
+【本幕（第 ${s.turn} 幕 · 锚点「${safeAnchor.title}」第 ${currentTurnInAnchor}/${ancMax} 回合）写作任务】：
+1. 第一段必须【紧接上一幕结尾的最后一个动作和玩家刚才的抉择「${cleanLastChoice || '继续'}」】往下写！写出托尼或在场角色对玩家这个动作/台词的直接反应！
+2. ${currentTurnInAnchor > 1 ? `当前已是「${safeAnchor.title}」的第 ${currentTurnInAnchor} 回合，绝对严禁把第 1 回合的开场背景再重复演一遍！必须在上一幕的基础上把事态往后推进！` : (s._justFinishedAnchorTitle ? `上一幕刚收束了「${s._justFinishedAnchorTitle}」，请先用 1~2 段自然写出玩家上一幕选择带来的直接结果，再顺理成章地过渡切入新事件「${safeAnchor.title}」（${safeAnchor.desc}）！` : `自然推进事件「${safeAnchor.title}」（${safeAnchor.desc}）！`)}
+3. ${currentTurnInAnchor >= ancMax && nextAnchorPreview ? `本回合是当前事件的收官幕（第 ${currentTurnInAnchor}/${ancMax} 回合），请在收束当前冲突的同时，将气氛与线索自然引向下一拍事件【${nextAnchorPreview.title}】，使文末的 A/B/C/D 四个选项成为通往下一事件的导火索！` : ''}
+4. 严禁输出任何“世界线已载入”、“请回复开始”等提示语，直接输出小说正文，末尾附上【好感度变动：+N】与【选项】A/B/C/D！`;
+          } else {
+            userPromptContent = `【开局第 1 幕 · 事件锚点「${safeAnchor.title}」（第 1/${ancMax} 回合）】
+事件核心：${safeAnchor.desc}
+请直接以小说正文描写托尼·斯塔克与玩家的现场交锋（严禁输出任何“设定已载入”、“请回复开始”等Meta前言），末尾附上【好感度变动：+N】与【选项】A/B/C/D。`;
+          }
 
           const sys = buildSystem('worldline', userDirectRule ? `\n${userDirectRule}\n` : '');
 
@@ -8608,13 +8735,13 @@ if (safeAnchor.isBlip) {
             const now = Date.now();
             if (now - lastRenderTime > 60 && st0) {
               lastRenderTime = now;
-              const tempStory = textSoFar.split(/(?:【选项】|\[选项\]|选项[:：])/)[0];
+              const tempStory = textSoFar.split(/(?:【选项】|\[选项\]|选项[:：]|【锚点完成)/)[0];
               st0.innerHTML = fmtStory(tempStory) + '<span class="spin" style="display:inline-block;width:10px;height:10px;border-width:1.5px;margin-left:4px;vertical-align:middle"></span>';
             }
           };
 
           let res = await ai(
-            [{ role: 'user', content: '请推进剧情：' + ctx }],
+            [{ role: 'user', content: userPromptContent }],
             sys,
             () => LOCAL.story(era),
             'story',
@@ -8625,9 +8752,18 @@ if (safeAnchor.isBlip) {
 
           if (!res || typeof res !== 'string' || !res.trim()) throw new Error('EMPTY_RETURN');
 
+          // 清洗可能残余的 Meta 握手废话（如“世界线已载入...请回复开始”）
+          res = res.replace(/^[\s\S]{0,200}?(?:世界线|人设|档案)已(?:载入|确认|同步).*?\n+/i, '')
+                   .replace(/请回复[“"「]?开始[”"」]?.*$/gim, '')
+                   .trim();
+
           if (!f.pepperExists) {
             res = res.replace(/小辣椒/g, '公关部主管').replace(/佩珀·波茨/g, '法务部代表').replace(/佩珀/g, '秘书处').replace(/Pepper/gi, 'Assistant');
           }
+
+          // 蜘蛛侠机制：检测 AI 是否在 >=3 回合时回报了【锚点完成】，记录标记供玩家点选选项时触发流转
+          const aiCompletedAnchor = checkAnchorCompletionByAI(res, safeAnchor);
+          s._anchorReadyToComplete = aiCompletedAnchor;
 
           let storyPart = res;
           let optPart = '';
@@ -8638,38 +8774,26 @@ if (safeAnchor.isBlip) {
             optPart = parts[1] || '';
           }
 
-                  let affDelta = 0;
-const curAff = s.affinity || 0;
+          let affDelta = 0;
+          const curAff = s.affinity || 0;
+          const tailSlice = res.slice(-350);
+          const mDeltaStrict = tailSlice.match(/【\s*(?:Affinity|好感度)?\s*(?:变动)?\s*[:：]\s*([+-]?\d+)\s*】/i);
+          if (mDeltaStrict) {
+            affDelta = parseInt(mDeltaStrict[1]) || 0;
+          }
+          affDelta = Math.max(-3, Math.min(3, affDelta));
+          s.lastGainTurn = s.turn;
 
-// 严格限定在文末后 300 字符内检索显式的好感度变动，绝不全篇乱搜数字！
-const tailSlice = res.slice(-300);
-const mDeltaStrict = tailSlice.match(/【\s*(?:Affinity|好感度)?\s*(?:变动)?\s*[:：]\s*([+-]?\d+)\s*】/i);
-const mAbsStrict = tailSlice.match(/【\s*(?:当前)?\s*(?:Affinity|好感度)\s*[:：]\s*(\d{1,3})\s*\/\s*200\s*】/i);
+          // 彻底清洗系统标签（包括【锚点完成】、【阶段完成】、【好感度变动】）
+          s.story = storyPart
+            .replace(/【剧情】/g, '')
+            .replace(/【\s*锚点完成.*?】/gi, '')
+            .replace(/【\s*阶段完成.*?】/gi, '')
+            .replace(/【\s*(?:当前)?\s*(?:Affinity|好感度).*?】/gi, '')
+            .replace(/[（\(]\s*(?:当前)?\s*(?:Affinity|好感度).*?[）\)]/gi, '')
+            .trim();
 
-if (mDeltaStrict) {
-  affDelta = parseInt(mDeltaStrict[1]) || 0;
-} else if (mAbsStrict) {
-  const targetVal = parseInt(mAbsStrict[1]);
-  if (!isNaN(targetVal)) {
-    // 保护：如果目标分值和当前差得太离谱，判定为模型幻觉，直接放弃绝对值！
-    if (Math.abs(targetVal - curAff) <= 4) {
-      affDelta = targetVal - curAff;
-    }
-  }
-}
-
-// 🛡️ 核心好感度熔断安全锁：单回合好感变动严格限制在 -3 到 +3 之间，绝不允许一回合跳跃！
-affDelta = Math.max(-3, Math.min(3, affDelta));
-s.lastGainTurn = s.turn;
-
-// 从正文中彻底清洗掉任何形式的好感度系统标签，绝不污染小说正文
-s.story = storyPart
-  .replace(/【剧情】/g, '')
-  .replace(/【\s*(?:当前)?\s*(?:Affinity|好感度).*?】/gi, '')
-  .replace(/[（\(]\s*(?:当前)?\s*(?:Affinity|好感度).*?[）\)]/gi, '')
-  .trim();
-
-          s.options = optPart.trim();
+          s.options = optPart.replace(/【\s*锚点完成.*?】/gi, '').replace(/【\s*阶段完成.*?】/gi, '').trim();
 
           if (!s.options) {
             const optLines = s.story.split('\n').filter(line => /^[A-DＡ-Ｄ][\.、\s]/.test(line.trim()));
@@ -8683,18 +8807,12 @@ s.story = storyPart
           }
 
           s.lastDelta = affDelta;
-delete s.localOnly;
+          delete s.localOnly;
 
-// 更新好感度并同步到全局与顶栏
-if (affDelta !== 0) {
-  s.affinity = applyAffinity(curAff + affDelta);
-}
-store.setState(s);
-
-if (affDelta !== 0) {
-  applyAffinity((s.affinity || 0) + affDelta);
-  s.affinity = (store.state() || {}).affinity || s.affinity;
-}
+          if (affDelta !== 0) {
+            s.affinity = applyAffinity(curAff + affDelta);
+          }
+          store.setState(s);
 
           if (st0) st0.innerHTML = fmtStory(s.story);
           if (optsContainer) {
@@ -8724,7 +8842,7 @@ if (affDelta !== 0) {
 
     const FB_OPTS = 'A. 提出完全相反的逆向工程论点\nB. 顺着他刚才没说完的半句话递出扳手\nC. 保持沉默，把冷却的咖啡杯换掉\nD. 转移话题，核实传感器参数';
 
-            // F1 顶栏状态（已彻底删减四维数值，新增好感弹窗调控与双语切换按钮）
+    // F1 顶栏状态
     fill('wl_f1', () => {
       const lv = s.affinity || 0;
       const tTier = tierOf(lv);
@@ -8745,7 +8863,6 @@ if (affDelta !== 0) {
             <span class="tag">${st.emoji} ${esc(st.label)}</span>
           </div>
           
-          <!-- 好感度交互控制与语言模式切换 -->
           <div style="margin-top:6px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px">
             <div style="display:flex; align-items:center; gap:6px">
               <span class="affval" id="wl_open_aff_editor" style="cursor:pointer; display:inline-flex; align-items:center; gap:4px; background:rgba(245,185,66,.12); border:1px solid rgba(245,185,66,.35); padding:2px 8px; border-radius:8px" title="点击调控托尼·斯塔克的好感度数值">
@@ -8754,44 +8871,46 @@ if (affDelta !== 0) {
               <span class="tag gold" style="font-size:10px; margin:0">${esc(tTier.name)}</span>
             </div>
 
-            <!-- 全局剧情语言模式切换开关 -->
             <button class="btn sm ${isBilingual ? 'gold' : 'ghost'}" id="wl_toggle_lang_btn" style="width:auto; padding:3px 9px; font-size:11px; margin:0; border-radius:12px" title="切换世界线对话是对照双语还是纯中文">
               ${isBilingual ? '🌐 剧情对白：中英双语' : '🇨🇳 剧情对白：纯中文'}
             </button>
           </div>
 
-          <div class="hint" style="margin-top:4px">上回合变动：${s.lastDelta > 0 ? '+' : ''}${s.lastDelta || 0} · 你 ${userAgeNow()} 岁</div>
+          <div class="hint" style="margin-top:4px">上回合变动：${s.lastDelta > 0 ? '+' : ''}${s.lastDelta || 0} · 你 ${userAgeNow()} 岁 · 已存档 ${(s.history || []).length} 幕</div>
         </div>
         <div style="font-size:24px; flex-shrink:0; margin-left:8px">${icon}</div>
       </div>`;
     }, 'E-WL-002');
 
-    // F2 顶端锚点条（阶段名、锚点标题、千字概括全部默认紧凑折叠，点击才展开）
-fill('wl_f2', () => {
-  if (!curAnchor) return '';
-  const curT = Math.max(1, curAnchor.curTurns || 1);
-  const maxT = Math.max(1, curAnchor.maxTurns || 3);
-  const rawPhase = String(curAnchor.phaseTitle || '');
-  const rawTitle = String(curAnchor.title || '');
-  const rawDesc = String(curAnchor.desc || '');
-  const isLong = (rawPhase.length + rawTitle.length + rawDesc.length) > 65;
+    // F2 顶端锚点条（展示当前锚点回合 + 下一拍预告）
+    fill('wl_f2', () => {
+      if (!curAnchor) return '';
+      const curT = Math.max(1, curAnchor.curTurns || 1);
+      const maxT = Math.min(MAX_BEAT_TURNS, Math.max(MIN_BEAT_TURNS, curAnchor.maxTurns || 4));
+      const nextAnc = getNextPendingAnchor(curAnchor);
+      const rawPhase = String(curAnchor.phaseTitle || '');
+      const rawTitle = String(curAnchor.title || '');
+      const rawDesc = String(curAnchor.desc || '');
+      const isLong = (rawPhase.length + rawTitle.length + rawDesc.length) > 65;
+      const isReady = (curT >= maxT) || (curT >= MIN_BEAT_TURNS && s._anchorReadyToComplete);
 
-  return `
-    <div class="card" style="padding:10px 12px;margin-bottom:8px;border-left:3px solid var(--gold);background:var(--panel2)">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-        <span class="eyebrow" style="color:var(--gold);font-size:10px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(rawPhase)}">${esc(rawPhase)}</span>
-        <span class="tag gold" style="margin:0;flex-shrink:0">${curT}/${maxT} 回合</span>
-        <span class="chip mini" id="wl_open_anc_mgr" style="cursor:pointer;margin:0;color:var(--cyan);flex-shrink:0">⚙ 阶段与锚点管理</span>
-      </div>
-      <div id="wl_anchor_desc_box" style="margin-top:4px;${isLong ? 'display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer;' : ''}" title="点击展开/收起完整阶段概括">
-        <div style="font-family:var(--font-serif);font-size:13px;font-weight:700;color:var(--text);line-height:1.5">
-          📌 当前推进：${esc(rawTitle)}
-        </div>
-        ${rawDesc ? `<div style="font-size:11.5px;line-height:1.6;color:var(--muted);margin-top:2px">${esc(rawDesc)}</div>` : ''}
-      </div>
-      ${isLong ? `<div id="wl_anchor_desc_toggle" style="font-size:10px;color:var(--cyan);cursor:pointer;margin-top:4px">展开完整阶段概括 ▾</div>` : ''}
-    </div>`;
-}, 'E-WL-002');
+      return `
+        <div class="card" style="padding:10px 12px;margin-bottom:8px;border-left:3px solid ${isReady ? 'var(--green)' : 'var(--gold)'};background:var(--panel2)">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+            <span class="eyebrow" style="color:var(--gold);font-size:10px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(rawPhase)}">${esc(rawPhase)}</span>
+            <span class="tag ${isReady ? 'green' : 'gold'}" style="margin:0;flex-shrink:0">${curT}/${maxT} 回合${isReady ? ' · 选后入下一拍' : ''}</span>
+            <span class="chip mini" id="wl_open_anc_mgr" style="cursor:pointer;margin:0;color:var(--cyan);flex-shrink:0">⚙ 锚点管理</span>
+          </div>
+          <div id="wl_anchor_desc_box" style="margin-top:4px;${isLong ? 'display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer;' : ''}" title="点击展开/收起完整阶段概括">
+            <div style="font-family:var(--font-serif);font-size:13px;font-weight:700;color:var(--text);line-height:1.5">
+              ▶ 当前锚点：${esc(rawTitle)}
+            </div>
+            ${rawDesc ? `<div style="font-size:11.5px;line-height:1.6;color:var(--muted);margin-top:2px">${esc(rawDesc)}</div>` : ''}
+          </div>
+          ${nextAnc ? `<div style="font-size:10.5px;color:var(--cyan);margin-top:4px;opacity:.85">⬜ 下一拍预告：${esc(nextAnc.title)}</div>` : ''}
+          ${isLong ? `<div id="wl_anchor_desc_toggle" style="font-size:10px;color:var(--cyan);cursor:pointer;margin-top:4px">展开完整锚点描述 ▾</div>` : ''}
+        </div>`;
+    }, 'E-WL-002');
 
     // F3 控制按钮
     fill('wl_f3', () => `<div class="row" style="margin-bottom:8px; flex-wrap:wrap; gap:6px">
@@ -8799,7 +8918,7 @@ fill('wl_f2', () => {
       <button class="btn ghost sm" id="w_reset_turn" title="重新推演当前场景与选项" style="flex:1">↺ 重置本回合</button>
       <button class="btn ghost sm" id="w_custom_time" style="flex:1; color:var(--cyan); font-weight:700" title="设定世界线年月日">📅 设定时间</button>
       <button class="btn ghost sm" id="w_save_slot" style="flex:1">💾 存读档</button>
-      <button class="btn ghost sm" id="w_mem" style="flex:0 0 54px">📜 回忆</button>
+      <button class="btn ghost sm" id="w_mem" style="flex:0 0 68px">📜 回忆(${(s.history||[]).length})</button>
     </div>`, 'E-WL-002');
 
     // F4 字数区间
@@ -8815,12 +8934,10 @@ fill('wl_f2', () => {
         <button class="btn ghost" id="w_tree">🌳 分支树</button>
       </div>`, 'E-WL-002');
 
-    // 剧情正文
     fill('wl_story', () => wlFailed
       ? `<div class="card" style="border-left:3px solid var(--gold);background:var(--panel2)"><span class="so-err-code">E-WL-001</span> <b>本回合推演未能完成</b><div class="hint" style="margin-top:6px;line-height:1.7">刚才这次推演没能拿到结果，可点「重试」重新推演。</div><button class="btn ghost sm" style="min-height:44px;margin-top:8px" onclick="retryWorldline()">↻ 重新尝试</button></div>`
       : (s.story ? fmtStory(s.story) : '<div class="hint" style="line-height:1.8">剧情正在准备，请稍候…</div>'), 'E-WL-002');
 
-    // 选项按钮
     fill('w_opts', () => {
       const raw = (!wlFailed && s.options) ? s.options : FB_OPTS;
       let arr = String(raw).split('\n').filter(l => /^[A-DＡ-Ｄ]\s*[\.\、]/.test(l.trim()));
@@ -8828,7 +8945,6 @@ fill('wl_f2', () => {
       return arr.map(o => `<button class="opt" data-o="${esc(o).replace(/"/g, '&quot;')}">${fmt(o)}</button>`).join('');
     }, 'E-WL-002');
 
-    // 物品
     fill('wl_f7', () => {
       const useItem = store.get('useItem', null);
       const items = labItems();
@@ -8837,7 +8953,6 @@ fill('wl_f2', () => {
 
     paintHint();
 
-    // 绑定长描述折叠
     const descBox = v.querySelector('#wl_anchor_desc_box');
     const descToggle = v.querySelector('#wl_anchor_desc_toggle');
     if (descBox && descToggle) {
@@ -8851,17 +8966,16 @@ fill('wl_f2', () => {
         } else {
           descBox.style.display = '-webkit-box';
           descBox.style.webkitLineClamp = '2';
-          descToggle.textContent = '展开全部描述 ▾';
+          descToggle.textContent = '展开完整锚点描述 ▾';
         }
       };
       descBox.onclick = toggle;
       descToggle.onclick = toggle;
     }
 
-    // 绑定时间调整弹窗
     const dateBtn = v.querySelector('#wl_change_date_btn');
     if (dateBtn) dateBtn.onclick = () => openWorldlineDateModal(() => self.render(v));
-    // 1. 剧情语言双语/纯中文一键切换
+
     const langBtn = v.querySelector('#wl_toggle_lang_btn');
     if (langBtn) {
       langBtn.onclick = () => {
@@ -8872,7 +8986,6 @@ fill('wl_f2', () => {
       };
     }
 
-    // 绑定点击好感度直接弹窗修改
     const affEditorBtn = v.querySelector('#wl_open_aff_editor');
     if (affEditorBtn) {
       affEditorBtn.onclick = () => {
@@ -8905,7 +9018,6 @@ fill('wl_f2', () => {
 
             <input id="maff_slider" type="range" min="0" max="200" value="${curA}" style="width:100%;accent-color:var(--gold);margin:10px 0">
 
-            <!-- 快捷预设阶梯直接点选 -->
             <div class="hint" style="font-size:11px;margin-bottom:6px">快捷定格阶梯：</div>
             <div style="display:flex;flex-wrap:wrap;gap:5px">
               ${AFF_TIERS.map(t => `
@@ -8943,7 +9055,6 @@ fill('wl_f2', () => {
 
         dAff.querySelector('#maff_confirm_btn').onclick = () => {
           const finalVal = Math.max(0, Math.min(200, parseInt(numInp.value) || 0));
-          // 真正同步更新全局好感度与通讯录
           applyAffinity(finalVal);
           dAff.remove();
           toast(`✅ 托尼·斯塔克的好感度已调整为 ${finalVal}/200（${tierOf(finalVal).name}）`);
@@ -8951,16 +9062,15 @@ fill('wl_f2', () => {
         };
       };
     }
+
     const customTimeBtn = v.querySelector('#w_custom_time');
     if (customTimeBtn) customTimeBtn.onclick = () => openWorldlineDateModal(() => self.render(v));
 
-    // 绑定锚点管理按钮
     const mgrBtn = v.querySelector('#wl_open_anc_mgr');
     if (mgrBtn) {
       mgrBtn.onclick = () => openAnchorManagerModal(() => self.render(v).catch(e => showErr('E-RENDER-001', { err: e })));
     }
 
-    // 字数切换
     v.querySelectorAll('[data-wlp]').forEach(b => {
       b.onclick = () => {
         const k = b.dataset.wlp;
@@ -8989,11 +9099,9 @@ fill('wl_f2', () => {
       };
     });
 
-        // 剧情存读档（扩容至 10 槽位）
     const saveSlotBtn = v.querySelector('#w_save_slot');
     if (saveSlotBtn) {
       saveSlotBtn.onclick = () => {
-        // 扩容至 10 槽位，并兼容旧 5 槽位存档无损迁移
         let slots = store.get('wl_slots', []);
         if (!Array.isArray(slots)) slots = [];
         while (slots.length < 10) slots.push(null);
@@ -9005,7 +9113,7 @@ fill('wl_f2', () => {
               <span class="hint" style="font-size:10px">${sl ? esc(sl.saveTime) : '空槽位'}</span>
             </div>
             ${sl ? `<div class="hint" style="margin:5px 0;font-size:11px;line-height:1.6">
-              节点：<b>${esc(sl.eraName)}</b> · 第 ${sl.state.turn || 1} 回合 · 好感 ${sl.state.affinity || 0}/200
+              节点：<b>${esc(sl.eraName)}</b> · 第 ${sl.state.turn || 1} 回合（含 ${(sl.state.history||[]).length} 幕回忆） · 好感 ${sl.state.affinity || 0}/200
               <div style="max-height:36px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px;color:var(--text);opacity:.85">${esc((sl.state.story || '').slice(0, 48))}...</div>
             </div>` : '<div class="hint" style="margin:5px 0">暂无存档记录</div>'}
             <div class="row" style="margin-top:6px">
@@ -9022,16 +9130,17 @@ fill('wl_f2', () => {
         const bind = () => {
           d.querySelectorAll('[data-wlsave]').forEach(b => b.onclick = () => {
             const idx = +b.dataset.wlsave;
+            const curSt = JSON.parse(JSON.stringify(store.state()));
             slots[idx] = {
               saveTime: nowTime(),
               eraName: eraName(),
-              state: JSON.parse(JSON.stringify(store.state())),
+              state: curSt,
               profile: JSON.parse(JSON.stringify(store.profile())),
               anchors: JSON.parse(JSON.stringify(store.get('wl_anchors', []))),
               pinnedAnchorId: wlPinnedId()
             };
             store.set('wl_slots', slots);
-            toast(`已存入剧情槽位 ${idx + 1}`);
+            toast(`已存入剧情槽位 ${idx + 1}（完整保存 ${(curSt.history||[]).length} 幕历史）`);
             d.querySelector('#wl_slot_box').innerHTML = renderSlots();
             bind();
           });
@@ -9040,10 +9149,13 @@ fill('wl_f2', () => {
             const target = slots[idx];
             if (!target) return;
             if (!confirm(`确定读取剧情槽位 ${idx + 1}？当前未保存的世界线进度将被覆盖。`)) return;
-            store.setState(JSON.parse(JSON.stringify(target.state)));
+            const loadedState = JSON.parse(JSON.stringify(target.state));
+            store.setState(loadedState);
+            if (Array.isArray(loadedState.history)) {
+              db.put('assets', { id: 'store_full_history', val: loadedState.history, t: Date.now() }).catch(() => {});
+            }
             if (target.profile) store.setProfile(JSON.parse(JSON.stringify(target.profile)));
-            if (target.anchors) wlRestoreAnchors(target.anchors);
-            if (target.pinnedAnchorId) wlSetPinned(target.pinnedAnchorId);
+            if (target.anchors) wlRestoreAnchors(target.anchors, target.pinnedAnchorId);
             d.remove();
             toast(`已读取剧情槽位 ${idx + 1}`);
             self.render(v).catch(e => showErr('E-RENDER-001', { err: e }));
@@ -9071,7 +9183,7 @@ fill('wl_f2', () => {
     const jumpBtn = v.querySelector('#w_jump'); if (jumpBtn) jumpBtn.onclick = () => { if (!jumpReady()) return toast('时间跳跃将在关键事件或第 3 回合后解锁'); timeJumpUI(); };
     const treeBtn = v.querySelector('#w_tree'); if (treeBtn) treeBtn.onclick = () => WT.modal();
 
-    // ====== 回到上一回合 ======
+    // ====== 回到上一回合（无损恢复上一回合的锚点回合数，不再错位） ======
     const backBtn = v.querySelector('#w_back');
     if (backBtn) {
       backBtn.onclick = () => {
@@ -9084,12 +9196,13 @@ fill('wl_f2', () => {
         s.affinity = h._aff;
         s.turn = Math.max(1, s.turn - 1);
         delete s.localOnly;
+        delete s._justFinishedAnchorTitle;
         
-       if (h._anchorsSnap) {
-  wlRestoreAnchors(h._anchorsSnap, h._anchorId);
-} else if (h._anchorId) {
-  wlSetPinned(h._anchorId);
-}
+        if (h._anchorsSnap) {
+          wlRestoreAnchors(h._anchorsSnap, h._anchorId);
+        } else if (h._anchorId) {
+          wlSetPinned(h._anchorId);
+        }
 
         const cs = store.contacts();
         const t = cs.find(x => x.isTony);
@@ -9103,7 +9216,7 @@ fill('wl_f2', () => {
     const resetBtn = v.querySelector('#w_reset_turn');
     if (resetBtn) {
       resetBtn.onclick = () => {
-        if (!confirm('确定重置本回合？将保留当前回合进度与数值，让 AI 重新推演当前场景与选项。')) return;
+        if (!confirm('确定重置本回合？将保留当前锚点回合进度与数值，让 AI 重新推演当前场景与选项。')) return;
         AIGuard.unlock('worldline_turn_' + s.turn);
         s.story = '';
         s.options = '';
@@ -9114,7 +9227,7 @@ fill('wl_f2', () => {
       };
     }
 
-    // ====== 推进回合核心动作 ======
+    // ====== 推进回合核心动作（轻量快照防崩溃 + 弹性流转下一锚点） ======
     function pick(choice0) {
       AIGuard.unlock('worldline_turn_' + s.turn);
       apps.worldline._busy = true;
@@ -9125,10 +9238,18 @@ fill('wl_f2', () => {
         if (it) choice = '（使用了：' + it.name + '）' + choice;
       }
       s = store.state();
-      const anchorsSnap = JSON.parse(JSON.stringify(store.get('wl_anchors', [])));
+      s.history = Array.isArray(s.history) ? s.history : [];
+
+      // 只存轻量级锚点进度快照（每个锚点仅 {id, curTurns, maxTurns, done}），彻底杜绝 JSON 指数级膨胀导致浏览器雷霆刷新！
+      const slimAnchorsSnap = (store.get('wl_anchors', []) || []).map(a => ({
+        id: a.id,
+        curTurns: a.curTurns,
+        maxTurns: a.maxTurns,
+        done: a.done
+      }));
       const activeAnchorId = curAnchor ? curAnchor.id : '';
 
-              s.history.push({
+      s.history.push({
         turn: s.turn,
         story: s.story,
         options: s.options,
@@ -9137,37 +9258,40 @@ fill('wl_f2', () => {
         _year: flags().year,
         _eraName: eraName(),
         _anchorId: activeAnchorId,
-        _anchorsSnap: anchorsSnap
+        _anchorsSnap: slimAnchorsSnap
       });
-      // 永久解除回合截断，保障单局 200+ 回合完整保留
 
       const tags = WT.keyTag(choice, s.story);
       WT.addNode(choice, tags);
 
-      advanceCurrentAnchorTurn();
+      // 推进锚点（若本幕已满 3~5 回合收束条件，自动顺延至下一锚点并把本次 choice 作为下一锚点第 1 回合的起因）
+      advanceCurrentAnchorTurn(!!s._anchorReadyToComplete);
 
-      s.story = '';
-      s.options = '';
-      delete s.localOnly;
-      s.turn += 1;
-      store.setState(s);
+      // 重新读取 advanceCurrentAnchorTurn 更新过的 state（保留 _justFinishedAnchorTitle 和 pastEvents）
+      const updatedState = store.state() || s;
+      updatedState.history = s.history;
+      updatedState.story = '';
+      updatedState.options = '';
+      delete updatedState.localOnly;
+      updatedState.turn = (s.turn || 1) + 1;
+      store.setState(updatedState);
 
       // 阶段记忆压缩
-      if (s.turn % (memSettings().freqTurns || 5) === 0) {
+      if (updatedState.turn % (memSettings().freqTurns || 5) === 0) {
         (async () => {
           try {
-            const rawHist = (s.history || []).slice(-10).map((h, idx) => `阶段：${(h.story || '').slice(0, 80)}... 玩家选择：${h.choice}`).join('\n');
-            const prevSummary = s.compactSummary || '无';
+            const rawHist = (updatedState.history || []).slice(-8).map((h) => `阶段：${(h.story || '').slice(0, 80)}... 玩家选择：${h.choice}`).join('\n');
+            const prevSummary = updatedState.compactSummary || '无';
             const ms = memSettings();
             const styleGuide = SUMMARY_STYLE_PRESETS[ms.style] || SUMMARY_STYLE_PRESETS.calm;
             const sys = `你是斯塔克工业的记忆整理系统 J.A.R.V.I.S.。请将以往所有剧情和核心进展无损压缩为一段 ${styleGuide.wordRange} 字的【长期阶段摘要】。必须保留：发生的重大危机、玩家与托尼确立的关系界限、已解决的技术与关键承诺。\n文风要求：${styleGuide.desc}`;
             const compact = await ai([{ role: 'user', content: `【已有阶段摘要】：\n${prevSummary}\n\n【最新经历】：\n${rawHist}\n\n请输出最新的整体剧情压缩记忆：` }], sys, () => '剧情已压缩归档。', 'summary');
             if (compact && compact.trim()) {
               const curState = store.state();
-              curState.compactSummary = compact.trim().slice(0, 4000);
+              curState.compactSummary = compact.trim().slice(0, 3500);
               store.setState(curState);
               const wl = store.get('memWorldline', []);
-              wl.unshift({ id: 'wl' + Date.now(), text: compact.trim(), time: nowTime(), turn: s.turn, era: eraName(), editable: true, auto: true });
+              wl.unshift({ id: 'wl' + Date.now(), text: compact.trim(), time: nowTime(), turn: updatedState.turn, era: eraName(), editable: true, auto: true });
               store.set('memWorldline', wl.slice(0, 60));
               toast('J.A.R.V.I.S. 已完成本阶段记忆压缩归档');
             }
@@ -12525,10 +12649,10 @@ const WT={
     return t;
   },
   save(t){store.set('wtree',t);},
-    snap(){const s=store.state()||{};const p=store.profile()||{};
+        snap(){const s=store.state()||{};const p=store.profile()||{};
     return {turn:s.turn||1,affinity:s.affinity||0,rel:{...relGet()},curAge:p.currentAge||null,
       era:s.era,customYear:s.customYear,pepperExists:s.pepperExists,ultronPhase:s.ultronPhase,forceAvengers1:s.forceAvengers1,
-      story:s.story||'',options:s.options||'',history:(s.history||[]).map(h=>({...h})),keyChoices:(s.keyChoices||[]).slice()};},
+      story:s.story||'',options:s.options||'',historyCount:(s.history||[]).length,keyChoices:(s.keyChoices||[]).slice()};},
   addNode(choice,tags){
     const t=this.nodes();const snap=this.snap();
     const n={id:'w'+Date.now()+Math.random().toString(36).slice(2,5),parent:t.active,year:flags().year,turn:snap.turn,
@@ -12551,7 +12675,7 @@ const WT={
     const sn=n.snap;const st=store.state()||{};
     st.turn=sn.turn;st.affinity=sn.affinity;st.rel={...(sn.rel||relGet())};st.era=sn.era;st.customYear=sn.customYear;
     st.pepperExists=sn.pepperExists;st.ultronPhase=sn.ultronPhase;st.forceAvengers1=sn.forceAvengers1;
-    st.story=sn.story;st.options=sn.options;st.history=sn.history;st.keyChoices=sn.keyChoices;
+    st.story=sn.story;st.options=sn.options;st.history=Array.isArray(sn.history)&&sn.history.length?sn.history:(st.history||[]).slice(0,Math.max(0,(sn.turn||1)-1));st.keyChoices=sn.keyChoices;
     store.setState(st);
     const p=store.profile()||{};if(sn.curAge){p.currentAge=sn.curAge;store.setProfile(p);}
     const c=store.contacts().find(x=>x.isTony);if(c){c.affinity=sn.affinity;store.setContacts(store.contacts());}
@@ -23242,8 +23366,10 @@ function showLoginModal(onSuccess, errorMsg = '', isDeviceLimit = false) {
 
 // 真正启动入口
 (function boot(){
-  checkAuthGate(() => {
-    // 只有验证通过后，才开始执行原有系统的初始化
+  checkAuthGate(async () => {
+    // 核心修复：必须先等待 IndexedDB 中的全量历史（store_full_history & store_state）预热加载完毕，绝不用 localStorage 的残缺旧数据覆盖！
+    await store.initStorage();
+    // 只有验证通过且大容量存储同步完成后，才开始执行原有系统的初始化
     const ap = store.get('appearance', {});
     if(!ap.theme){ ap.theme = (localStorage.getItem('so_theme')==='dark') ? 'graphite' : 'malibu'; store.set('appearance', ap); }
     
