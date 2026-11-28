@@ -7859,9 +7859,44 @@ function advanceCurrentAnchorTurn(forceComplete = false) {
       }
       if (!nextAnchor) nextAnchor = anchors.find(a => !a.done && a.id !== cur.id);
 
-      if (nextAnchor) {
+            if (nextAnchor) {
         nextAnchor.curTurns = 1;
         wlSetPinned(nextAnchor.id);
+
+        // 🌟 核心修复：检测是否跨越大阶段或年份，自动跃迁世界线时间！
+        const oldYear = s.curYear || s.customYear || (cur && cur.phaseYear);
+        const newYear = nextAnchor.phaseYear || (nextAnchor.phaseTitle && parseInt(nextAnchor.phaseTitle.match(/\d{4}/)?.[0]));
+        const startMonth = nextAnchor.phaseMonthStart || 1;
+
+        if (newYear && (!oldYear || newYear !== oldYear)) {
+          s.curYear = newYear;
+          s.customYear = newYear;
+          s.gameYear = newYear;
+          s.curMonth = startMonth;
+          s.curDay = 1;
+
+          // 自动匹配漫威正史对应纪元（如 2007 -> T1, 2008 -> T2, 2010 -> T3...）
+          const matchedEra = WORLD.eras.filter(e => e.year <= newYear).pop();
+          if (matchedEra) {
+            s.era = matchedEra.id;
+          }
+
+          // 玩家年龄根据跨越年份自动累加
+          const p = store.profile();
+          if (p && p.startAge && s.startYear) {
+            p.currentAge = p.startAge + (newYear - s.startYear);
+            store.setProfile(p);
+          }
+
+          toast(`⏳ 时空跃迁：正式跨入 ${newYear} 年（${nextAnchor.phaseTitle || '新阶段'}）！`);
+        } else if (nextAnchor.phaseTitle !== cur.phaseTitle && nextAnchor.phaseMonthStart) {
+          // 同年份但跨月份阶段（如 2008年上半年 -> 下半年）
+          s.curMonth = nextAnchor.phaseMonthStart;
+          s.curDay = 1;
+        }
+
+        store.setState(s);
+
         const shortNext = String(nextAnchor.title || '').length > 18 ? String(nextAnchor.title || '').slice(0, 18) + '…' : nextAnchor.title;
         toast(`🎯【${shortCur}】自然收束，你的选择正引发下一事件：【${shortNext}】`);
       } else {
